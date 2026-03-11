@@ -11,20 +11,20 @@ export default function ClientLayout() {
             <img
               src="/logo-min.png"
               alt="Logo"
-              className="w-12 h-12 object-contain"
+              className="w-12 h-12 object-contain drop-shadow-md"
             />
-            <div className="flex flex-col">
-              <img
-                src="/logo-black.png"
-                alt="Smartbits"
-                className="h-8 md:h-9 object-contain -ml-1"
-              />
-              <p className="text-[12px] md:text-xs text-brand-600 font-bold tracking-wider ml-1 -mt-1">
-                Compra inteligente, compra en Smartbits
-              </p>
-            </div>
-          </Link>
 
+          </Link>
+          <div className="flex flex-col items-center">
+            <img
+              src="/logo-black.png"
+              alt="Smartbits"
+              className="h-8 md:h-9 object-contain -ml-1 drop-shadow-md"
+            />
+            <p className="text-[12px] md:text-xs text-brand-400 tracking-wider ml-1 -mt-1">
+              Compra inteligente, compra en Smartbits
+            </p>
+          </div>
           <a
             href="https://wa.me/584128444445"
             target="_blank"
