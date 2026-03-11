@@ -18,7 +18,7 @@ export default function ClientLayout() {
           </Link>
 
           <a 
-            href="https://wa.me/591" 
+            href="https://wa.me/584128444445" 
             target="_blank" 
             rel="noopener noreferrer"
             className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-full font-medium hover:bg-green-600 transition-colors shadow-sm shadow-green-200"

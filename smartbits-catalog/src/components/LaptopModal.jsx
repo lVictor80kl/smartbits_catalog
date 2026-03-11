@@ -43,7 +43,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
     : laptop.pantalla;
 
   const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} (ID: ${laptop.id}) listado a $${laptop.precio}. ¿Aún está disponible?`;
-  const whatsappUrl = `https://wa.me/591?text=${encodeURIComponent(whatsappMessage)}`;
+  const whatsappUrl = `https://wa.me/584128444445?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
     <div className="fixed inset-0 z-[60] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
