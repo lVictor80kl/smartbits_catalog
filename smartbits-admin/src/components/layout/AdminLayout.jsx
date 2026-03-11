@@ -22,11 +22,9 @@ export default function AdminLayout() {
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col">
         <div className="h-16 flex items-center px-6 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="bg-slate-800 p-2 rounded-lg">
-              <Laptop className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-lg font-bold text-slate-800">Panel Admin</span>
+          <div className="flex items-center gap-3">
+            <img src="/logo-min.png" alt="Logo" className="w-10 h-10 object-contain" />
+            <span className="text-xl font-bold text-slate-800 tracking-tight">Admin</span>
           </div>
         </div>
 

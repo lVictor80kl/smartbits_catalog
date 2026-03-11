@@ -60,11 +60,11 @@ export default function Catalog() {
   return (
     <div className="w-full">
       {/* Header de Sección y Filtros */}
-      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="mb-13 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Catálogo de Laptops</h2>
-          <p className="mt-2 text-gray-500 max-w-2xl">
-            Descubre nuestro inventario de equipos usados y nuevos. Todos inspeccionados y con garantía de calidad visual y técnica.
+          <p className="mt-2 text-gray-500 max-w-2xl font-medium">
+            Compra inteligente, compra en smartbits. <span className="text-gray-400 font-normal italic">Equipos inspeccionados con garantía de calidad técnica.</span>
           </p>
         </div>
 
@@ -89,8 +89,8 @@ export default function Catalog() {
                 key={f.id}
                 onClick={() => setCurrentFilter(f.id)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${currentFilter === f.id
-                    ? 'bg-slate-900 text-white shadow-md'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                   }`}
               >
                 {f.label}
