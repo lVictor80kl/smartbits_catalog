@@ -41,7 +41,7 @@ export default function ClientLayout() {
               <img
                 src="/instagram.png"
                 alt="Instagram"
-                className="w-10 h-10 md:w-12 md:h-12 drop-shadow-md"
+                className="w-10 h-10 md:w-12 md:h-12 drop-shadow-sm rounded-[22%] object-contain"
               />
             </a>
 
@@ -56,7 +56,7 @@ export default function ClientLayout() {
               <img
                 src="/whatsapp.png"
                 alt="WhatsApp"
-                className="w-10 h-10 md:w-12 md:h-12 drop-shadow-md"
+                className="w-10 h-10 md:w-12 md:h-12 drop-shadow-sm object-contain"
               />
             </a>
           </div>
@@ -88,7 +88,7 @@ export default function ClientLayout() {
                 <img
                   src="/instagram.png"
                   alt="Instagram"
-                  className="w-10 h-10 drop-shadow-sm"
+                  className="w-10 h-10 drop-shadow-sm rounded-[22%]"
                 />
               </a>
               <a
