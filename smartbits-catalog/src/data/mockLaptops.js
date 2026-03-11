@@ -1,0 +1,171 @@
+export const laptops = [
+    {
+        id: 1,
+        modelo: "DELL Inspiron 5570",
+        cpu: "Intel Core i5-8250U 3.40 GHz",
+        ram: "12 Gb DDR4 2400 Mhz",
+        almacenamiento: "256 Gb SSD Nvme Hynix",
+        gpu: "Integrados: Intel UHD Graphics 620",
+        bateria: "Excelente",
+        touch: "No",
+        windows: "W11 PRO original",
+        pantalla: "15.6\" FHD 1920x1080",
+        precio: 260,
+        disponibilidad: "Disponible",
+        marca: "Dell",
+        imagen: "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 10, carcasa: 9 }
+    },
+    {
+        id: 2,
+        modelo: "Lenovo Thinkpad l15 gen 1",
+        cpu: "Intel Core i7-10510U 4.90 GHz",
+        ram: "16 Gb DDR4 1/2 slot",
+        almacenamiento: "512 Gb SSD NVME INTEL",
+        gpu: "Integrados: Intel UHD Graphics for 10th Gen",
+        bateria: "Excelente",
+        touch: "No",
+        windows: "W11 PRO original",
+        pantalla: "15.0\" FHD",
+        precio: 350,
+        disponibilidad: "Disponible",
+        marca: "Lenovo",
+        imagen: "https://images.unsplash.com/photo-1629131726692-1accd0c53ce0?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 10, carcasa: 9 }
+    },
+    {
+        id: 3,
+        modelo: "Asus VivoBook X515EA",
+        cpu: "Intel Core i5-1135G7 4.20 GHz",
+        ram: "16 Gb Ram DDR4 3200 MHz",
+        almacenamiento: "512 Gb SSD NVMe LiteOn",
+        gpu: "Integrados: Intel Iris Xe Graphics",
+        bateria: "Excelente",
+        touch: "No",
+        windows: "W11 PRO original",
+        pantalla: "15.0\" FHD 1920x1080",
+        precio: 360,
+        disponibilidad: "Disponible",
+        marca: "Asus",
+        imagen: "https://images.unsplash.com/photo-1603302576837-37561b2e2302?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 10, carcasa: 10 }
+    },
+    {
+        id: 4,
+        modelo: "HP 255 G10",
+        cpu: "Ryzen 7 7730U 4.5 GHz",
+        ram: "16 Gb DDR4 3200 Mhz 1/2",
+        almacenamiento: "1 Tb SSD NVMe WD nuevo",
+        gpu: "Integrados: AMD Radeon Graphics",
+        bateria: "Nueva",
+        touch: "No",
+        windows: "W11 PRO original",
+        pantalla: "15.0\" FHD 1920x1080",
+        precio: 460,
+        disponibilidad: "Disponible",
+        marca: "HP",
+        imagen: "https://images.unsplash.com/photo-1585247226801-bc613c441316?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 10, carcasa: 10 }
+    },
+    {
+        id: 5,
+        modelo: "Dell latitude 5510",
+        cpu: "Intel Core i5-10310U 4.40 GHz",
+        ram: "16 Gb Ram DDR4 1/2 slots 2667 MHz",
+        almacenamiento: "256 Gb SSD NVMe",
+        gpu: "Integrados: Intel UHD Graphics",
+        bateria: "Excelente",
+        touch: "No",
+        windows: "W11 PRO original",
+        pantalla: "15.0\" HD 1366x768",
+        precio: 310,
+        disponibilidad: "Coming soon",
+        marca: "Dell",
+        imagen: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 9, carcasa: 8 }
+    },
+    {
+        id: 6,
+        modelo: "HP 14M-DH1003DX",
+        cpu: "Intel Core i5-10210U 4.20 GHz",
+        ram: "16 Gb Ram DDR4",
+        almacenamiento: "256 Gb SSD NVMe",
+        gpu: "Integrados: Intel UHD Graphics",
+        bateria: "Excelente",
+        touch: "Sí",
+        windows: "W11 HOME original",
+        pantalla: "14\" FHD 1920x1080",
+        precio: 340,
+        disponibilidad: "Coming soon",
+        marca: "HP",
+        imagen: "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 10, carcasa: 9 }
+    },
+    {
+        id: 7,
+        modelo: "HP 15-DY1027OD",
+        cpu: "Intel Core i7-1065G7 3.90 GHz",
+        ram: "16 Gb Ram DDR4",
+        almacenamiento: "512 Gb SSD NVMe",
+        gpu: "Integrados: Intel Iris Plus Graphics 940",
+        bateria: "Excelente",
+        touch: "Sí",
+        windows: "W11 HOME original",
+        pantalla: "15.0\" FHD 1920x1080",
+        precio: 360,
+        disponibilidad: "Coming soon",
+        marca: "HP",
+        imagen: "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 10, carcasa: 9 }
+    },
+    {
+        id: 8,
+        modelo: "HP 15-EF2040",
+        cpu: "Ryzen 5 5500U 4.0 GHz",
+        ram: "16 Gb Ram DDR4",
+        almacenamiento: "512 Gb SSD NVMe",
+        gpu: "Integrados: AMD Radeon Graphics",
+        bateria: "Excelente",
+        touch: "No",
+        windows: "W11 HOME original",
+        pantalla: "15.5\" FHD 1920x1080",
+        precio: 390,
+        disponibilidad: "Coming soon",
+        marca: "HP",
+        imagen: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 10, carcasa: 10 }
+    },
+    {
+        id: 9,
+        modelo: "Dell Inspiron 3535",
+        cpu: "Ryzen 7 7730U 3.5 GHz",
+        ram: "16 Gb DDR4 3200 Mhz",
+        almacenamiento: "512 Gb SSD NVMe",
+        gpu: "Integrados: AMD Radeon Graphics",
+        bateria: "Excelente",
+        touch: "Sí",
+        windows: "W11 PRO original",
+        pantalla: "15.0\" FHD 1920x1080",
+        precio: 440,
+        disponibilidad: "Coming soon",
+        marca: "Dell",
+        imagen: "https://images.unsplash.com/photo-1598327105666-5b89351cb31b?auto=format&fit=crop&q=80&w=800",
+        estado: { pantalla: 10, carcasa: 10 }
+    }
+];
+
+// Función para simular el guardado en la base de datos
+export const addLaptopToDB = (laptopData) => {
+    const newId = laptops.length > 0 ? Math.max(...laptops.map(l => l.id)) + 1 : 1;
+    const newLaptop = {
+        ...laptopData,
+        id: newId,
+        precio: Number(laptopData.precio),
+        estado: {
+            pantalla: laptopData.estadoPantalla,
+            carcasa: laptopData.estadoCarcasa
+        }
+    };
+    laptops.unshift(newLaptop); // Añadir al principio para que se vea rápido
+    return newLaptop;
+};

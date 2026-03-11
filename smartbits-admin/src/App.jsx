@@ -1,0 +1,36 @@
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminLayout from './components/layout/AdminLayout';
+import Login from './pages/Login';
+import Dashboard from './pages/admin/Dashboard';
+import NewLaptop from './pages/admin/NewLaptop';
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Login Público */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Login />} />
+
+          {/* Rutas de Administrador Protegidas */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="new" element={<NewLaptop />} />
+          </Route>
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
+}
+
+export default App;
