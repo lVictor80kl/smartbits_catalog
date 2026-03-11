@@ -10,6 +10,10 @@ export default function LaptopCard({ laptop, onClick }) {
   const shortRam = `${laptop.ram.split(' ')[0]} ${laptop.ram.split(' ')[1]}`;
   const shortStorage = laptop.almacenamiento.split(' ').slice(0, 3).join(' ');
 
+  const mainImage = (laptop.imagenes && laptop.imagenes.length > 0) 
+    ? laptop.imagenes[0] 
+    : laptop.imagen;
+
   return (
     <div
       className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:-translate-y-1 hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col h-full group"
@@ -18,7 +22,7 @@ export default function LaptopCard({ laptop, onClick }) {
       {/* Imagen */}
       <div className="relative aspect-[4/3] bg-white p-4 flex items-center justify-center">
         <img
-          src={laptop.imagen}
+          src={mainImage}
           alt={laptop.modelo}
           className="max-w-full max-h-full object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-500"
         />

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, Upload, X, Loader2 } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, Upload, X, Loader2, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -12,8 +12,8 @@ export default function NewLaptop() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
   const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef(null);
 
@@ -30,7 +30,7 @@ export default function NewLaptop() {
     bateria: 'Excelente',
     precio: '',
     disponibilidad: 'Disponible',
-    imagen: '',
+    imagenes: [],
     estadoPantalla: 10,
     estadoCarcasa: 9
   });
@@ -41,25 +41,29 @@ export default function NewLaptop() {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    // Validar que sea imagen y no pese más de 5MB
-    if (!file.type.startsWith('image/')) {
-      alert('Por favor selecciona un archivo de imagen.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      alert('La imagen no puede pesar más de 5 MB.');
-      return;
-    }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    const validFiles = files.filter(file => {
+      if (!file.type.startsWith('image/')) {
+        alert(`${file.name} no es una imagen válida.`);
+        return false;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`${file.name} pesa demasiado (máx 5MB).`);
+        return false;
+      }
+      return true;
+    });
+
+    setImageFiles(prev => [...prev, ...validFiles]);
+    const newPreviews = validFiles.map(file => URL.createObjectURL(file));
+    setImagePreviews(prev => [...prev, ...newPreviews]);
   };
 
-  const handleRemoveImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  const handleRemoveImage = (index) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSliderChange = (e) => {
@@ -69,36 +73,34 @@ export default function NewLaptop() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!imageFile) {
-      alert('Por favor selecciona una foto para el equipo.');
+    if (imageFiles.length === 0) {
+      alert('Por favor selecciona al menos una foto para el equipo.');
       return;
     }
     setIsSubmitting(true);
     
     try {
-      // 1. Subir imagen a Cloudinary (GRATIS y sin tarjeta)
-      setUploadProgress('Subiendo imagen a Cloudinary...');
+      const uploadedUrls = [];
       
-      const cloudinaryData = new FormData();
-      cloudinaryData.append('file', imageFile);
-      cloudinaryData.append('upload_preset', UPLOAD_PRESET);
+      // 1. Subir cada imagen a Cloudinary en bucle
+      for (let i = 0; i < imageFiles.length; i++) {
+        setUploadProgress(`Subiendo foto ${i + 1} de ${imageFiles.length}...`);
+        
+        const cloudinaryData = new FormData();
+        cloudinaryData.append('file', imageFiles[i]);
+        cloudinaryData.append('upload_preset', UPLOAD_PRESET);
 
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-        {
-          method: 'POST',
-          body: cloudinaryData,
-        }
-      );
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+          { method: 'POST', body: cloudinaryData }
+        );
 
-      if (!response.ok) {
-        throw new Error('Fallo al subir la imagen a Cloudinary');
+        if (!response.ok) throw new Error(`Fallo al subir la imagen ${i + 1}`);
+        const result = await response.json();
+        uploadedUrls.push(result.secure_url);
       }
 
-      const uploadResult = await response.json();
-      const imagenUrl = uploadResult.secure_url;
-
-      // 2. Guardar datos en Firestore con la URL real de Cloudinary
+      // 2. Guardar datos en Firestore con el array de URLs
       setUploadProgress('Guardando en base de datos...');
       await addDoc(collection(db, 'laptops'), {
         modelo: formData.modelo,
@@ -113,7 +115,8 @@ export default function NewLaptop() {
         bateria: formData.bateria,
         precio: Number(formData.precio),
         disponibilidad: formData.disponibilidad,
-        imagen: imagenUrl,
+        imagenes: uploadedUrls,
+        imagen: uploadedUrls[0], // Fallback para compatibilidad con código viejo
         estado: {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,
@@ -168,42 +171,43 @@ export default function NewLaptop() {
                 </h3>
                 
                 <div className="space-y-4">
-                  {/* Input oculto para el archivo real */}
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={handleFileChange}
                     className="hidden"
                     id="foto-input"
                   />
 
-                  {imagePreview ? (
-                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-gray-200">
-                      <img src={imagePreview} alt="Preview" className="w-full h-full object-contain bg-gray-50 p-2" />
-                      <button
-                        type="button"
-                        onClick={handleRemoveImage}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                        title="Eliminar imagen"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {imagePreviews.map((preview, index) => (
+                      <div key={index} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-gray-200 group">
+                        <img src={preview} alt={`Preview ${index}`} className="w-full h-full object-contain bg-gray-50 p-1" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(index)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
+                          title="Eliminar imagen"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    
                     <label
                       htmlFor="foto-input"
                       className="flex flex-col items-center justify-center aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
                     >
-                      <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                      <span className="text-sm font-medium text-gray-600">Haz clic para seleccionar</span>
-                      <span className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — máx. 5 MB</span>
+                      <Plus className="w-6 h-6 text-gray-400 mb-1" />
+                      <span className="text-[10px] font-medium text-gray-600">Añadir Fotos</span>
                     </label>
-                  )}
+                  </div>
 
-                  {imageFile && (
-                    <p className="text-xs text-gray-500 truncate" title={imageFile.name}>
-                      📎 {imageFile.name}
+                  {imageFiles.length > 0 && (
+                    <p className="text-[10px] text-gray-500 italic">
+                      {imageFiles.length} foto{imageFiles.length !== 1 ? 's' : ''} seleccionada{imageFiles.length !== 1 ? 's' : ''}.
                     </p>
                   )}
                 </div>

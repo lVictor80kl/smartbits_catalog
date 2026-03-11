@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, Upload, X, Loader2 } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, Upload, X, Loader2, Plus } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -14,8 +14,9 @@ export default function EditLaptop() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  const [newImageFiles, setNewImageFiles] = useState([]);
+  const [newImagePreviews, setNewImagePreviews] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
   const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef(null);
 
@@ -32,7 +33,7 @@ export default function EditLaptop() {
     bateria: 'Excelente',
     precio: '',
     disponibilidad: 'Disponible',
-    imagen: '',
+    imagenes: [],
     estadoPantalla: 10,
     estadoCarcasa: 9
   });
@@ -46,6 +47,7 @@ export default function EditLaptop() {
 
         if (laptopSnap.exists()) {
           const data = laptopSnap.data();
+          const imgs = data.imagenes || (data.imagen ? [data.imagen] : []);
           setFormData({
             modelo: data.modelo || '',
             marca: data.marca || '',
@@ -59,11 +61,11 @@ export default function EditLaptop() {
             bateria: data.bateria || 'Excelente',
             precio: data.precio || '',
             disponibilidad: data.disponibilidad || 'Disponible',
-            imagen: data.imagen || '',
+            imagenes: imgs,
             estadoPantalla: data.estado?.pantalla || 10,
             estadoCarcasa: data.estado?.carcasa || 9
           });
-          setImagePreview(data.imagen || null);
+          setExistingImages(imgs);
         } else {
           alert('El equipo no existe.');
           navigate('/admin');
@@ -85,24 +87,29 @@ export default function EditLaptop() {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('Por favor selecciona un archivo de imagen.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      alert('La imagen no puede pesar más de 5 MB.');
-      return;
-    }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    
+    const validFiles = files.filter(file => {
+      if (!file.type.startsWith('image/')) {
+        alert(`${file.name} no es una imagen.`);
+        return false;
+      }
+      return true;
+    });
+
+    setNewImageFiles(prev => [...prev, ...validFiles]);
+    const previews = validFiles.map(file => URL.createObjectURL(file));
+    setNewImagePreviews(prev => [...prev, ...previews]);
   };
 
-  const handleRemoveImage = () => {
-    setImageFile(null);
-    setImagePreview(formData.imagen || null); // Revertir a la imagen original si existe
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  const handleRemoveExisting = (url) => {
+    setExistingImages(prev => prev.filter(item => item !== url));
+  };
+
+  const handleRemoveNew = (index) => {
+    setNewImageFiles(prev => prev.filter((_, i) => i !== index));
+    setNewImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSliderChange = (e) => {
@@ -112,33 +119,31 @@ export default function EditLaptop() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (existingImages.length === 0 && newImageFiles.length === 0) {
+      alert('El equipo debe tener al menos una imagen.');
+      return;
+    }
     setIsSubmitting(true);
     
     try {
-      let imagenUrl = formData.imagen;
+      const finalUrls = [...existingImages];
 
-      // 1. Si hay una nueva imagen, subirla a Cloudinary
-      if (imageFile) {
-        setUploadProgress('Subiendo nueva imagen...');
+      // 1. Subir las nuevas imágenes si las hay
+      for (let i = 0; i < newImageFiles.length; i++) {
+        setUploadProgress(`Subiendo foto ${i + 1} de ${newImageFiles.length}...`);
         
         const cloudinaryData = new FormData();
-        cloudinaryData.append('file', imageFile);
+        cloudinaryData.append('file', newImageFiles[i]);
         cloudinaryData.append('upload_preset', UPLOAD_PRESET);
 
         const response = await fetch(
           `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-          {
-            method: 'POST',
-            body: cloudinaryData,
-          }
+          { method: 'POST', body: cloudinaryData }
         );
 
-        if (!response.ok) {
-          throw new Error('Fallo al subir la imagen a Cloudinary');
-        }
-
-        const uploadResult = await response.json();
-        imagenUrl = uploadResult.secure_url;
+        if (!response.ok) throw new Error('Fallo al subir nuevas imágenes');
+        const result = await response.json();
+        finalUrls.push(result.secure_url);
       }
 
       // 2. Actualizar en Firestore
@@ -157,7 +162,8 @@ export default function EditLaptop() {
         bateria: formData.bateria,
         precio: Number(formData.precio),
         disponibilidad: formData.disponibilidad,
-        imagen: imagenUrl,
+        imagenes: finalUrls,
+        imagen: finalUrls[0], // Fallback
         estado: {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,
@@ -223,44 +229,57 @@ export default function EditLaptop() {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={handleFileChange}
                     className="hidden"
                     id="foto-input"
                   />
 
-                  {imagePreview ? (
-                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-gray-200 group">
-                      <img src={imagePreview} alt="Preview" className="w-full h-full object-contain bg-gray-50 p-2" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <label htmlFor="foto-input" className="p-2 bg-white text-gray-700 rounded-full cursor-pointer hover:bg-gray-100 shadow-lg">
-                          <Upload className="w-4 h-4" />
-                        </label>
-                        {imageFile && (
-                          <button
-                            type="button"
-                            onClick={handleRemoveImage}
-                            className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-lg"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Imágenes Existentes */}
+                    {existingImages.map((url, index) => (
+                      <div key={`exist-${index}`} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-gray-200 group">
+                        <img src={url} alt={`Existente ${index}`} className="w-full h-full object-contain bg-gray-50 p-1" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExisting(url)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
+                          title="Eliminar de la galería"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                        <span className="absolute bottom-1 left-1 bg-white/80 text-[8px] px-1 rounded border border-gray-200 text-gray-500 font-bold">Cloud</span>
                       </div>
-                    </div>
-                  ) : (
+                    ))}
+
+                    {/* Imágenes Nuevas (Previews) */}
+                    {newImagePreviews.map((preview, index) => (
+                      <div key={`new-${index}`} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-blue-200 group ring-1 ring-blue-100">
+                        <img src={preview} alt={`Nueva ${index}`} className="w-full h-full object-contain bg-blue-50/30 p-1" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveNew(index)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
+                          title="Quitar"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                        <span className="absolute bottom-1 left-1 bg-blue-500 text-white text-[8px] px-1 rounded font-bold">Local</span>
+                      </div>
+                    ))}
+                    
                     <label
                       htmlFor="foto-input"
                       className="flex flex-col items-center justify-center aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
                     >
-                      <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                      <span className="text-sm font-medium text-gray-600">Cambiar Foto</span>
+                      <Plus className="w-6 h-6 text-gray-400 mb-1" />
+                      <span className="text-[10px] font-medium text-gray-600 text-center px-2">Añadir más fotos</span>
                     </label>
-                  )}
+                  </div>
                   
-                  {imageFile ? (
-                    <p className="text-[10px] text-blue-600 font-medium">Nueva imagen seleccionada: {imageFile.name}</p>
-                  ) : (
-                    <p className="text-[10px] text-gray-400">Usando imagen actual almacenada.</p>
-                  )}
+                  <p className="text-[10px] text-gray-400 italic">
+                    {existingImages.length} en la nube • {newImageFiles.length} nuevas por subir
+                  </p>
                 </div>
               </div>
 

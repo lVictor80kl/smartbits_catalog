@@ -7,11 +7,16 @@ import {
 
 export default function LaptopModal({ laptop, isOpen, onClose }) {
   const [showBars, setShowBars] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  const images = (laptop?.imagenes && laptop.imagenes.length > 0) 
+    ? laptop.imagenes 
+    : (laptop?.imagen ? [laptop.imagen] : []);
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      // Trigger animations after a small delay
+      setActiveImageIndex(0); // Reiniciar al abrir
       const timer = setTimeout(() => setShowBars(true), 100);
       return () => clearTimeout(timer);
     } else {
@@ -71,25 +76,28 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             <div className="bg-gray-50 p-6 flex flex-col gap-4">
               <div className="aspect-[4/3] rounded-xl overflow-hidden bg-white shadow-sm ring-1 ring-gray-200 relative group">
                 <img 
-                  src={laptop.imagen} 
+                  src={images[activeImageIndex]} 
                   alt={laptop.modelo}
-                  className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-700"
                 />
               </div>
               
-              {/* Thumbnails (Simulated) */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="aspect-square bg-white rounded-lg ring-2 ring-blue-400 cursor-pointer overflow-hidden p-2">
-                  <img src={laptop.imagen} className="w-full h-full object-contain" alt="thumb1" />
+              {/* Thumbnails */}
+              {images.length > 1 && (
+                <div className="grid grid-cols-4 gap-2">
+                  {images.map((img, idx) => (
+                    <div 
+                      key={idx}
+                      onClick={() => setActiveImageIndex(idx)}
+                      className={`aspect-square bg-white rounded-lg ring-2 transition-all cursor-pointer overflow-hidden p-1 ${
+                        activeImageIndex === idx ? 'ring-blue-500 scale-95 shadow-inner' : 'ring-gray-100 hover:ring-gray-300 opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={img} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
+                    </div>
+                  ))}
                 </div>
-                <div className="aspect-square bg-white rounded-lg ring-1 ring-gray-200 opacity-60 hover:opacity-100 cursor-pointer overflow-hidden p-2 transition-all flex items-center justify-center">
-                  <span className="text-gray-400 text-xs">Foto 2</span>
-                </div>
-                <div className="aspect-square bg-white rounded-lg ring-1 ring-gray-200 flex items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition-colors">
-                  <Plus className="w-5 h-5" />
-                  <span className="text-xs font-medium ml-1">Fotos</span>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Right Column: Details */}
