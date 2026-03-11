@@ -5,6 +5,7 @@ import AdminLayout from './components/layout/AdminLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/admin/Dashboard';
 import NewLaptop from './pages/admin/NewLaptop';
+import EditLaptop from './pages/admin/EditLaptop';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="new" element={<NewLaptop />} />
+            <Route path="edit/:id" element={<EditLaptop />} />
           </Route>
         </Routes>
       </Router>

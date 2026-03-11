@@ -23,8 +23,11 @@ export default function AdminLayout() {
       <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col">
         <div className="h-16 flex items-center px-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <img src="/logo-min.png" alt="Logo" className="w-10 h-10 object-contain" />
-            <span className="text-xl font-bold text-slate-800 tracking-tight">Admin</span>
+            <img src="/logo-min.png" alt="Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
+            <div className="flex flex-col">
+              <img src="/logo-black.png" alt="Smartbits" className="h-6 object-contain" />
+              <p className="text-[8px] text-brand-500 font-bold uppercase tracking-tighter -mt-0.5">Admin Panel</p>
+            </div>
           </div>
         </div>
 
@@ -36,11 +39,10 @@ export default function AdminLayout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  isActive 
-                    ? 'bg-brand-50 text-brand-700 font-medium' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${isActive
+                  ? 'bg-brand-50 text-brand-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
               >
                 <Icon className={`h-5 w-5 ${isActive ? 'text-brand-700' : 'text-gray-400'}`} />
                 {item.label}
@@ -50,15 +52,15 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-4 border-t border-gray-100">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors mb-2"
           >
             Ver Catálogo
           </Link>
-          <button 
-             onClick={handleLogout}
-             className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
           >
             <LogOut className="h-4 w-4" />
             Cerrar Sesión
@@ -70,8 +72,8 @@ export default function AdminLayout() {
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Mobile Header */}
         <header className="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
-           <span className="font-bold text-slate-800">Panel Admin</span>
-           <Link to="/" className="text-gray-500"><LogOut className="h-5 w-5" /></Link>
+          <span className="font-bold text-slate-800">Panel Admin</span>
+          <Link to="/" className="text-gray-500"><LogOut className="h-5 w-5" /></Link>
         </header>
 
         <div className="flex-1 overflow-auto p-4 md:p-8">

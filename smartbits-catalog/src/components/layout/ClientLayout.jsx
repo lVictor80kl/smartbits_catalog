@@ -7,24 +7,23 @@ export default function ClientLayout() {
       {/* Navbar Fixed */}
       <nav className="fixed top-0 left-0 right-0 bg-white border-b border-gray-100 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3 group">
             <img
               src="/logo-min.png"
               alt="Logo"
-              className="w-12 h-12 object-contain drop-shadow-md"
+              className="w-10 h-10 md:w-12 md:h-12 object-contain drop-shadow-md transition-transform group-hover:scale-110"
             />
-
+            <div className="flex flex-col items-center md:items-start">
+              <img
+                src="/logo-black.png"
+                alt="Smartbits"
+                className="h-7 md:h-9 object-contain drop-shadow-md"
+              />
+              <p className="text-[10px] md:text-xs text-brand-500 font-bold tracking-wider -mt-1 uppercase">
+                Compra inteligente, compra en Smartbits
+              </p>
+            </div>
           </Link>
-          <div className="flex flex-col items-center">
-            <img
-              src="/logo-black.png"
-              alt="Smartbits"
-              className="h-8 md:h-9 object-contain -ml-1 drop-shadow-md"
-            />
-            <p className="text-[12px] md:text-xs text-brand-400 tracking-wider ml-1 -mt-1">
-              Compra inteligente, compra en Smartbits
-            </p>
-          </div>
           <a
             href="https://wa.me/584128444445"
             target="_blank"
