@@ -52,12 +52,14 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-4 border-t border-gray-100">
-          <Link
-            to="/"
+          <a
+            href="http://localhost:5173"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors mb-2"
           >
-            Ver Catálogo
-          </Link>
+            Ver Catálogo Público
+          </a>
           <button
             onClick={handleLogout}
             className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
@@ -73,7 +75,10 @@ export default function AdminLayout() {
         {/* Mobile Header */}
         <header className="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
           <span className="font-bold text-slate-800">Panel Admin</span>
-          <Link to="/" className="text-gray-500"><LogOut className="h-5 w-5" /></Link>
+          <div className="flex items-center gap-3">
+            <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer" className="text-brand-600 text-xs font-medium">Ver Tienda</a>
+            <button onClick={handleLogout} className="text-red-500"><LogOut className="h-5 w-5" /></button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-auto p-4 md:p-8">

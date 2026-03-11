@@ -1,5 +1,5 @@
 import { Outlet, Link } from 'react-router-dom';
-import { Instagram } from 'lucide-react';
+import { Instagram, Shield } from 'lucide-react';
 
 export default function ClientLayout() {
   return (
@@ -7,8 +7,8 @@ export default function ClientLayout() {
       {/* Navbar Fixed */}
       <nav className="fixed top-0 left-0 right-0 bg-white border-b border-gray-100 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="flex items-center gap-3 group animate-welcome"
           >
@@ -28,8 +28,20 @@ export default function ClientLayout() {
               </p>
             </div>
           </Link>
-          
+
           <div className="flex items-center gap-3 md:gap-4">
+            {/* Admin Panel Access */}
+            <a
+              href="http://localhost:5174/admin"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-brand-600 border border-gray-100 hover:border-brand-100 rounded-lg transition-all"
+              title="Volver al Panel Administrador"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Admin</span>
+            </a>
+
+            <div className="h-6 w-px bg-gray-100 hidden sm:block mx-1"></div>
+
             {/* Instagram */}
             <a
               href="https://www.instagram.com/smartbits.ve/"
@@ -106,7 +118,16 @@ export default function ClientLayout() {
               </a>
             </div>
           </div>
-          <p className="text-gray-400 text-[10px] mt-8 uppercase">© {new Date().getFullYear()} Todos los derechos reservados.</p>
+          
+          <div className="mt-8 flex flex-col items-center gap-2">
+            <p className="text-gray-400 text-[10px] uppercase">© {new Date().getFullYear()} Todos los derechos reservados.</p>
+            <a 
+              href="http://localhost:5174/admin" 
+              className="text-[9px] text-gray-300 hover:text-brand-400 transition-colors uppercase tracking-widest font-medium"
+            >
+              Acceso Administrador
+            </a>
+          </div>
         </div>
       </footer>
     </div>
