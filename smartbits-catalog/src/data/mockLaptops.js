@@ -1,4 +1,4 @@
-export const laptops = [
+export const mockLaptops = [
     {
         id: 1,
         modelo: "DELL Inspiron 5570",
@@ -156,7 +156,7 @@ export const laptops = [
 
 // Función para simular el guardado en la base de datos
 export const addLaptopToDB = (laptopData) => {
-    const newId = laptops.length > 0 ? Math.max(...laptops.map(l => l.id)) + 1 : 1;
+    const newId = mockLaptops.length > 0 ? Math.max(...mockLaptops.map(l => l.id)) + 1 : 1;
     const newLaptop = {
         ...laptopData,
         id: newId,
@@ -166,6 +166,6 @@ export const addLaptopToDB = (laptopData) => {
             carcasa: laptopData.estadoCarcasa
         }
     };
-    laptops.unshift(newLaptop); // Añadir al principio para que se vea rápido
+    mockLaptops.unshift(newLaptop); // Añadir al principio para que se vea rápido
     return newLaptop;
 };
