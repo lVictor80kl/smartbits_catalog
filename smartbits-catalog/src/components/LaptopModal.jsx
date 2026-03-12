@@ -16,7 +16,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      setActiveImageIndex(0); // Reiniciar al abrir
+      setActiveImageIndex(0);
       const timer = setTimeout(() => setShowBars(true), 100);
       return () => clearTimeout(timer);
     } else {
@@ -38,8 +38,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
   const isAvailable = laptop.disponibilidad === "Disponible";
   const badgeClass = isAvailable
-    ? "px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full uppercase tracking-wider"
-    : "px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full uppercase tracking-wider";
+    ? "bg-blue-50 text-brand-600 border border-blue-100"
+    : "bg-orange-50 text-orange-600 border border-orange-100";
 
   const pScreen = laptop.estado.pantalla;
   const pBody = laptop.estado.carcasa;
@@ -54,19 +54,19 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-4 overflow-hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm transition-opacity" 
+        className="fixed inset-0 bg-brand-900/60 backdrop-blur-md transition-opacity" 
         onClick={handleBackdropClick}
       />
 
       {/* Modal Panel Container */}
-      <div className="relative w-full max-w-6xl max-h-[90vh] sm:max-h-[85vh] lg:max-h-[90vh] flex flex-col pointer-events-auto bg-white sm:rounded-3xl shadow-2xl overflow-hidden animate-welcome">
+      <div className="relative w-full max-w-6xl max-h-[90vh] sm:max-h-[85vh] lg:max-h-[90vh] flex flex-col pointer-events-auto bg-white sm:rounded-[2.5rem] shadow-[0_25px_50px_-12px_rgba(15,23,42,0.25)] overflow-hidden animate-welcome border border-brand-100/50">
         
-        {/* Close Button - Fixed position */}
+        {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-6 right-6 z-50 p-2.5 bg-white/90 hover:bg-gray-100 rounded-full text-gray-500 transition-all shadow-md border border-gray-100 backdrop-blur-sm"
+          className="absolute top-6 right-6 z-50 p-2 bg-white/80 hover:bg-brand-50 rounded-full text-brand-800 transition-all border border-brand-100 backdrop-blur-sm group"
         >
-          <X className="w-6 h-6" />
+          <X className="w-6 h-6 group-hover:rotate-90 transition-transform" />
         </button>
 
         {/* Scrollable Content Area */}
@@ -74,12 +74,12 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
           <div className="grid grid-cols-1 md:grid-cols-[45%_55%] min-h-full">
             
             {/* Left Column: Photos */}
-            <div className="bg-gray-50 p-4 sm:p-6 lg:p-8 flex flex-col gap-6 border-b md:border-b-0 md:border-r border-gray-100 h-full">
-              <div className="flex-grow aspect-[4/3] md:aspect-auto md:h-full max-h-[400px] md:max-h-[500px] rounded-2xl overflow-hidden bg-white shadow-sm ring-1 ring-gray-200 relative group flex items-center justify-center">
+            <div className="bg-brand-50/50 p-4 sm:p-8 lg:p-10 flex flex-col gap-6 border-b md:border-b-0 md:border-r border-brand-100/50 h-full">
+              <div className="flex-grow aspect-[4/3] md:aspect-auto md:h-full max-h-[400px] md:max-h-[500px] rounded-3xl overflow-hidden bg-white shadow-sm border border-brand-100 relative group flex items-center justify-center">
                 <img 
                   src={images[activeImageIndex]} 
                   alt={laptop.modelo}
-                  className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out"
                 />
               </div>
               
@@ -87,103 +87,102 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
               {images.length > 1 && (
                 <div className="flex flex-wrap justify-center gap-3">
                   {images.map((img, idx) => (
-                    <div 
+                    <button 
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-white rounded-xl ring-2 transition-all cursor-pointer overflow-hidden p-1.5 ${
-                        activeImageIndex === idx ? 'ring-brand-500 scale-95 shadow-inner' : 'ring-gray-100 hover:ring-gray-300 opacity-70 hover:opacity-100'
+                      className={`w-16 h-16 sm:w-20 lg:w-24 aspect-square bg-white rounded-2xl border-2 transition-all overflow-hidden p-1.5 ${
+                        activeImageIndex === idx ? 'border-brand-600 shadow-md scale-95' : 'border-brand-100 hover:border-brand-300 opacity-60 hover:opacity-100'
                       }`}
                     >
                       <img src={img} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
             </div>
 
             {/* Right Column: Details */}
-            <div className="p-6 sm:p-10 lg:p-12 flex flex-col bg-white">
-              <div className="mb-8">
-                <p className="text-[10px] lg:text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-3">{laptop.marca}</p>
-                <h3 className="text-2xl sm:text-3xl lg:text-5xl font-black text-gray-900 leading-[1.1] mb-6 tracking-tight">{laptop.modelo}</h3>
+            <div className="p-8 sm:p-12 lg:p-14 flex flex-col bg-white">
+              <div className="mb-10">
+                <p className="text-[10px] lg:text-xs font-black text-brand-400 uppercase tracking-[0.3em] mb-4">{laptop.marca}</p>
+                <h3 className="text-3xl sm:text-4xl lg:text-6xl font-black text-brand-800 leading-[1.05] mb-8 tracking-tighter">{laptop.modelo}</h3>
                 
-                <div className="flex flex-wrap items-center gap-6">
+                <div className="flex flex-wrap items-center gap-8">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl sm:text-4xl lg:text-5xl font-black text-brand-600">${laptop.precio}</span>
-                    <span className="text-sm font-bold text-gray-400">USD</span>
+                    <span className="text-4xl sm:text-5xl lg:text-6xl font-black text-brand-900 tracking-tighter">${laptop.precio}</span>
+                    <span className="text-sm font-bold text-brand-400">USD</span>
                   </div>
-                  <span className={`${badgeClass} lg:text-sm lg:px-5 lg:py-2`}>{laptop.disponibilidad}</span>
+                  <span className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest ${badgeClass}`}>
+                    {laptop.disponibilidad}
+                  </span>
                 </div>
               </div>
 
-              {/* Confidence Factor */}
-              <div className="bg-brand-50/50 border border-brand-100/50 rounded-[2.5rem] p-6 lg:p-10 mb-10">
-                <h4 className="text-[11px] lg:text-xs font-black text-gray-800 flex items-center gap-3 mb-8 uppercase tracking-widest">
-                  <ShieldCheck className="w-6 h-6 text-brand-500" />
-                  Estado Certificado Smartbits
+              {/* Certification Box */}
+              <div className="bg-brand-50 border border-brand-100/60 rounded-[3rem] p-8 lg:p-12 mb-12 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-100/30 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                
+                <h4 className="text-[11px] lg:text-xs font-black text-brand-800 flex items-center gap-4 mb-10 uppercase tracking-[0.2em]">
+                  <div className="w-10 h-10 rounded-2xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/20">
+                    <ShieldCheck className="w-6 h-6 text-white" />
+                  </div>
+                  Estado Smartbits
                 </h4>
 
-                <div className="space-y-8">
-                  {/* Screen Bar */}
-                  <div>
-                    <div className="flex justify-between text-xs lg:text-sm font-bold text-gray-700 mb-3">
-                      <span>Integridad Pantalla</span>
-                      <span className="text-brand-600 font-black">{pScreen}/10</span>
+                <div className="space-y-10">
+                  {/* Bars */}
+                  {[
+                    { label: "Integridad Pantalla", val: pScreen },
+                    { label: "Estética / Chasis", val: pBody }
+                  ].map((st, i) => (
+                    <div key={i}>
+                      <div className="flex justify-between text-xs lg:text-sm font-black text-brand-800 mb-4 uppercase tracking-wider">
+                        <span>{st.label}</span>
+                        <span className="text-brand-600">{st.val}/10</span>
+                      </div>
+                      <div className="w-full bg-brand-200/50 rounded-full h-2">
+                        <div 
+                          className="bg-brand-600 h-full rounded-full transition-all duration-1000 ease-out" 
+                          style={{ width: showBars ? `${st.val * 10}%` : '0%', transitionDelay: `${i * 150}ms` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                      <div 
-                        className="bg-brand-500 h-full rounded-full transition-all duration-1000 ease-out" 
-                        style={{ width: showBars ? `${pScreen * 10}%` : '0%' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Body Bar */}
-                  <div>
-                    <div className="flex justify-between text-xs lg:text-sm font-bold text-gray-700 mb-3">
-                      <span>Estética / Chasis</span>
-                      <span className="text-brand-600 font-black">{pBody}/10</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-1000 ease-out delay-150 ${pBody >= 9 ? 'bg-brand-500' : 'bg-brand-400'}`} 
-                        style={{ width: showBars ? `${pBody * 10}%` : '0%' }}
-                      />
-                    </div>
-                  </div>
+                  ))}
 
                   {/* Battery */}
-                  <div className="flex items-center justify-between pt-6 border-t border-brand-100/50">
-                    <div className="flex items-center gap-3">
-                      <BatteryCharging className="w-6 h-6 text-brand-600" />
-                      <span className="text-xs lg:text-sm font-bold text-gray-600"> Salud de Batería</span>
+                  <div className="flex items-center justify-between pt-8 border-t border-brand-200/50">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-white border border-brand-100 flex items-center justify-center text-brand-600">
+                        <BatteryCharging className="w-6 h-6" />
+                      </div>
+                      <span className="text-xs lg:text-sm font-black text-brand-800 uppercase tracking-widest">Salud Batería</span>
                     </div>
-                    <span className="text-sm lg:text-lg font-black text-gray-900 uppercase">{laptop.bateria}</span>
+                    <span className="text-sm lg:text-xl font-black text-brand-900 uppercase tracking-tighter">{laptop.bateria}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Tech Specs */}
-              <h4 className="text-[10px] lg:text-xs font-black text-gray-400 mb-6 uppercase tracking-[0.3em]">Ficha Técnica</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+              {/* Specifications */}
+              <h4 className="text-[10px] lg:text-xs font-black text-brand-400 mb-8 uppercase tracking-[0.4em]">Ficha Técnica</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12 mb-14">
                 <SpecItem icon={Cpu} label="Procesador" value={laptop.cpu} />
-                <SpecItem icon={MemoryStick} label="Memoria RAM" value={laptop.ram} />
-                <SpecItem icon={Database} label="Disco" value={laptop.almacenamiento} />
+                <SpecItem icon={MemoryStick} label="RAM" value={laptop.ram} />
+                <SpecItem icon={Database} label="Almacenamiento" value={laptop.almacenamiento} />
                 <SpecItem icon={MonitorPlay} label="Gráficos" value={laptop.gpu} />
                 <SpecItem icon={Monitor} label="Pantalla" value={screenTxt} />
                 <SpecItem icon={LayoutDashboard} label="Sistema" value={laptop.windows} />
               </div>
 
-              {/* Actions */}
-              <div className="mt-auto pt-10 border-t border-gray-100">
+              {/* CTA Action */}
+              <div className="mt-auto pt-10 border-t border-brand-100">
                 <a 
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full bg-green-500 hover:bg-green-600 text-white py-6 px-10 rounded-2xl font-black transition-all shadow-xl shadow-green-500/30 flex items-center justify-center gap-4 text-lg lg:text-xl cursor-pointer transform hover:-translate-y-1.5 active:translate-y-0"
+                  className="w-full bg-brand-900 hover:bg-brand-800 text-white py-6 px-10 rounded-3xl font-black transition-all shadow-2xl shadow-brand-900/20 flex items-center justify-center gap-5 text-lg lg:text-xl transform hover:-translate-y-1.5 active:translate-y-0"
                 >
-                  <MessageCircle className="w-8 h-8" />
-                  Consultar Disponibilidad
+                  <MessageCircle className="w-8 h-8 text-brand-400" />
+                  CONSULTAR DISPONIBILIDAD
                 </a>
               </div>
             </div>
@@ -196,13 +195,13 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
 function SpecItem({ icon: Icon, label, value }) {
   return (
-    <div className="flex gap-3">
-      <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
-        <Icon className="w-4 h-4 text-gray-500" />
+    <div className="flex gap-4 group">
+      <div className="w-12 h-12 rounded-2xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-500 group-hover:bg-brand-600 group-hover:text-white transition-all duration-300 shadow-sm">
+        <Icon className="w-5 h-5" />
       </div>
-      <div>
-        <p className="text-gray-500 text-[10px] font-medium uppercase">{label}</p>
-        <p className="font-semibold text-gray-900 line-clamp-2 leading-tight mt-0.5 text-xs">{value}</p>
+      <div className="flex flex-col justify-center">
+        <p className="text-brand-400 text-[9px] font-bold uppercase tracking-[0.2em] mb-1">{label}</p>
+        <p className="font-extrabold text-brand-800 text-xs sm:text-sm leading-tight tracking-tight">{value}</p>
       </div>
     </div>
   );

@@ -1,140 +1,117 @@
-import { useState, useEffect } from 'react';
-import { Search, PackageX, Loader2 } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { useState, useMemo } from 'react';
+import { Search, SlidersHorizontal, PackageSearch, X } from 'lucide-react';
+import { mockLaptops } from '../data/mockLaptops';
 import LaptopCard from '../components/LaptopCard';
 import LaptopModal from '../components/LaptopModal';
 
 export default function Catalog() {
-  const [laptops, setLaptops] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentFilter, setCurrentFilter] = useState('all');
-
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState("Todas");
   const [selectedLaptop, setSelectedLaptop] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Suscripción en tiempo real a Firestore
-  useEffect(() => {
-    const q = query(collection(db, 'laptops'), orderBy('modelo'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setLaptops(data);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error cargando laptops:', error);
-      setLoading(false);
+  const brands = ["Todas", ...new Set(mockLaptops.map(l => l.marca))];
+
+  const filteredLaptops = useMemo(() => {
+    return mockLaptops.filter(laptop => {
+      const matchSearch = laptop.modelo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          laptop.marca.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchBrand = selectedBrand === "Todas" || laptop.marca === selectedBrand;
+      return matchSearch && matchBrand;
     });
-    // Limpiar la suscripción cuando el componente se desmonta
-    return () => unsubscribe();
-  }, []);
-
-  // Filtrado
-  const filteredLaptops = laptops.filter(laptop => {
-    const matchesFilter = currentFilter === 'all' || laptop.disponibilidad === currentFilter;
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch =
-      laptop.modelo.toLowerCase().includes(searchLower) ||
-      laptop.marca.toLowerCase().includes(searchLower) ||
-      laptop.cpu.toLowerCase().includes(searchLower);
-
-    return matchesFilter && matchesSearch;
-  });
-
-  const handleOpenModal = (laptop) => {
-    setSelectedLaptop(laptop);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setTimeout(() => setSelectedLaptop(null), 300); // Limpiar después de la animación
-  };
-
-  const filters = [
-    { id: 'all', label: 'Todas' },
-    { id: 'Disponible', label: 'Disponibles' },
-    { id: 'Coming soon', label: 'Próximamente' },
-  ];
+  }, [searchTerm, selectedBrand]);
 
   return (
-    <div className="w-full space-y-8 animate-welcome">
-      {/* Header de Sección y Filtros */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-gray-100 pb-8">
-        <div>
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Catálogo de Laptops</h2>
-          <p className="mt-2 text-gray-500 max-w-2xl font-medium italic">
-            "Compra inteligente, compra en smartbits"
-          </p>
+    <div className="animate-welcome">
+      {/* Search Header */}
+      <div className="mb-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
+          <div className="max-w-xl">
+            <h1 className="text-4xl md:text-5xl font-black text-brand-900 mb-4 tracking-tighter">
+              Catálogo de Equipos
+            </h1>
+            <p className="text-brand-500 font-medium text-sm md:text-base leading-relaxed">
+              Equipos corporativos certificados con garantía Smartbits. 
+              Encuentra la potencia que tu productividad necesita.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="bg-brand-50 rounded-full px-4 py-2 flex items-center gap-2 border border-brand-100">
+               <PackageSearch className="w-5 h-5 text-brand-600" />
+               <span className="text-xs font-black text-brand-800 uppercase tracking-widest">{filteredLaptops.length} Equipos</span>
+            </div>
+          </div>
         </div>
 
-        {/* Buscador y Filtros */}
-        <div className="flex flex-col gap-4 w-full md:w-auto">
-          <div className="relative w-full md:w-80">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
+        {/* Filters Bar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center p-2 bg-white rounded-3xl border border-brand-100 shadow-xl shadow-brand-900/5">
+          {/* Search Input */}
+          <div className="lg:col-span-8 relative group">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-400 w-5 h-5 transition-colors group-focus-within:text-brand-600" />
+            <input 
               type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm"
-              placeholder="Buscar por modelo, marca, CPU..."
+              placeholder="¿Qué modelo estás buscando?"
+              className="w-full bg-transparent pl-14 pr-12 py-5 rounded-2xl text-brand-900 placeholder:text-brand-300 font-medium focus:outline-none transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm("")}
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-300 hover:text-brand-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {filters.map(f => (
-              <button
-                key={f.id}
-                onClick={() => setCurrentFilter(f.id)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${currentFilter === f.id
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="hidden lg:block w-px h-10 bg-brand-100 col-span-1 place-self-center"></div>
+
+          {/* Brand Filter */}
+          <div className="lg:col-span-3 pb-2 lg:pb-0 px-4 lg:px-0">
+            <div className="flex items-center gap-2 mb-2 lg:hidden">
+              <SlidersHorizontal className="w-4 h-4 text-brand-500" />
+              <span className="text-xs font-bold text-brand-500 uppercase">Marca</span>
+            </div>
+            <select 
+              className="w-full bg-brand-50 lg:bg-transparent py-4 lg:py-0 px-4 lg:px-0 rounded-xl lg:rounded-none text-brand-800 font-black focus:outline-none cursor-pointer appearance-none"
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+            >
+              {brands.map(brand => (
+                <option key={brand} value={brand}>{brand}</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
 
-      {/* Grid de Laptops */}
-      {loading ? (
-        <div className="py-32 flex flex-col items-center justify-center gap-4 text-gray-400">
-          <Loader2 className="w-10 h-10 animate-spin text-brand-400" />
-          <p className="text-sm font-medium">Cargando inventario...</p>
-        </div>
-      ) : filteredLaptops.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {/* Grid */}
+      {filteredLaptops.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredLaptops.map(laptop => (
-            <LaptopCard
-              key={laptop.id}
-              laptop={laptop}
-              onClick={handleOpenModal}
+            <LaptopCard 
+              key={laptop.id} 
+              laptop={laptop} 
+              onClick={() => setSelectedLaptop(laptop)}
             />
           ))}
         </div>
       ) : (
-        <div className="py-20 text-center bg-white rounded-2xl border border-dashed border-gray-200">
-          <PackageX className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-          <h3 className="text-xl font-bold text-gray-900 mb-1">No se encontraron equipos</h3>
-          <p className="text-gray-500">Intenta ajustar los filtros o el término de búsqueda.</p>
-          <button
-            onClick={() => { setSearchQuery(''); setCurrentFilter('all'); }}
-            className="mt-4 text-blue-600 font-medium hover:underline"
-          >
-            Limpiar filtros
-          </button>
+        <div className="py-24 flex flex-col items-center justify-center text-center opacity-40">
+          <div className="w-24 h-24 rounded-full bg-brand-50 flex items-center justify-center mb-6">
+            <Search className="w-12 h-12 text-brand-800" />
+          </div>
+          <h3 className="text-2xl font-black text-brand-900 mb-2">No encontramos equipos</h3>
+          <p className="text-brand-500 font-bold uppercase tracking-widest text-xs">Prueba ajustando los filtros de búsqueda</p>
         </div>
       )}
 
-      {/* Modal */}
-      <LaptopModal
+      {/* Modal Selection */}
+      <LaptopModal 
         laptop={selectedLaptop}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
+        isOpen={!!selectedLaptop}
+        onClose={() => setSelectedLaptop(null)}
       />
     </div>
   );

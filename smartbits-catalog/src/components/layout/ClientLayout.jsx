@@ -3,57 +3,59 @@ import { Instagram, Shield } from 'lucide-react';
 
 export default function ClientLayout() {
   return (
-    <div className="min-h-screen flex flex-col pt-16">
+    <div className="min-h-screen flex flex-col pt-16 bg-white">
       {/* Navbar Fixed */}
-      <nav className="fixed top-0 left-0 right-0 bg-white border-b border-gray-100 z-50">
+      <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-brand-100/50 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link
             to="/"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center gap-3 group animate-welcome"
+            className="flex items-center gap-3 group"
           >
             <img
               src="/logo-min.png"
               alt="Logo"
-              className="w-10 h-10 md:w-12 md:h-12 object-contain drop-shadow-md transition-transform group-hover:scale-110"
+              className="w-10 h-10 md:w-11 md:h-11 object-contain transition-transform group-hover:scale-110"
             />
             <div className="flex flex-col items-center md:items-start text-left">
               <img
                 src="/logo-black.png"
                 alt="Smartbits"
-                className="h-7 md:h-9 object-contain drop-shadow-md"
+                className="h-6 md:h-8 object-contain"
               />
-              <p className="hidden md:block text-[10px] text-brand-500 font-bold tracking-wider -mt-1 uppercase">
-                Compra inteligente, compra en Smartbits
+              <p className="hidden md:block text-[9px] text-brand-600 font-black tracking-[0.2em] -mt-1 uppercase">
+                Tecnología Certificada
               </p>
             </div>
           </Link>
 
-          <div className="flex items-center gap-3 md:gap-4">
-            {/* Admin Panel Access */}
-            <a
-              href="http://localhost:5174/admin"
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-brand-600 border border-gray-100 hover:border-brand-100 rounded-lg transition-all"
-              title="Volver al Panel Administrador"
-            >
-              <Shield className="w-4 h-4" />
-              <span>Admin</span>
-            </a>
-
-            <div className="h-6 w-px bg-gray-100 hidden sm:block mx-1"></div>
+          <div className="flex items-center gap-3 md:gap-5">
+            {/* Admin Panel Access - Local Only */}
+            {import.meta.env.DEV && (
+              <>
+                <a
+                  href="http://localhost:5174/admin"
+                  className="hidden lg:flex items-center gap-2 px-3 py-1.5 text-[10px] font-black text-brand-500 hover:text-brand-600 border border-brand-100 hover:border-brand-200 rounded-lg transition-all uppercase tracking-tighter"
+                  title="Volver al Panel Administrador (Local)"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>Configuración</span>
+                </a>
+                <div className="h-6 w-px bg-brand-100 hidden lg:block mx-1"></div>
+              </>
+            )}
 
             {/* Instagram */}
             <a
               href="https://www.instagram.com/smartbits.ve/"
               target="_blank"
               rel="noopener noreferrer"
-              className="transition-transform hover:scale-110 active:scale-95 duration-200"
-              title="Síguenos en Instagram"
+              className="transition-all hover:scale-110 active:scale-95 grayscale hover:grayscale-0 opacity-80 hover:opacity-100"
             >
               <img
                 src="/instagram.png"
                 alt="Instagram"
-                className="w-10 h-10 md:w-12 md:h-12 drop-shadow-sm rounded-[22%] object-contain"
+                className="w-8 h-8 md:w-9 md:h-9 object-contain"
               />
             </a>
 
@@ -62,13 +64,12 @@ export default function ClientLayout() {
               href="https://wa.me/584128444445"
               target="_blank"
               rel="noopener noreferrer"
-              className="transition-transform hover:scale-110 active:scale-95 duration-200 group relative"
-              title="Contáctanos por WhatsApp"
+              className="transition-all hover:scale-110 active:scale-95 opacity-80 hover:opacity-100"
             >
               <img
                 src="/whatsapp.png"
                 alt="WhatsApp"
-                className="w-10 h-10 md:w-12 md:h-12 drop-shadow-sm object-contain"
+                className="w-8 h-8 md:w-9 md:h-9 object-contain"
               />
             </a>
           </div>
@@ -81,52 +82,34 @@ export default function ClientLayout() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-100 py-10 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <div className="flex flex-col items-center gap-6">
-            <Link to="/" className="inline-block hover:opacity-70 transition-opacity">
-              <p className="text-gray-900 font-bold text-sm mb-2">Smartbits</p>
-              <p className="text-gray-500 text-xs italic tracking-wide">"Compra inteligente, compra en smartbits"</p>
+      <footer className="bg-brand-50 border-t border-brand-100 py-12">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-col items-center gap-8">
+            <Link to="/" className="flex flex-col items-center group">
+              <img src="/logo-black.png" className="h-6 opacity-80 group-hover:opacity-100 transition-opacity" alt="Smartbits" />
+              <p className="text-brand-400 text-[10px] uppercase font-bold tracking-[0.3em] mt-3 underline decoration-brand-200 decoration-2 underline-offset-8">Smartbits Laptops</p>
             </Link>
 
-            <div className="flex items-center gap-4">
-              <a
-                href="https://www.instagram.com/smartbits.ve/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="transition-transform hover:scale-110 active:scale-95 duration-200"
-                title="Síguenos en Instagram"
-              >
-                <img
-                  src="/instagram.png"
-                  alt="Instagram"
-                  className="w-10 h-10 drop-shadow-sm rounded-[22%]"
-                />
+            <div className="flex items-center gap-6">
+              <a href="https://www.instagram.com/smartbits.ve/" className="grayscale hover:grayscale-0 opacity-60 hover:opacity-100 transition-all">
+                <img src="/instagram.png" className="w-8 h-8" alt="Instagram" />
               </a>
-              <a
-                href="https://wa.me/584128444445"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="transition-transform hover:scale-110 active:scale-95 duration-200"
-                title="WhatsApp"
-              >
-                <img
-                  src="/whatsapp.png"
-                  alt="WhatsApp"
-                  className="w-10 h-10 drop-shadow-sm"
-                />
+              <a href="https://wa.me/584128444445" className="opacity-60 hover:opacity-100 transition-all">
+                <img src="/whatsapp.png" className="w-8 h-8" alt="WhatsApp" />
               </a>
             </div>
           </div>
           
-          <div className="mt-8 flex flex-col items-center gap-2">
-            <p className="text-gray-400 text-[10px] uppercase">© {new Date().getFullYear()} Todos los derechos reservados.</p>
-            <a 
-              href="http://localhost:5174/admin" 
-              className="text-[9px] text-gray-300 hover:text-brand-400 transition-colors uppercase tracking-widest font-medium"
-            >
-              Acceso Administrador
-            </a>
+          <div className="mt-12 pt-8 border-t border-brand-100 flex flex-col items-center gap-3">
+            <p className="text-brand-400 text-[10px] font-bold uppercase tracking-widest">© {new Date().getFullYear()} Smartbits de Venezuela</p>
+            {import.meta.env.DEV && (
+              <a 
+                href="http://localhost:5174/admin" 
+                className="text-[9px] text-brand-300 hover:text-brand-600 transition-colors uppercase font-black tracking-tighter"
+              >
+                Acceso Administrador (Local)
+              </a>
+            )}
           </div>
         </div>
       </footer>
