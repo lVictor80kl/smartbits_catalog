@@ -58,17 +58,17 @@ export default function Catalog() {
   ];
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-8 animate-welcome">
       {/* Header de Sección y Filtros */}
-      <div className="mb-13 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-gray-100 pb-8">
         <div>
           <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Catálogo de Laptops</h2>
-          <p className="mt-2 text-gray-500 max-w-2xl font-medium">
-            Compra inteligente, compra en smartbits. <span className="text-gray-400 font-normal italic">Equipos inspeccionados con garantía de calidad técnica.</span>
+          <p className="mt-2 text-gray-500 max-w-2xl font-medium italic">
+            "Compra inteligente, compra en smartbits"
           </p>
         </div>
 
-        {/* Buscador Integrado (Móvil prioritario, pero visible en desktop tb) */}
+        {/* Buscador y Filtros */}
         <div className="flex flex-col gap-4 w-full md:w-auto">
           <div className="relative w-full md:w-80">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -78,8 +78,8 @@ export default function Catalog() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-full leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all sm:text-sm shadow-sm"
-              placeholder="Buscar por modelo, marca o CPU..."
+              className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all text-sm"
+              placeholder="Buscar por modelo, marca, CPU..."
             />
           </div>
 
@@ -88,9 +88,9 @@ export default function Catalog() {
               <button
                 key={f.id}
                 onClick={() => setCurrentFilter(f.id)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${currentFilter === f.id
-                  ? 'bg-slate-900 text-white shadow-md'
-                  : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${currentFilter === f.id
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
               >
                 {f.label}

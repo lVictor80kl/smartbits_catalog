@@ -10,8 +10,8 @@ export default function LaptopCard({ laptop, onClick }) {
   const shortRam = `${laptop.ram.split(' ')[0]} ${laptop.ram.split(' ')[1]}`;
   const shortStorage = laptop.almacenamiento.split(' ').slice(0, 3).join(' ');
 
-  const mainImage = (laptop.imagenes && laptop.imagenes.length > 0) 
-    ? laptop.imagenes[0] 
+  const mainImage = (laptop.imagenes && laptop.imagenes.length > 0)
+    ? laptop.imagenes[0]
     : laptop.imagen;
 
   return (
@@ -43,22 +43,22 @@ export default function LaptopCard({ laptop, onClick }) {
         {/* Tags de Specs Resumidas */}
         <div className="flex flex-wrap gap-1 mt-3 mb-4">
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold">
-            <Cpu className="w-3 h-3" /> {shortCpu}
+            <Cpu className="w-3 h-3 text-brand-500" /> {shortCpu}
           </span>
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold">
-            <MemoryStick className="w-3 h-3" /> {shortRam}
+            <MemoryStick className="w-3 h-3 text-brand-500" /> {shortRam}
           </span>
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-[10px] font-semibold">
-            <Database className="w-3 h-3" /> {shortStorage}
+            <Database className="w-3 h-3 text-brand-500" /> {shortStorage}
           </span>
         </div>
 
         <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-500 mb-0.5">Precio de Venta</p>
-            <p className="text-xl font-extrabold text-blue-600">${laptop.precio}</p>
+            <p className="text-xl font-extrabold text-brand-600">${laptop.precio}</p>
           </div>
-          <div className="bg-blue-50 rounded-full p-2 h-10 w-10 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+          <div className="bg-brand-50 rounded-full p-2 h-10 w-10 flex items-center justify-center text-brand-600 group-hover:bg-brand-600 group-hover:text-white transition-colors shadow-sm">
             <ArrowRight className="w-5 h-5" />
           </div>
         </div>
