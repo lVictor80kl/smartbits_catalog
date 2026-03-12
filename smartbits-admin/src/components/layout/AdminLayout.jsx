@@ -17,6 +17,8 @@ export default function AdminLayout() {
     navigate('/login');
   };
 
+  const catalogUrl = import.meta.env.PROD ? "/" : "http://localhost:5173";
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
@@ -53,10 +55,10 @@ export default function AdminLayout() {
 
         <div className="p-4 border-t border-gray-100">
           <a
-            href="http://localhost:5173"
+            href={catalogUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors mb-2"
+            className="flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-bold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors mb-2"
           >
             Ver Catálogo Público
           </a>
@@ -76,7 +78,7 @@ export default function AdminLayout() {
         <header className="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
           <span className="font-bold text-slate-800">Panel Admin</span>
           <div className="flex items-center gap-3">
-            <a href="http://localhost:5173" target="_blank" rel="noopener noreferrer" className="text-brand-600 text-xs font-medium">Ver Tienda</a>
+            <a href={catalogUrl} target="_blank" rel="noopener noreferrer" className="text-brand-600 text-xs font-bold">Ver Tienda</a>
             <button onClick={handleLogout} className="text-red-500"><LogOut className="h-5 w-5" /></button>
           </div>
         </header>

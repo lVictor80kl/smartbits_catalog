@@ -23,8 +23,8 @@ export default function ClientLayout() {
                 alt="Smartbits"
                 className="h-6 md:h-8 object-contain"
               />
-              <p className="hidden md:block text-[9px] text-brand-600 font-black tracking-[0.2em] -mt-1 uppercase">
-                Tecnología Certificada
+              <p className="hidden md:block text-[9px] text-brand-600 font-bold tracking-wider -mt-1 uppercase">
+                Compra inteligente, compra en Smartbits
               </p>
             </div>
           </Link>
@@ -50,7 +50,7 @@ export default function ClientLayout() {
               href="https://www.instagram.com/smartbits.ve/"
               target="_blank"
               rel="noopener noreferrer"
-              className="transition-all hover:scale-110 active:scale-95 grayscale hover:grayscale-0 opacity-80 hover:opacity-100"
+              className="transition-all hover:scale-110 active:scale-95 opacity-80 hover:opacity-100"
             >
               <img
                 src="/instagram.png"
@@ -87,11 +87,13 @@ export default function ClientLayout() {
           <div className="flex flex-col items-center gap-8">
             <Link to="/" className="flex flex-col items-center group">
               <img src="/logo-black.png" className="h-6 opacity-80 group-hover:opacity-100 transition-opacity" alt="Smartbits" />
-              <p className="text-brand-400 text-[10px] uppercase font-bold tracking-[0.3em] mt-3 underline decoration-brand-200 decoration-2 underline-offset-8">Smartbits Laptops</p>
+              <p className="text-brand-600 text-[10px] uppercase font-bold tracking-[0.2em] mt-3">
+                "Compra inteligente, compra en Smartbits"
+              </p>
             </Link>
 
             <div className="flex items-center gap-6">
-              <a href="https://www.instagram.com/smartbits.ve/" className="grayscale hover:grayscale-0 opacity-60 hover:opacity-100 transition-all">
+              <a href="https://www.instagram.com/smartbits.ve/" className="opacity-60 hover:opacity-100 transition-all">
                 <img src="/instagram.png" className="w-8 h-8" alt="Instagram" />
               </a>
               <a href="https://wa.me/584128444445" className="opacity-60 hover:opacity-100 transition-all">

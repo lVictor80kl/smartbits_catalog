@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Search, SlidersHorizontal, PackageSearch, X } from 'lucide-center-react'; // Wait, it should be 'lucide-react', let me check
 import { Search, SlidersHorizontal, PackageSearch, X } from 'lucide-react';
 import { mockLaptops } from '../data/mockLaptops';
 import LaptopCard from '../components/LaptopCard';
@@ -27,11 +28,11 @@ export default function Catalog() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
           <div className="max-w-xl">
             <h1 className="text-4xl md:text-5xl font-black text-brand-900 mb-4 tracking-tighter">
-              Catálogo de Equipos
+              Catálogo Smartbits
             </h1>
             <p className="text-brand-500 font-medium text-sm md:text-base leading-relaxed">
-              Equipos corporativos certificados con garantía Smartbits. 
-              Encuentra la potencia que tu productividad necesita.
+              "Compra inteligente, compra en Smartbits". 
+              Encuentra equipos corporativos certificados con la mejor garantía del mercado.
             </p>
           </div>
           
