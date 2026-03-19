@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  X, Plus, ShieldCheck, BatteryCharging, 
-  Cpu, MemoryStick, Database, MonitorPlay, 
+import {
+  X, Plus, ShieldCheck, BatteryCharging,
+  Cpu, MemoryStick, Database, MonitorPlay,
   Monitor, LayoutDashboard, MessageCircle, ZoomIn
 } from 'lucide-react';
 
@@ -12,8 +12,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
 
-  const images = (laptop?.imagenes && laptop.imagenes.length > 0) 
-    ? laptop.imagenes 
+  const images = (laptop?.imagenes && laptop.imagenes.length > 0)
+    ? laptop.imagenes
     : (laptop?.imagen ? [laptop.imagen] : []);
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
   useEffect(() => {
     if (!isOpen) {
-       setShowBars(false);
+      setShowBars(false);
     }
   }, [isOpen]);
 
@@ -48,11 +48,11 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
   const pScreen = laptop.estado.pantalla;
   const pBody = laptop.estado.carcasa;
-  const screenTxt = laptop.touch.toLowerCase() === 'sí' || laptop.touch.toLowerCase() === 'si' 
-    ? `${laptop.pantalla} (Táctil)` 
+  const screenTxt = laptop.touch.toLowerCase() === 'sí' || laptop.touch.toLowerCase() === 'si'
+    ? `${laptop.pantalla} (Táctil)`
     : laptop.pantalla;
 
-  const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} (ID: ${laptop.id}) listado a $${laptop.precio}. ¿Aún está disponible?`;
+  const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} listado a $${laptop.precio}. ¿Aún está disponible?`;
   const whatsappUrl = `https://wa.me/584128444445?text=${encodeURIComponent(whatsappMessage)}`;
 
   // Función para manejar el zoom interno
@@ -64,16 +64,16 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4 md:p-6 lg:p-8" aria-labelledby="modal-title" role="dialog" aria-modal="true">
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-brand-900/40 dark:bg-black/60 backdrop-blur-md transition-opacity animate-in fade-in duration-300" 
+      <div
+        className="fixed inset-0 bg-brand-900/40 dark:bg-black/60 backdrop-blur-md transition-opacity animate-in fade-in duration-300"
         onClick={handleBackdropClick}
       />
 
       {/* Modal Panel Container */}
       <div className="relative w-full max-w-6xl h-full sm:h-auto max-h-screen sm:max-h-[85vh] lg:max-h-[90vh] flex flex-col pointer-events-auto bg-white dark:bg-brand-950 sm:rounded-[2.5rem] shadow-[0_25px_50px_-12px_rgba(15,23,42,0.25)] dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden animate-welcome border border-brand-100/50 dark:border-brand-800/80 transition-colors duration-500">
-        
+
         {/* Close Button */}
-        <button 
+        <button
           onClick={onClose}
           className="absolute top-4 right-4 sm:top-6 sm:right-6 z-50 p-2 bg-white/80 dark:bg-brand-900/80 hover:bg-brand-50 dark:hover:bg-brand-800 rounded-full text-brand-800 dark:text-brand-300 transition-all border border-brand-100 dark:border-brand-700 backdrop-blur-sm group"
         >
@@ -83,17 +83,17 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
         {/* Scrollable Content Area */}
         <div className="overflow-y-auto flex-grow h-full custom-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-[45%_55%] min-h-full">
-            
+
             {/* Left Column: Photos */}
             <div className="bg-brand-50/50 dark:bg-brand-900/30 p-6 sm:p-8 lg:p-10 flex flex-col gap-6 border-b md:border-b-0 md:border-r border-brand-100/50 dark:border-brand-800 h-full">
               {/* Contenedor de Imagen con Lupa */}
-              <div 
+              <div
                 className="flex-grow aspect-[4/3] md:aspect-auto md:min-h-[400px] rounded-3xl overflow-hidden bg-white dark:bg-brand-900 shadow-sm border border-brand-100 dark:border-brand-800 relative group flex items-center justify-center cursor-zoom-in group-zoom"
                 onClick={() => setIsZoomed(true)}
                 title="Conocer más de cerca"
               >
-                <img 
-                  src={images[activeImageIndex]} 
+                <img
+                  src={images[activeImageIndex]}
                   alt={laptop.modelo}
                   className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out"
                 />
@@ -101,17 +101,16 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                   <ZoomIn className="w-5 h-5" />
                 </div>
               </div>
-              
+
               {/* Thumbnails */}
               {images.length > 1 && (
                 <div className="flex flex-wrap justify-center gap-3">
                   {images.map((img, idx) => (
-                    <button 
+                    <button
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`w-14 h-14 sm:w-20 lg:w-24 aspect-square bg-white dark:bg-brand-900 rounded-2xl border-2 transition-all overflow-hidden p-1.5 ${
-                        activeImageIndex === idx ? 'border-brand-600 dark:border-brand-500 shadow-md scale-95' : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 opacity-60 hover:opacity-100'
-                      }`}
+                      className={`w-14 h-14 sm:w-20 lg:w-24 aspect-square bg-white dark:bg-brand-900 rounded-2xl border-2 transition-all overflow-hidden p-1.5 ${activeImageIndex === idx ? 'border-brand-600 dark:border-brand-500 shadow-md scale-95' : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 opacity-60 hover:opacity-100'
+                        }`}
                     >
                       <img src={img} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
                     </button>
@@ -125,7 +124,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
               <div className="mb-10">
                 <p className="text-[10px] lg:text-xs font-black text-brand-400 dark:text-brand-500 uppercase tracking-[0.3em] mb-4">{laptop.marca}</p>
                 <h3 className="text-3xl sm:text-4xl lg:text-5xl font-black text-brand-800 dark:text-white leading-[1.05] mb-8 tracking-tighter">{laptop.modelo}</h3>
-                
+
                 <div className="flex flex-wrap items-center gap-8">
                   <div className="flex items-baseline gap-2">
                     <span className="text-4xl sm:text-5xl lg:text-6xl font-black text-brand-900 dark:text-white tracking-tighter">${laptop.precio}</span>
@@ -140,7 +139,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
               {/* Certification Box */}
               <div className="bg-brand-50 dark:bg-brand-900 border border-brand-100/60 dark:border-brand-800/80 rounded-[3rem] p-8 lg:p-12 mb-12 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-brand-100/30 dark:bg-brand-800/30 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-                
+
                 <h4 className="text-[11px] lg:text-xs font-black text-brand-800 dark:text-brand-300 flex items-center gap-4 mb-10 uppercase tracking-[0.2em]">
                   <div className="w-10 h-10 rounded-2xl bg-brand-600 dark:bg-brand-700 flex items-center justify-center shadow-lg shadow-brand-600/20">
                     <ShieldCheck className="w-6 h-6 text-white" />
@@ -160,8 +159,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                         <span className="text-brand-600 dark:text-brand-400">{st.val}/10</span>
                       </div>
                       <div className="w-full bg-brand-200/50 dark:bg-brand-800 rounded-full h-2">
-                        <div 
-                          className="bg-brand-600 dark:bg-brand-500 h-full rounded-full transition-all duration-1000 ease-out" 
+                        <div
+                          className="bg-brand-600 dark:bg-brand-500 h-full rounded-full transition-all duration-1000 ease-out"
                           style={{ width: showBars ? `${st.val * 10}%` : '0%', transitionDelay: `${i * 150}ms` }}
                         />
                       </div>
@@ -194,7 +193,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
               {/* CTA Action */}
               <div className="mt-auto pt-10 border-t border-brand-100 dark:border-brand-800">
-                <a 
+                <a
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -211,7 +210,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
       {/* OVERLAY DEL ZOOM DE IMAGEN */}
       {isZoomed && createPortal(
-        <div 
+        <div
           className="fixed inset-0 z-[10000] bg-white/95 dark:bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center cursor-zoom-out animate-in fade-in duration-300 overflow-auto"
           onClick={() => {
             setIsZoomed(false);
@@ -223,16 +222,16 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             <ZoomIn className="w-4 h-4" />
             Haz clic para alternar el Zoom
           </div>
-          
-          <img 
-            src={images[activeImageIndex]} 
+
+          <img
+            src={images[activeImageIndex]}
             alt="Zoom"
             className="w-full h-full max-w-[95vw] max-h-[95vh] md:max-w-[85vw] md:max-h-[85vh] object-contain transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]"
             style={{ transform: `scale(${zoomLevel})`, cursor: zoomLevel === 1 ? 'zoom-in' : 'zoom-out' }}
             onClick={handleZoomClick}
           />
 
-          <button 
+          <button
             className="fixed top-6 right-6 p-3 bg-brand-900/10 dark:bg-white/10 hover:bg-brand-900/20 dark:hover:bg-white/20 rounded-full text-brand-900 dark:text-white transition-all backdrop-blur-sm z-[10001]"
             onClick={(e) => { e.stopPropagation(); setIsZoomed(false); setZoomLevel(1); }}
           >
