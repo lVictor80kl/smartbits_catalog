@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, Plus, ShieldCheck, BatteryCharging, 
   Cpu, MemoryStick, Database, MonitorPlay, 
@@ -50,23 +51,23 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} (ID: ${laptop.id}) listado a $${laptop.precio}. ¿Aún está disponible?`;
   const whatsappUrl = `https://wa.me/584128444445?text=${encodeURIComponent(whatsappMessage)}`;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-4 overflow-hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4 md:p-6 lg:p-8" aria-labelledby="modal-title" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-brand-900/60 backdrop-blur-md transition-opacity" 
+        className="fixed inset-0 bg-brand-900/40 backdrop-blur-md transition-opacity animate-in fade-in duration-300" 
         onClick={handleBackdropClick}
       />
 
       {/* Modal Panel Container */}
-      <div className="relative w-full max-w-6xl max-h-[90vh] sm:max-h-[85vh] lg:max-h-[90vh] flex flex-col pointer-events-auto bg-white sm:rounded-[2.5rem] shadow-[0_25px_50px_-12px_rgba(15,23,42,0.25)] overflow-hidden animate-welcome border border-brand-100/50">
+      <div className="relative w-full max-w-6xl h-full sm:h-auto max-h-screen sm:max-h-[85vh] lg:max-h-[90vh] flex flex-col pointer-events-auto bg-white sm:rounded-[2.5rem] shadow-[0_25px_50px_-12px_rgba(15,23,42,0.25)] overflow-hidden animate-welcome border border-brand-100/50">
         
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-6 right-6 z-50 p-2 bg-white/80 hover:bg-brand-50 rounded-full text-brand-800 transition-all border border-brand-100 backdrop-blur-sm group"
+          className="absolute top-4 right-4 sm:top-6 sm:right-6 z-50 p-2 bg-white/80 hover:bg-brand-50 rounded-full text-brand-800 transition-all border border-brand-100 backdrop-blur-sm group"
         >
-          <X className="w-6 h-6 group-hover:rotate-90 transition-transform" />
+          <X className="w-5 h-5 sm:w-6 h-6 group-hover:rotate-90 transition-transform" />
         </button>
 
         {/* Scrollable Content Area */}
@@ -74,8 +75,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
           <div className="grid grid-cols-1 md:grid-cols-[45%_55%] min-h-full">
             
             {/* Left Column: Photos */}
-            <div className="bg-brand-50/50 p-4 sm:p-8 lg:p-10 flex flex-col gap-6 border-b md:border-b-0 md:border-r border-brand-100/50 h-full">
-              <div className="flex-grow aspect-[4/3] md:aspect-auto md:h-full max-h-[400px] md:max-h-[500px] rounded-3xl overflow-hidden bg-white shadow-sm border border-brand-100 relative group flex items-center justify-center">
+            <div className="bg-brand-50/50 p-6 sm:p-8 lg:p-10 flex flex-col gap-6 border-b md:border-b-0 md:border-r border-brand-100/50 h-full">
+              <div className="flex-grow aspect-[4/3] md:aspect-auto md:min-h-[400px] rounded-3xl overflow-hidden bg-white shadow-sm border border-brand-100 relative group flex items-center justify-center">
                 <img 
                   src={images[activeImageIndex]} 
                   alt={laptop.modelo}
@@ -90,7 +91,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                     <button 
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`w-16 h-16 sm:w-20 lg:w-24 aspect-square bg-white rounded-2xl border-2 transition-all overflow-hidden p-1.5 ${
+                      className={`w-14 h-14 sm:w-20 lg:w-24 aspect-square bg-white rounded-2xl border-2 transition-all overflow-hidden p-1.5 ${
                         activeImageIndex === idx ? 'border-brand-600 shadow-md scale-95' : 'border-brand-100 hover:border-brand-300 opacity-60 hover:opacity-100'
                       }`}
                     >
@@ -105,7 +106,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             <div className="p-8 sm:p-12 lg:p-14 flex flex-col bg-white">
               <div className="mb-10">
                 <p className="text-[10px] lg:text-xs font-black text-brand-400 uppercase tracking-[0.3em] mb-4">{laptop.marca}</p>
-                <h3 className="text-3xl sm:text-4xl lg:text-6xl font-black text-brand-800 leading-[1.05] mb-8 tracking-tighter">{laptop.modelo}</h3>
+                <h3 className="text-3xl sm:text-4xl lg:text-5xl font-black text-brand-800 leading-[1.05] mb-8 tracking-tighter">{laptop.modelo}</h3>
                 
                 <div className="flex flex-wrap items-center gap-8">
                   <div className="flex items-baseline gap-2">
@@ -179,7 +180,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full bg-brand-900 hover:bg-brand-800 text-white py-6 px-10 rounded-3xl font-black transition-all shadow-2xl shadow-brand-900/20 flex items-center justify-center gap-5 text-lg lg:text-xl transform hover:-translate-y-1.5 active:translate-y-0"
+                  className="w-full bg-brand-900 hover:bg-brand-800 text-white py-6 px-10 rounded-3xl font-black transition-all shadow-2xl shadow-brand-900/20 flex items-center justify-center gap-5 text-lg lg:text-xl transform hover:-translate-y-1.5 active:translate-y-0 text-center"
                 >
                   <MessageCircle className="w-8 h-8 text-brand-400" />
                   CONSULTAR DISPONIBILIDAD
@@ -191,6 +192,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
 
 function SpecItem({ icon: Icon, label, value }) {
