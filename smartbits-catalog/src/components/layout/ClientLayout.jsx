@@ -43,10 +43,17 @@ export default function ClientLayout() {
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="flex items-center justify-center group h-full py-1 z-10"
           >
+            {/* Logo para Desktop/Tablet (MD y LG) */}
             <img
               src="/logo-min.png"
-              alt="Logo Min"
-              className="w-8 h-8 md:w-9 md:h-9 object-contain transition-transform group-hover:scale-110"
+              alt="Logo"
+              className="hidden sm:block w-8 h-8 md:w-9 md:h-9 object-contain transition-transform group-hover:scale-110"
+            />
+            {/* Logo para Mobile (SM) */}
+            <img
+              src={isDarkMode ? "/icon-white.png" : "/logo-black.png"}
+              alt="Logo"
+              className="block sm:hidden h-8 object-contain transition-transform group-hover:scale-110"
             />
           </Link>
 
