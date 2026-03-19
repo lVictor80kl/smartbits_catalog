@@ -9,6 +9,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
   const [filterDisp, setFilterDisp] = useState('Todas');
+  const [filterMarca, setFilterMarca] = useState('Todas');
+  const [searchTerm, setSearchTerm] = useState('');
   const [priceSort, setPriceSort] = useState('default');
   const [selectedIds, setSelectedIds] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
@@ -65,10 +67,15 @@ export default function Dashboard() {
     );
   };
 
+  const marcas = ['Todas', ...new Set(laptops.map(l => l.marca).filter(Boolean))];
+
   const filteredLaptops = laptops
     .filter(laptop => {
-      if (filterDisp === 'Todas') return true;
-      return laptop.disponibilidad === filterDisp;
+      const matchDisp = filterDisp === 'Todas' || laptop.disponibilidad === filterDisp;
+      const matchMarca = filterMarca === 'Todas' || laptop.marca === filterMarca;
+      const matchSearch = laptop.modelo.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (laptop.marca || '').toLowerCase().includes(searchTerm.toLowerCase());
+      return matchDisp && matchMarca && matchSearch;
     })
     .sort((a, b) => {
       if (priceSort === 'asc') return a.precio - b.precio;
@@ -106,9 +113,31 @@ export default function Dashboard() {
         
         {/* Filtros */}
         {!loading && laptops.length > 0 && (
-          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex flex-wrap items-center gap-4">
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex flex-wrap items-end gap-4">
+            <div className="flex flex-col flex-1 min-w-[200px]">
+              <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Buscar por nombre</label>
+              <input 
+                type="text"
+                placeholder="Ej: Latitude, Thinkpad..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              />
+            </div>
+
             <div className="flex flex-col">
-              <label className="text-xs font-semibold text-gray-500 uppercase mb-1">Disponibilidad</label>
+              <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Marca</label>
+              <select 
+                value={filterMarca} 
+                onChange={(e) => setFilterMarca(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              >
+                {marcas.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Disponibilidad</label>
               <select 
                 value={filterDisp} 
                 onChange={(e) => setFilterDisp(e.target.value)}

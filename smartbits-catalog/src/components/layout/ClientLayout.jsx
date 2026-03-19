@@ -57,9 +57,9 @@ export default function ClientLayout() {
             className="absolute left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center justify-center group h-full py-1"
           >
             <img
-              src="/logo-black.png"
+              src={isDarkMode ? "/icon-white.png" : "/logo-black.png"}
               alt="Smartbits"
-              className="h-6 md:h-7 object-contain transition-transform group-hover:scale-105 dark:invert"
+              className="h-6 md:h-7 object-contain transition-transform group-hover:scale-105"
             />
             <p className="text-[8px] md:text-[9px] text-brand-500 dark:text-brand-400 font-bold tracking-wider mt-[4px] uppercase text-center whitespace-nowrap">
               Compra inteligente, compra en Smartbits
@@ -130,9 +130,9 @@ export default function ClientLayout() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col items-center gap-8">
             <Link to="/" className="flex flex-col items-center group">
-              <img src="/logo-black.png" className="h-6 opacity-80 group-hover:opacity-100 transition-opacity dark:invert" alt="Smartbits" />
+              <img src={isDarkMode ? "/icon-white.png" : "/logo-black.png"} className="h-6 opacity-80 group-hover:opacity-100 transition-opacity" alt="Smartbits" />
               <p className="text-brand-600 dark:text-brand-400 text-[10px] uppercase font-bold tracking-[0.2em] mt-3">
-                "Compra inteligente, compra en Smartbits"
+                Compra inteligente, compra en Smartbits
               </p>
             </Link>
 
@@ -147,7 +147,7 @@ export default function ClientLayout() {
           </div>
 
           <div className="mt-12 pt-8 border-t border-brand-100 dark:border-brand-800 flex flex-col items-center gap-3">
-            <p className="text-brand-400 dark:text-brand-600 text-[10px] font-bold uppercase tracking-widest">© {new Date().getFullYear()} Smartbits de Venezuela</p>
+            <p className="text-brand-400 dark:text-brand-600 text-[10px] font-bold uppercase tracking-widest">© {new Date().getFullYear()} Smartbits</p>
             {import.meta.env.DEV && (
               <a
                 href="http://localhost:5174/admin"

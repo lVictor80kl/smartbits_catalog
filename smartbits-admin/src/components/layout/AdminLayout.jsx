@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Laptop, LayoutDashboard, PlusCircle, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -6,6 +7,19 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const checkDark = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    };
+    checkDark();
+
+    // Monitor for changes in classList
+    const observer = new MutationObserver(checkDark);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   const navItems = [
     { path: '/admin', label: 'Inventario', icon: LayoutDashboard },
@@ -27,7 +41,7 @@ export default function AdminLayout() {
           <div className="flex items-center gap-3">
             <img src="/logo-min.png" alt="Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
             <div className="flex flex-col">
-              <img src="/logo-black.png" alt="Smartbits" className="h-6 object-contain" />
+              <img src={isDarkMode ? "/icon-white.png" : "/logo-black.png"} alt="Smartbits" className="h-6 object-contain" />
               <p className="text-[8px] text-brand-500 font-bold uppercase tracking-tighter -mt-0.5">Admin Panel</p>
             </div>
           </div>
