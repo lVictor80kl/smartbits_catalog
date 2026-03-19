@@ -19,8 +19,9 @@ export default function LaptopCard({ laptop, onClick }) {
         </div>
         
         <img 
-          src={laptop.imagen} 
+          src={laptop.imagen || '/default-laptop.png'} 
           alt={laptop.modelo}
+          onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
           className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110"
         />
       </div>

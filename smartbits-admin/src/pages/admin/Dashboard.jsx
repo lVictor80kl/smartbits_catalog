@@ -8,6 +8,8 @@ export default function Dashboard() {
   const [laptops, setLaptops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [filterDisp, setFilterDisp] = useState('Todas');
+  const [priceSort, setPriceSort] = useState('default');
 
   useEffect(() => {
     const q = query(collection(db, 'laptops'), orderBy('modelo'));
@@ -31,26 +33,76 @@ export default function Dashboard() {
     }
   };
 
+  const filteredLaptops = laptops
+    .filter(laptop => {
+      if (filterDisp === 'Todas') return true;
+      return laptop.disponibilidad === filterDisp;
+    })
+    .sort((a, b) => {
+      if (priceSort === 'asc') return a.precio - b.precio;
+      if (priceSort === 'desc') return b.precio - a.precio;
+      return 0;
+    });
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Inventario de Equipos</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {loading ? 'Cargando...' : `${laptops.length} equipo${laptops.length !== 1 ? 's' : ''} en catálogo.`}
+            {loading ? 'Cargando...' : `${filteredLaptops.length} equipo${filteredLaptops.length !== 1 ? 's' : ''} mostrado${filteredLaptops.length !== 1 ? 's' : ''} (de ${laptops.length} en total)`}
           </p>
         </div>
-        
-        <Link 
-          to="/admin/new" 
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
-        >
-          <PlusCircle className="w-5 h-5" />
-          Añadir Laptop
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link 
+            to="/admin/sync" 
+            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+          >
+            Sincronizar Sheets
+          </Link>
+          <Link 
+            to="/admin/new" 
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Añadir Laptop
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        
+        {/* Filtros */}
+        {!loading && laptops.length > 0 && (
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex flex-wrap items-center gap-4">
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold text-gray-500 uppercase mb-1">Disponibilidad</label>
+              <select 
+                value={filterDisp} 
+                onChange={(e) => setFilterDisp(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              >
+                <option value="Todas">Todas</option>
+                <option value="Disponible">Disponible</option>
+                <option value="Coming soon">Coming soon</option>
+                <option value="No disponible">No disponible</option>
+              </select>
+            </div>
+            
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold text-gray-500 uppercase mb-1">Precio</label>
+              <select 
+                value={priceSort} 
+                onChange={(e) => setPriceSort(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              >
+                <option value="default">Orden original</option>
+                <option value="asc">Menor a mayor</option>
+                <option value="desc">Mayor a menor</option>
+              </select>
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="py-24 flex flex-col items-center gap-3 text-gray-400">
             <Loader2 className="w-8 h-8 animate-spin" />
@@ -76,12 +128,17 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {laptops.map(laptop => (
+                {filteredLaptops.map(laptop => (
                   <tr key={laptop.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center p-1 shrink-0">
-                          <img src={laptop.imagen} alt={laptop.modelo} className="max-h-full max-w-full object-contain" />
+                          <img 
+                            src={laptop.imagen || '/default-laptop.png'} 
+                            alt={laptop.modelo} 
+                            onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
+                            className="max-h-full max-w-full object-contain" 
+                          />
                         </div>
                         <div>
                           <div className="font-medium text-gray-900 line-clamp-1">{laptop.modelo}</div>

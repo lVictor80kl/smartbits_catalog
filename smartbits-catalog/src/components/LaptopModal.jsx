@@ -93,8 +93,9 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 title="Conocer más de cerca"
               >
                 <img
-                  src={images[activeImageIndex]}
+                  src={images[activeImageIndex] || '/default-laptop.png'}
                   alt={laptop.modelo}
+                  onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
                   className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out"
                 />
                 <div className="absolute top-4 right-4 bg-white/90 dark:bg-brand-950/90 p-2 rounded-xl text-brand-600 dark:text-brand-400 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
@@ -112,7 +113,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                       className={`w-14 h-14 sm:w-20 lg:w-24 aspect-square bg-white dark:bg-brand-900 rounded-2xl border-2 transition-all overflow-hidden p-1.5 ${activeImageIndex === idx ? 'border-brand-600 dark:border-brand-500 shadow-md scale-95' : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 opacity-60 hover:opacity-100'
                         }`}
                     >
-                      <img src={img} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
+                      <img src={img || '/default-laptop.png'} onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
                     </button>
                   ))}
                 </div>
@@ -224,8 +225,9 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
           </div>
 
           <img
-            src={images[activeImageIndex]}
+            src={images[activeImageIndex] || '/default-laptop.png'}
             alt="Zoom"
+            onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
             className="w-full h-full max-w-[95vw] max-h-[95vh] md:max-w-[85vw] md:max-h-[85vh] object-contain transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]"
             style={{ transform: `scale(${zoomLevel})`, cursor: zoomLevel === 1 ? 'zoom-in' : 'zoom-out' }}
             onClick={handleZoomClick}
