@@ -7,7 +7,7 @@ import { db } from '../../firebase';
 
 export default function SyncLaptops() {
   const navigate = useNavigate();
-  const [csvUrl, setCsvUrl] = useState('');
+  const [csvUrl, setCsvUrl] = useState('https://docs.google.com/spreadsheets/d/e/2PACX-1vRopsp7QjmmNcA-vgZQIt3evqjVnPKQ1Rhz66V5R_bmbQalAK7qU6Y1CCttNWcEs96_dVkIERBPsIcH/pub?output=csv');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   
@@ -133,6 +133,12 @@ export default function SyncLaptops() {
             return { isValid: false, originalModelo: '', data: {} };
           }
 
+          let marcaValue = mappedRow['marca'] || '';
+          if (!marcaValue && modelName) {
+            const firstWord = modelName.split(' ')[0];
+            marcaValue = firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
+          }
+
           const isDuplicate = existingModels.has(modelName.toLowerCase());
           
           // Verificar disponibilidad
@@ -148,7 +154,7 @@ export default function SyncLaptops() {
             isSelected: !isDuplicate && isAvailable, // Seleccionado por defecto si es válido, no duplicado y disponible
             data: {
               modelo: modelName,
-              marca: mappedRow['marca'] || '',
+              marca: marcaValue,
               cpu: mappedRow['cpu'] || 'N/A',
               ram: mappedRow['ram'] || 'N/A',
               almacenamiento: mappedRow['almacenamiento'] || 'N/A',

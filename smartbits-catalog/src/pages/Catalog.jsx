@@ -14,6 +14,7 @@ export default function Catalog() {
   const [selectedCpu, setSelectedCpu] = useState("Todos");
   const [selectedRam, setSelectedRam] = useState("Todas");
   const [selectedStorage, setSelectedStorage] = useState("Todas");
+  const [selectedDisponibilidad, setSelectedDisponibilidad] = useState("Todas");
   const [maxPrice, setMaxPrice] = useState(1500);
   const [selectedLaptop, setSelectedLaptop] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -73,9 +74,22 @@ export default function Catalog() {
       
       const matchPrice = Number(laptop.precio) <= maxPrice;
 
-      return matchSearch && matchBrand && matchRam && matchStorage && matchCpu && matchPrice;
+      const laptopDisp = laptop.disponibilidad || "";
+      const matchDisp = selectedDisponibilidad === "Todas" || laptopDisp === selectedDisponibilidad;
+
+      return matchSearch && matchBrand && matchRam && matchStorage && matchCpu && matchPrice && matchDisp;
+    }).sort((a, b) => {
+      const getDispWeight = (disp) => {
+        if (!disp) return 4;
+        const d = disp.toLowerCase();
+        if (d === 'disponible') return 1;
+        if (d === 'coming soon') return 2;
+        if (d === 'no disponible') return 3;
+        return 4;
+      };
+      return getDispWeight(a.disponibilidad) - getDispWeight(b.disponibilidad);
     });
-  }, [laptops, searchTerm, selectedBrand, selectedRam, selectedStorage, selectedCpu, maxPrice]);
+  }, [laptops, searchTerm, selectedBrand, selectedRam, selectedStorage, selectedCpu, maxPrice, selectedDisponibilidad]);
 
   if (loading) {
     return (
@@ -201,6 +215,18 @@ export default function Catalog() {
                 className="w-full bg-white dark:bg-brand-950 px-4 py-3 rounded-xl border border-brand-100 dark:border-brand-800 text-sm font-bold text-brand-800 dark:text-white outline-none focus:border-brand-400 dark:focus:border-brand-600 transition-colors"
               >
                 {storageOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* Disponibilidad */}
+            <div>
+              <label className="block text-[10px] font-black text-brand-400 dark:text-brand-500 uppercase tracking-widest mb-3">Disponibilidad</label>
+              <select 
+                value={selectedDisponibilidad}
+                onChange={(e) => setSelectedDisponibilidad(e.target.value)}
+                className="w-full bg-white dark:bg-brand-950 px-4 py-3 rounded-xl border border-brand-100 dark:border-brand-800 text-sm font-bold text-brand-800 dark:text-white outline-none focus:border-brand-400 dark:focus:border-brand-600 transition-colors"
+              >
+                {["Todas", "Disponible", "Coming soon", "No disponible"].map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
 
