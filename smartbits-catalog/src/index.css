@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-brand-50: #f8fafc;
   --color-brand-100: #f1f5f9;
@@ -11,12 +13,13 @@
   --color-brand-700: #1d4ed8;
   --color-brand-800: #1e293b; /* Midnight Primary */
   --color-brand-900: #0f172a;
+  --color-brand-950: #020617; /* Deepest Dark */
   --font-sans: "Inter", sans-serif;
 }
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 font-sans antialiased;
+    @apply bg-brand-50 dark:bg-brand-950 text-gray-900 dark:text-gray-100 font-sans antialiased transition-colors duration-500;
   }
 }
 
@@ -30,7 +33,7 @@
 }
 
 .premium-shadow {
-  @apply shadow-sm border border-gray-100;
+  @apply shadow-sm border border-gray-100 dark:border-gray-800;
 }
 
 /* Scrollbar Personalizado */
@@ -39,15 +42,28 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #f8fafc;
+  background: var(--color-brand-50);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-brand-950);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--color-brand-300);
   border-radius: 10px;
-  border: 2px solid #f8fafc;
+  border: 2px solid var(--color-brand-50);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-brand-700);
+  border-color: var(--color-brand-950);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--color-brand-400);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-600);
 }
