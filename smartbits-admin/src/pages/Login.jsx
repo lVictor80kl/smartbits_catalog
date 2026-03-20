@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock, User, ArrowLeft } from 'lucide-react';
+import { Lock, Mail, ArrowLeft } from 'lucide-react';
 
 export default function Login() {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -12,24 +13,27 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Si venía de intentar entrar a /admin, lo regresamos allí tras el login. Si no, al dashboard.
   const from = location.state?.from?.pathname || '/admin';
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Simulamos un leve delay
-    setTimeout(() => {
-        const success = login(password);
-        if (success) {
-            navigate(from, { replace: true });
-        } else {
-            setError('Contraseña incorrecta. Inténtalo de nuevo.');
-            setIsLoading(false);
-        }
-    }, 800);
+    try {
+      await login(email, password);
+      navigate(from, { replace: true });
+    } catch (err) {
+      const code = err.code;
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setError('Correo o contraseña incorrectos.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Demasiados intentos fallidos. Espera un momento e intenta de nuevo.');
+      } else {
+        setError('Error al iniciar sesión: ' + err.message);
+      }
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -55,10 +59,33 @@ export default function Login() {
         <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-2xl sm:px-10 border border-gray-100">
           <form className="space-y-6" onSubmit={handleSubmit}>
             
+            {/* Input Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Correo Electrónico
+              </label>
+              <div className="mt-2 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="focus:ring-brand-500 focus:border-brand-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-xl py-3 bg-gray-50 outline-none transition-all placeholder-gray-400 border"
+                  placeholder="admin@smartbits.ve"
+                />
+              </div>
+            </div>
+
             {/* Input Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Contraseña Administrativa
+                Contraseña
               </label>
               <div className="mt-2 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -68,6 +95,7 @@ export default function Login() {
                   id="password"
                   name="password"
                   type="password"
+                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

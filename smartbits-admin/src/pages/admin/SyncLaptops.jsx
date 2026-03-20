@@ -33,6 +33,22 @@ export default function SyncLaptops() {
     fetchExistingLaptops();
   }, []);
 
+  // --- Funciones de sanitización ---
+  const sanitizeString = (value, maxLength = 500) => {
+    if (typeof value !== 'string') return '';
+    return value
+      .replace(/<[^>]*>/g, '')
+      .replace(/[<>"'`;(){}]/g, '')
+      .trim()
+      .substring(0, maxLength);
+  };
+
+  const sanitizeNumber = (value, min = 0, max = 99999) => {
+    const num = Number(value);
+    if (isNaN(num)) return 0;
+    return Math.max(min, Math.min(max, num));
+  };
+
   const normalizeKey = (key) => {
     if (!key) return '';
     const map = {
@@ -146,25 +162,25 @@ export default function SyncLaptops() {
           const isAvailable = dispRaw === 'disponible' || dispRaw === 'coming soon';
           
           return {
-            id: `row-${idx}`, // ID único para usar en React keys y checkboxes
+            id: `row-${idx}`,
             originalModelo: modelName,
             isDuplicate,
             isAvailable,
             isValid: true,
-            isSelected: !isDuplicate && isAvailable, // Seleccionado por defecto si es válido, no duplicado y disponible
+            isSelected: !isDuplicate && isAvailable,
             data: {
-              modelo: modelName,
-              marca: marcaValue,
-              cpu: mappedRow['cpu'] || 'N/A',
-              ram: mappedRow['ram'] || 'N/A',
-              almacenamiento: mappedRow['almacenamiento'] || 'N/A',
-              gpu: mappedRow['gpu'] || 'N/A',
-              pantalla: mappedRow['pantalla'] || 'N/A',
+              modelo: sanitizeString(modelName, 200),
+              marca: sanitizeString(marcaValue, 50),
+              cpu: sanitizeString(mappedRow['cpu'] || 'N/A', 100),
+              ram: sanitizeString(mappedRow['ram'] || 'N/A', 50),
+              almacenamiento: sanitizeString(mappedRow['almacenamiento'] || 'N/A', 50),
+              gpu: sanitizeString(mappedRow['gpu'] || 'N/A', 100),
+              pantalla: sanitizeString(mappedRow['pantalla'] || 'N/A', 100),
               touch: (mappedRow['touch']?.toLowerCase()?.includes('si') || mappedRow['touch']?.toLowerCase()?.includes('sí')) ? 'Sí' : 'No',
-              windows: mappedRow['windows'] || 'W11 PRO',
-              bateria: mappedRow['bateria'] || 'Excelente',
-              precio: Number(mappedRow['precio']?.replace(/[^0-9.-]+/g,"")) || 0,
-              disponibilidad: mappedRow['disponibilidad']?.trim() || 'No disponible',
+              windows: sanitizeString(mappedRow['windows'] || 'W11 PRO', 50),
+              bateria: sanitizeString(mappedRow['bateria'] || 'Excelente', 50),
+              precio: sanitizeNumber(mappedRow['precio']?.replace(/[^0-9.-]+/g,""), 0, 99999),
+              disponibilidad: sanitizeString(mappedRow['disponibilidad']?.trim() || 'No disponible', 50),
               
               imagenes: [],
               imagen: '', 

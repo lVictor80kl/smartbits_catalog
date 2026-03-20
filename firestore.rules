@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Colección laptops
+    match /laptops/{laptopId} {
+      // Lectura pública
+      allow read: if true;
+
+      // Escritura solo para usuarios autenticados
+      allow create, update, delete: if request.auth != null;
+    }
+
+    // Denegar todo lo demás por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
