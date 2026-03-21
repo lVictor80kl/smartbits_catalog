@@ -391,7 +391,7 @@ export default function NewLaptop() {
                       >
                         <option value="Disponible">Disponible</option>
                         <option value="Coming soon">Coming soon (Próximamente)</option>
-                        <option value="Vendido">Vendido</option>
+                        <option value="No disponible">No disponible</option>
                       </select>
                     </div>
                   </div>
