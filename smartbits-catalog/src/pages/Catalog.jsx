@@ -87,7 +87,16 @@ export default function Catalog() {
         if (d === 'no disponible') return 3;
         return 4;
       };
-      return getDispWeight(a.disponibilidad) - getDispWeight(b.disponibilidad);
+
+      const weightA = getDispWeight(a.disponibilidad);
+      const weightB = getDispWeight(b.disponibilidad);
+
+      if (weightA !== weightB) {
+        return weightA - weightB;
+      }
+
+      // Si tienen la misma disponibilidad, ordenar por precio (Menor a Mayor)
+      return Number(a.precio) - Number(b.precio);
     });
   }, [laptops, searchTerm, selectedBrand, selectedRam, selectedStorage, selectedCpu, maxPrice, selectedDisponibilidad]);
 
