@@ -73,10 +73,6 @@ export default function NewLaptop() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (imageFiles.length === 0) {
-      alert('Por favor selecciona al menos una foto para el equipo.');
-      return;
-    }
     setIsSubmitting(true);
     
     try {
@@ -116,7 +112,7 @@ export default function NewLaptop() {
         precio: Number(formData.precio),
         disponibilidad: formData.disponibilidad,
         imagenes: uploadedUrls,
-        imagen: uploadedUrls[0], // Fallback para compatibilidad con código viejo
+        imagen: uploadedUrls.length > 0 ? uploadedUrls[0] : '', // Fallback para compatibilidad con código viejo
         estado: {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,

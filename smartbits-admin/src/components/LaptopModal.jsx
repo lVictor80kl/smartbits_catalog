@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { 
-  X, Plus, ShieldCheck, BatteryCharging, 
-  Cpu, MemoryStick, Database, MonitorPlay, 
-  Monitor, LayoutDashboard, MessageCircle 
+import {
+  X, Plus, ShieldCheck, BatteryCharging,
+  Cpu, MemoryStick, Database, MonitorPlay,
+  Monitor, LayoutDashboard, MessageCircle
 } from 'lucide-react';
 
 export default function LaptopModal({ laptop, isOpen, onClose }) {
@@ -21,7 +21,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
   useEffect(() => {
     if (!isOpen) {
-       setShowBars(false);
+      setShowBars(false);
     }
   }, [isOpen]);
 
@@ -38,8 +38,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
   const pScreen = laptop.estado.pantalla;
   const pBody = laptop.estado.carcasa;
-  const screenTxt = laptop.touch.toLowerCase() === 'sí' || laptop.touch.toLowerCase() === 'si' 
-    ? `${laptop.pantalla} (Táctil)` 
+  const screenTxt = laptop.touch.toLowerCase() === 'sí' || laptop.touch.toLowerCase() === 'si'
+    ? `${laptop.pantalla} (Táctil)`
     : laptop.pantalla;
 
   const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} (ID: ${laptop.id}) listado a $${laptop.precio}. ¿Aún está disponible?`;
@@ -48,18 +48,18 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   return (
     <div className="fixed inset-0 z-[60] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" 
+      <div
+        className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity"
         onClick={handleBackdropClick}
       />
 
       <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0 pointer-events-none">
         {/* Modal Panel */}
-        <div 
+        <div
           className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
         >
           {/* Close Button */}
-          <button 
+          <button
             onClick={onClose}
             className="absolute top-4 right-4 z-10 p-2 bg-white/80 hover:bg-gray-100 rounded-full text-gray-500 transition-colors backdrop-blur-sm shadow-sm ring-1 ring-gray-200"
           >
@@ -70,13 +70,13 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             {/* Left Column: Photos */}
             <div className="bg-gray-50 p-6 flex flex-col gap-4">
               <div className="aspect-[4/3] rounded-xl overflow-hidden bg-white shadow-sm ring-1 ring-gray-200 relative group">
-                <img 
-                  src={laptop.imagen} 
+                <img
+                  src={laptop.imagen}
                   alt={laptop.modelo}
                   className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              
+
               {/* Thumbnails (Simulated) */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="aspect-square bg-white rounded-lg ring-2 ring-blue-400 cursor-pointer overflow-hidden p-2">
@@ -117,8 +117,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                       <span className="text-gray-900 bg-white px-2 rounded font-bold shadow-sm">{pScreen}/10</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-green-500 h-full rounded-full transition-all duration-1000 ease-out" 
+                      <div
+                        className="bg-green-500 h-full rounded-full transition-all duration-1000 ease-out"
                         style={{ width: showBars ? `${pScreen * 10}%` : '0%' }}
                       />
                     </div>
@@ -131,8 +131,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                       <span className="text-gray-900 bg-white px-2 rounded font-bold shadow-sm">{pBody}/10</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-1000 ease-out delay-150 ${pBody >= 9 ? 'bg-green-500' : 'bg-blue-400'}`} 
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ease-out delay-150 ${pBody >= 9 ? 'bg-green-500' : 'bg-blue-400'}`}
                         style={{ width: showBars ? `${pBody * 10}%` : '0%' }}
                       />
                     </div>
@@ -162,7 +162,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
               {/* Footer / Actions */}
               <div className="mt-8 pt-6 border-t border-gray-100 flex gap-3">
-                <a 
+                <a
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"

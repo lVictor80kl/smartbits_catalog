@@ -119,10 +119,6 @@ export default function EditLaptop() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (existingImages.length === 0 && newImageFiles.length === 0) {
-      alert('El equipo debe tener al menos una imagen.');
-      return;
-    }
     setIsSubmitting(true);
     
     try {
@@ -163,7 +159,7 @@ export default function EditLaptop() {
         precio: Number(formData.precio),
         disponibilidad: formData.disponibilidad,
         imagenes: finalUrls,
-        imagen: finalUrls[0], // Fallback
+        imagen: finalUrls.length > 0 ? finalUrls[0] : '', // Fallback
         estado: {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,
