@@ -7,6 +7,7 @@ import Dashboard from './pages/admin/Dashboard';
 import NewLaptop from './pages/admin/NewLaptop';
 import EditLaptop from './pages/admin/EditLaptop';
 import SyncLaptops from './pages/admin/SyncLaptops';
+import DeliveryNote from './pages/admin/DeliveryNote';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
             <Route path="new" element={<NewLaptop />} />
             <Route path="edit/:id" element={<EditLaptop />} />
             <Route path="sync" element={<SyncLaptops />} />
+            <Route path="delivery/:id" element={<DeliveryNote />} />
           </Route>
         </Routes>
       </Router>
