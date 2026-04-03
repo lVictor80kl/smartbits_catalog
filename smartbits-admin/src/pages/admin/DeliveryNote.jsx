@@ -99,6 +99,20 @@ export default function DeliveryNote() {
   const subtotal = laptop ? laptop.precio * unidades : 0;
   const totalPagado = pagos.reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
 
+  const [tasa, setTasa] = useState('');
+
+  const METODOS_BS = ['Pago Móvil', 'Transferencia', 'Otro'];
+  const isBs = (metodo) => METODOS_BS.includes(metodo);
+
+  // Si al menos un método es Bs, toda la nota se muestra en Bs
+  const usandoBs = pagos.some(p => isBs(p.metodo));
+  const tasaNum = Number(tasa) || 0;
+
+  const precioDisplay = usandoBs && tasaNum > 0 ? laptop?.precio * tasaNum * unidades : subtotal;
+  const moneda = usandoBs ? 'Bs' : '$';
+  const formatMonto = (val) => Number(val || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+  const precioUnitDisplay = usandoBs && tasaNum > 0 ? (laptop?.precio ?? 0) * tasaNum : (laptop?.precio ?? 0);
+
   const handleDownloadPDF = () => {
     const element = noteRef.current;
     if (!element) return;
@@ -303,7 +317,7 @@ export default function DeliveryNote() {
                 <option value="Otro">Otro</option>
               </select>
               <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">{isBs(pago.metodo) ? 'Bs' : '$'}</span>
                 <input
                   type="number" min="0" step="0.01"
                   value={pago.monto}
@@ -343,6 +357,25 @@ export default function DeliveryNote() {
             />
           </div>
         </div>
+
+        {/* Tasa de cambio - solo visible si hay método en Bs */}
+        {usandoBs && (
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <label className="block text-sm font-medium text-amber-800 mb-1">Tasa de cambio (Bs por $)</label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-amber-700 font-medium">1 $ =</span>
+              <input
+                type="number" min="0" step="0.01"
+                value={tasa}
+                onChange={(e) => setTasa(e.target.value)}
+                placeholder="Ej: 95.50"
+                className="w-40 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none bg-white"
+              />
+              <span className="text-sm text-amber-700 font-medium">Bs</span>
+            </div>
+            <p className="text-xs text-amber-600 mt-1">Los precios del PDF se mostrarán en Bs según esta tasa.</p>
+          </div>
+        )}
         
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Descripción del Equipo</label>
@@ -424,8 +457,8 @@ export default function DeliveryNote() {
               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={{ padding: '10px' }}>{unidades}</td>
                 <td style={{ padding: '10px', fontWeight: '600' }}>{laptop.modelo}</td>
-                <td style={{ padding: '10px', textAlign: 'right' }}>{Number(laptop.precio).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>{subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+                <td style={{ padding: '10px', textAlign: 'right' }}>{moneda} {formatMonto(precioUnitDisplay)}</td>
+                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>{moneda} {formatMonto(precioDisplay)}</td>
               </tr>
             </tbody>
           </table>
@@ -450,12 +483,12 @@ export default function DeliveryNote() {
               {pagos.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '7px 10px' }}>{p.metodo}</td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right' }}>${Number(p.monto || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right' }}>{isBs(p.metodo) ? 'Bs' : '$'} {formatMonto(p.monto)}</td>
                 </tr>
               ))}
               <tr style={{ borderTop: '2px solid #222' }}>
                 <td style={{ padding: '10px', fontWeight: '800', fontSize: '14px' }}>Total:</td>
-                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>${subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>{moneda} {formatMonto(precioDisplay)}</td>
               </tr>
             </tbody>
           </table>
