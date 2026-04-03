@@ -8,7 +8,6 @@ export default function DeliveryNote() {
   const { id } = useParams();
   const [laptop, setLaptop] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
   const noteRef = useRef(null);
 
   // Auto-generate 5-digit note number
@@ -36,9 +35,11 @@ export default function DeliveryNote() {
   // Customer form
   const [cliente, setCliente] = useState({
     nombre: '',
+    tipoDoc: 'V-',
     cedula: '',
-    direccion: '',
+    prefijoTlf: '0414-',
     telefono: '',
+    direccion: '',
   });
 
   // Payment methods (dynamic)
@@ -48,6 +49,7 @@ export default function DeliveryNote() {
 
   const [unidades, setUnidades] = useState(1);
   const [garantia, setGarantia] = useState('3 meses');
+  const [descripcion, setDescripcion] = useState('');
 
   // Fetch laptop data
   useEffect(() => {
@@ -56,7 +58,19 @@ export default function DeliveryNote() {
         const laptopRef = doc(db, 'laptops', id);
         const laptopSnap = await getDoc(laptopRef);
         if (laptopSnap.exists()) {
-          setLaptop({ id: laptopSnap.id, ...laptopSnap.data() });
+          const data = laptopSnap.data();
+          setLaptop({ id: laptopSnap.id, ...data });
+          
+          const initialDesc = [
+            data.cpu,
+            data.ram,
+            data.almacenamiento,
+            `GPU: ${data.gpu}`,
+            `${data.pantalla}${data.touch?.toLowerCase() === 'sí' ? ' (Táctil)' : ''}`,
+            `BAT: ${data.bateria}`,
+            data.windows ? `SO: ${data.windows}` : ''
+          ].filter(Boolean).join('\n');
+          setDescripcion(initialDesc);
         } else {
           alert('Equipo no encontrado.');
         }
@@ -85,38 +99,51 @@ export default function DeliveryNote() {
   const subtotal = laptop ? laptop.precio * unidades : 0;
   const totalPagado = pagos.reduce((sum, p) => sum + (Number(p.monto) || 0), 0);
 
-  const handleDownloadPDF = async () => {
-    setGenerating(true);
-    try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const element = noteRef.current;
+  const handleDownloadPDF = () => {
+    const element = noteRef.current;
+    if (!element) return;
 
-      const clientName = cliente.nombre.trim().replace(/\s+/g, '_') || 'Cliente';
-      const fileName = `${clientName}_NDE_${formatDateFile(new Date())}.pdf`;
+    const clientName = cliente.nombre.trim().replace(/\s+/g, '_') || 'Cliente';
+    const fileName = `${clientName}_NDE_${formatDateFile(new Date())}`;
 
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename: fileName,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          letterRendering: true,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'letter',
-          orientation: 'portrait'
-        }
-      };
-
-      await html2pdf().set(opt).from(element).save();
-    } catch (err) {
-      console.error('Error generando PDF:', err);
-      alert('Error al generar PDF: ' + err.message);
-    } finally {
-      setGenerating(false);
+    // Abrir una ventana nueva con solo el contenido de la nota
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor permite las ventanas emergentes para descargar el PDF.');
+      return;
     }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${fileName}</title>
+        <style>
+          @page {
+            size: letter;
+            margin: 15mm;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+          }
+        </style>
+      </head>
+      <body>
+        ${element.innerHTML}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    // Esperar a que los recursos carguen (como el logo)
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 300);
+    };
   };
 
   if (loading) {
@@ -155,14 +182,9 @@ export default function DeliveryNote() {
         </div>
         <button
           onClick={handleDownloadPDF}
-          disabled={generating}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-md shadow-blue-500/20 disabled:opacity-70"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-md shadow-blue-500/20"
         >
-          {generating ? (
-            <><Loader2 className="w-5 h-5 animate-spin" /> Generando...</>
-          ) : (
-            <><Download className="w-5 h-5" /> Descargar PDF</>
-          )}
+          <Download className="w-5 h-5" /> Generar e Imprimir PDF
         </button>
       </div>
 
@@ -187,18 +209,34 @@ export default function DeliveryNote() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Cliente</label>
             <input
-              type="text" value={cliente.nombre} onChange={(e) => setCliente(p => ({ ...p, nombre: e.target.value }))}
-              placeholder="Ej: Salma Silva"
+              type="text" value={cliente.nombre} onChange={(e) => setCliente(p => ({ ...p, nombre: e.target.value.toUpperCase() }))}
+              placeholder="Ej: SALMA SILVA"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Doc. Cliente (Cédula)</label>
-            <input
-              type="text" value={cliente.cedula} onChange={(e) => setCliente(p => ({ ...p, cedula: e.target.value }))}
-              placeholder="Ej: V-30.430.572"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Doc. Cliente (Cédula/RIF)</label>
+            <div className="flex gap-2">
+              <select
+                value={cliente.tipoDoc}
+                onChange={(e) => setCliente(p => ({ ...p, tipoDoc: e.target.value }))}
+                className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              >
+                <option value="V-">V-</option>
+                <option value="J-">J-</option>
+                <option value="E-">E-</option>
+              </select>
+              <input
+                type="text" value={cliente.cedula} 
+                onChange={(e) => {
+                  const numbers = e.target.value.replace(/\D/g, '');
+                  const formatted = numbers.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                  setCliente(p => ({ ...p, cedula: formatted }));
+                }}
+                placeholder="25.535.271"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
@@ -210,11 +248,38 @@ export default function DeliveryNote() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nro. Teléfono</label>
-            <input
-              type="text" value={cliente.telefono} onChange={(e) => setCliente(p => ({ ...p, telefono: e.target.value }))}
-              placeholder="Ej: 0414-4229140"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            />
+            <div className="flex gap-2">
+              <select
+                value={cliente.prefijoTlf}
+                onChange={(e) => setCliente(p => ({ ...p, prefijoTlf: e.target.value, telefono: '' }))}
+                className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              >
+                <option value="0414-">0414</option>
+                <option value="0424-">0424</option>
+                <option value="0412-">0412</option>
+                <option value="0416-">0416</option>
+                <option value="0426-">0426</option>
+                <option value="">Manual</option>
+              </select>
+              {cliente.prefijoTlf === '' ? (
+                 <input
+                   type="text" value={cliente.telefono} 
+                   onChange={(e) => setCliente(p => ({ ...p, telefono: e.target.value }))}
+                   placeholder="Ej: +58 414 1234567"
+                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                 />
+              ) : (
+                <input
+                  type="text" value={cliente.telefono} 
+                  onChange={(e) => {
+                    const numbers = e.target.value.replace(/\D/g, '').slice(0, 7);
+                    setCliente(p => ({ ...p, telefono: numbers }));
+                  }}
+                  placeholder="4229140"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              )}
+            </div>
           </div>
         </div>
 
@@ -278,6 +343,16 @@ export default function DeliveryNote() {
             />
           </div>
         </div>
+        
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Descripción del Equipo</label>
+          <textarea
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            rows="5"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+          />
+        </div>
       </div>
 
       {/* ===== PDF PREVIEW ===== */}
@@ -288,11 +363,16 @@ export default function DeliveryNote() {
 
         <div ref={noteRef} style={{ padding: '40px', fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", color: '#222', background: '#fff', maxWidth: '720px', margin: '0 auto' }}>
           {/* Logo + Title */}
-          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-            <img src="/logo-black.png" alt="Smartbits" style={{ height: '50px', marginBottom: '4px' }} crossOrigin="anonymous" />
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <img 
+              src="/logo-black.png" 
+              alt="Smartbits" 
+              style={{ height: '55px', display: 'block', margin: '0 auto' }} 
+              crossOrigin="anonymous" 
+            />
           </div>
 
-          <h1 style={{ textAlign: 'center', fontSize: '20px', fontWeight: '700', color: '#1a1a1a', borderBottom: '3px solid #38bdf8', paddingBottom: '8px', marginBottom: '20px', letterSpacing: '2px' }}>
+          <h1 style={{ textAlign: 'center', fontSize: '20px', fontWeight: '700', color: '#1a1a1a', borderBottom: '3px solid #5ce1e6', paddingBottom: '8px', marginBottom: '20px', letterSpacing: '2px' }}>
             NOTA DE ENTREGA
           </h1>
 
@@ -303,7 +383,7 @@ export default function DeliveryNote() {
               <strong>{fecha}</strong>
             </div>
             <div>
-              <span style={{ color: '#38bdf8', fontWeight: '600' }}>Nro: </span>
+              <span style={{ color: '#5ce1e6', fontWeight: '600' }}>Nro: </span>
               <span style={{ background: '#f0f9ff', padding: '2px 10px', borderRadius: '4px', fontWeight: '700', border: '1px solid #bae6fd' }}>{noteNumber}</span>
             </div>
           </div>
@@ -317,7 +397,7 @@ export default function DeliveryNote() {
               </tr>
               <tr>
                 <td style={{ padding: '5px 0', color: '#666' }}>Doc. Cliente:</td>
-                <td style={{ padding: '5px 0', fontWeight: '600' }}>{cliente.cedula || '—'}</td>
+                <td style={{ padding: '5px 0', fontWeight: '600' }}>{cliente.cedula ? `${cliente.tipoDoc}${cliente.cedula}` : '—'}</td>
               </tr>
               <tr>
                 <td style={{ padding: '5px 0', color: '#666' }}>Dirección:</td>
@@ -325,7 +405,7 @@ export default function DeliveryNote() {
               </tr>
               <tr>
                 <td style={{ padding: '5px 0', color: '#666' }}>Nro Teléfono:</td>
-                <td style={{ padding: '5px 0', fontWeight: '600' }}>{cliente.telefono || '—'}</td>
+                <td style={{ padding: '5px 0', fontWeight: '600' }}>{cliente.telefono ? `${cliente.prefijoTlf}${cliente.telefono}` : '—'}</td>
               </tr>
             </tbody>
           </table>
@@ -333,7 +413,7 @@ export default function DeliveryNote() {
           {/* Product table */}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '6px' }}>
             <thead>
-              <tr style={{ background: '#f0f9ff', borderBottom: '2px solid #38bdf8' }}>
+              <tr style={{ background: '#f0f9ff', borderBottom: '2px solid #5ce1e6' }}>
                 <th style={{ padding: '8px 10px', textAlign: 'left', color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Cantidad</th>
                 <th style={{ padding: '8px 10px', textAlign: 'left', color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Concepto/Referencia</th>
                 <th style={{ padding: '8px 10px', textAlign: 'right', color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Precio</th>
@@ -353,21 +433,15 @@ export default function DeliveryNote() {
           {/* Specs Description */}
           <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px', fontSize: '12px', lineHeight: '1.8' }}>
             <span style={{ color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Descripción:</span>
-            <div style={{ marginTop: '4px', color: '#444' }}>
-              <div>{laptop.cpu}</div>
-              <div>{laptop.ram}</div>
-              <div>{laptop.almacenamiento}</div>
-              <div>GPU: {laptop.gpu}</div>
-              <div>{laptop.pantalla}{laptop.touch?.toLowerCase() === 'sí' ? ' (Táctil)' : ''}</div>
-              <div>BAT: {laptop.bateria}</div>
-              {laptop.windows && <div>SO: {laptop.windows}</div>}
+            <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap' }}>
+              {descripcion}
             </div>
           </div>
 
           {/* Payment + Total */}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '20px' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #38bdf8' }}>
+              <tr style={{ borderBottom: '2px solid #5ce1e6' }}>
                 <th style={{ padding: '8px 10px', textAlign: 'left', color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Método de Pago</th>
                 <th style={{ padding: '8px 10px', textAlign: 'right', color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Monto</th>
               </tr>
@@ -392,7 +466,8 @@ export default function DeliveryNote() {
               Garantía: {garantia}. <span style={{ fontWeight: '400', fontStyle: 'italic' }}>*Ciertas condiciones aplican</span>
             </div>
             <p style={{ margin: 0 }}>
-              *El equipo se recibió por completo al momento de la entrega. La garantía cubre desperfectos que no se hayan probado y se requiera una inspección previa.
+              *El equipo se probó al momento de la entrega, disco duro, temperaturas, caracteristicas, bateria, pantalla, teclado, touchpad, cargador, puertos usb, speakers, microfono, wifi, bluetooth, webcam, bisagras, carcasa, sistema operativo, etc.
+              La garantía cubre desperfectos que no se hayan probado y se somete una inspección previa para valer la garantía.
             </p>
             <p style={{ margin: '4px 0 0 0' }}>
               *El sello de garantía tanto de cargador como laptop debe estar intacto, golpes no existentes en el momento de la entrega así como marcas de humedad invalidan la garantía.
@@ -401,7 +476,7 @@ export default function DeliveryNote() {
 
           {/* Footer */}
           <div style={{ marginTop: '30px', borderTop: '1px solid #e5e7eb', paddingTop: '12px', textAlign: 'center', color: '#aaa', fontSize: '10px' }}>
-            Smartbits — Equipos certificados de calidad
+            Compra inteligente, compra en Smartbits.
           </div>
         </div>
       </div>
