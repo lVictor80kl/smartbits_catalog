@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2, FileText } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
@@ -67,6 +67,125 @@ export default function Dashboard() {
     );
   };
 
+  const handleExportPDF = () => {
+    if (filteredLaptops.length === 0) {
+      alert('No hay equipos para exportar con los filtros actuales.');
+      return;
+    }
+
+    const formatDateFile = (date) => {
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yyyy = date.getFullYear();
+      return `${dd}-${mm}-${yyyy}`;
+    };
+
+    const now = new Date();
+    const fileName = `Inventario_SmartBits_${formatDateFile(now)}`;
+
+    // Build active filter description
+    const filterParts = [];
+    if (filterMarca !== 'Todas') filterParts.push(`Marca: ${filterMarca}`);
+    if (filterDisp !== 'Todas') filterParts.push(`Disponibilidad: ${filterDisp}`);
+    if (searchTerm) filterParts.push(`Búsqueda: "${searchTerm}"`);
+    if (priceSort === 'asc') filterParts.push('Precio: Menor a mayor');
+    if (priceSort === 'desc') filterParts.push('Precio: Mayor a menor');
+    const filterText = filterParts.length > 0 ? filterParts.join(' | ') : 'Sin filtros aplicados';
+
+    const rows = filteredLaptops.map((laptop, i) => `
+      <tr style="border-bottom: 1px solid #e5e7eb;">
+        <td style="padding: 8px 10px; text-align: center; color: #888; font-size: 12px;">${i + 1}</td>
+        <td style="padding: 8px 10px;">
+          <div style="font-weight: 600; font-size: 13px; color: #111;">${laptop.modelo}</div>
+          <div style="font-size: 11px; color: #888;">${laptop.marca || ''}</div>
+        </td>
+        <td style="padding: 8px 10px; font-size: 12px; color: #444;">
+          <div>${laptop.cpu || '—'}</div>
+          <div style="color: #888;">${laptop.ram || '—'} • ${laptop.almacenamiento || '—'}</div>
+          <div style="color: #888;">${laptop.pantalla || ''}${laptop.touch?.toLowerCase() === 'sí' ? ' (Táctil)' : ''}</div>
+        </td>
+        <td style="padding: 8px 10px; text-align: center; font-size: 11px;">
+          <span style="padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 10px; ${
+            laptop.disponibilidad === 'Disponible'
+              ? 'background: #dcfce7; color: #15803d;'
+              : laptop.disponibilidad === 'Coming soon'
+                ? 'background: #fef3c7; color: #b45309;'
+                : 'background: #fee2e2; color: #b91c1c;'
+          }">${laptop.disponibilidad || '—'}</span>
+        </td>
+        <td style="padding: 8px 10px; text-align: right; font-weight: 700; font-size: 14px; color: #111;">$${laptop.precio}</td>
+      </tr>
+    `).join('');
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor permite las ventanas emergentes para generar el PDF.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${fileName}</title>
+        <style>
+          @page {
+            size: letter;
+            margin: 12mm;
+          }
+          body {
+            margin: 0;
+            padding: 30px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #222;
+            background: #fff;
+          }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+        </style>
+      </head>
+      <body>
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="/logo-black.png" alt="Smartbits" style="height: 50px;" />
+        </div>
+        <h1 style="text-align: center; font-size: 18px; font-weight: 700; color: #1a1a1a; border-bottom: 3px solid #5ce1e6; padding-bottom: 8px; margin-bottom: 6px; letter-spacing: 2px;">
+          LISTADO DE INVENTARIO
+        </h1>
+        <p style="text-align: center; font-size: 11px; color: #888; margin-bottom: 20px;">
+          ${filterText} — ${filteredLaptops.length} equipo${filteredLaptops.length !== 1 ? 's' : ''} — Generado: ${now.toLocaleDateString('es-VE')}
+        </p>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="background: #f0f9ff; border-bottom: 2px solid #5ce1e6;">
+              <th style="padding: 8px 10px; text-align: center; color: #0ea5e9; font-weight: 700; font-size: 10px; text-transform: uppercase; width: 40px;">#</th>
+              <th style="padding: 8px 10px; text-align: left; color: #0ea5e9; font-weight: 700; font-size: 10px; text-transform: uppercase;">Equipo</th>
+              <th style="padding: 8px 10px; text-align: left; color: #0ea5e9; font-weight: 700; font-size: 10px; text-transform: uppercase;">Especificaciones</th>
+              <th style="padding: 8px 10px; text-align: center; color: #0ea5e9; font-weight: 700; font-size: 10px; text-transform: uppercase;">Estado</th>
+              <th style="padding: 8px 10px; text-align: right; color: #0ea5e9; font-weight: 700; font-size: 10px; text-transform: uppercase;">Precio</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 10px; text-align: center; color: #aaa; font-size: 10px;">
+          Compra inteligente, compra en Smartbits.
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 300);
+    };
+  };
+
   const marcas = ['Todas', ...new Set(laptops.map(l => l.marca).filter(Boolean))];
 
   const filteredLaptops = laptops
@@ -93,6 +212,15 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportPDF}
+            disabled={loading || filteredLaptops.length === 0}
+            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Exportar listado de equipos filtrados a PDF"
+          >
+            <Download className="w-4 h-4" />
+            Exportar PDF
+          </button>
           <Link 
             to="/admin/sync" 
             className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
