@@ -197,6 +197,10 @@ export default function Dashboard() {
       return matchDisp && matchMarca && matchSearch;
     })
     .sort((a, b) => {
+      const dispOrder = { 'Disponible': 0, 'Coming soon': 1, 'No disponible': 2 };
+      const dispA = dispOrder[a.disponibilidad] ?? 3;
+      const dispB = dispOrder[b.disponibilidad] ?? 3;
+      if (dispA !== dispB) return dispA - dispB;
       if (priceSort === 'asc') return a.precio - b.precio;
       if (priceSort === 'desc') return b.precio - a.precio;
       return 0;
