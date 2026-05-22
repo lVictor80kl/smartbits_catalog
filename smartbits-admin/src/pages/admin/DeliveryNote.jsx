@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Download, Loader2, Plus, X } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, Plus, X, Check, Clock, Ban } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
 export default function DeliveryNote() {
@@ -9,6 +9,9 @@ export default function DeliveryNote() {
   const [laptop, setLaptop] = useState(null);
   const [loading, setLoading] = useState(true);
   const noteRef = useRef(null);
+
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Auto-generate 5-digit note number
   const [noteNumber, setNoteNumber] = useState(() => {
@@ -50,6 +53,7 @@ export default function DeliveryNote() {
   const [unidades, setUnidades] = useState(1);
   const [garantia, setGarantia] = useState('3 meses');
   const [descripcion, setDescripcion] = useState('');
+  const [observaciones, setObservaciones] = useState('');
 
   // Fetch laptop data
   useEffect(() => {
@@ -83,6 +87,28 @@ export default function DeliveryNote() {
     };
     fetchLaptop();
   }, [id]);
+
+  const handleUpdateAvailability = async (newStatus) => {
+    if (newStatus === 'keep') {
+      setShowStatusModal(false);
+      return;
+    }
+
+    setUpdatingStatus(true);
+    try {
+      const laptopRef = doc(db, 'laptops', id);
+      await updateDoc(laptopRef, {
+        disponibilidad: newStatus
+      });
+      setLaptop(prev => ({ ...prev, disponibilidad: newStatus }));
+      setShowStatusModal(false);
+    } catch (err) {
+      console.error('Error al actualizar disponibilidad:', err);
+      alert('Hubo un error al actualizar la disponibilidad: ' + err.message);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
   const addPago = () => {
     setPagos(prev => [...prev, { metodo: 'Efectivo', monto: '' }]);
@@ -156,6 +182,7 @@ export default function DeliveryNote() {
       setTimeout(() => {
         printWindow.print();
         printWindow.close();
+        setShowStatusModal(true);
       }, 300);
     };
   };
@@ -314,6 +341,7 @@ export default function DeliveryNote() {
                 <option value="Pago Móvil">Pago Móvil</option>
                 <option value="Transferencia">Transferencia</option>
                 <option value="Binance Pay">Binance Pay</option>
+                <option value="PayPal">PayPal</option>
                 <option value="Otro">Otro</option>
               </select>
               <div className="relative flex-1">
@@ -385,6 +413,16 @@ export default function DeliveryNote() {
             rows="5"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-y"
           />
+          {/* Observaciones */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <textarea
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              rows="3"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+            />
+          </div>
         </div>
       </div>
 
@@ -466,10 +504,15 @@ export default function DeliveryNote() {
           {/* Specs Description */}
           <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px', fontSize: '12px', lineHeight: '1.8' }}>
             <span style={{ color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Descripción:</span>
-            <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap' }}>
-              {descripcion}
-            </div>
+            <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap' }}>{descripcion}</div>
           </div>
+          {/* Observaciones section */}
+          {observaciones && (
+            <div style={{ marginTop: '16px' }}>
+              <span style={{ color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Observaciones:</span>
+              <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap' }}>{observaciones}</div>
+            </div>
+          )}
 
           {/* Payment + Total */}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '20px' }}>
@@ -513,6 +556,121 @@ export default function DeliveryNote() {
           </div>
         </div>
       </div>
+
+      {/* Modern Availability Update Modal */}
+      {showStatusModal && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          {/* Backdrop with beautiful blur */}
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300"
+            onClick={() => !updatingStatus && setShowStatusModal(false)}
+          />
+
+          <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0 pointer-events-none">
+            {/* Modal Panel */}
+            <div className="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-md pointer-events-auto border border-slate-100 animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
+              
+              {/* Top accent line */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400" />
+              
+              <div className="p-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-slate-900" id="modal-title">
+                    Actualizar disponibilidad
+                  </h3>
+                  {!updatingStatus && (
+                    <button 
+                      onClick={() => setShowStatusModal(false)}
+                      className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-sm text-slate-500 mb-5 leading-relaxed">
+                  Se generó correctamente el PDF para la nota de entrega de <strong className="text-slate-800">{laptop.modelo}</strong>. ¿Deseas actualizar el estado de disponibilidad del equipo en el catálogo?
+                </p>
+
+                {/* Current Status Badge */}
+                <div className="flex items-center gap-2 mb-6 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado actual:</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${
+                    laptop.disponibilidad === 'Disponible' 
+                      ? 'bg-green-100 text-green-700' 
+                      : laptop.disponibilidad === 'Coming soon'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    {laptop.disponibilidad || 'No disponible'}
+                  </span>
+                </div>
+
+                {/* Action Cards */}
+                <div className="space-y-3">
+                  {/* Option 1: No disponible */}
+                  <button
+                    disabled={updatingStatus}
+                    onClick={() => handleUpdateAvailability('No disponible')}
+                    className="w-full text-left group flex items-start gap-4 p-4 rounded-2xl border-2 border-slate-100 hover:border-red-500/30 hover:bg-red-50/20 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0 transition-colors group-hover:bg-red-100">
+                      {updatingStatus ? <Loader2 className="w-5 h-5 animate-spin" /> : <Ban className="w-5 h-5" />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-slate-900 group-hover:text-red-700 transition-colors text-sm">
+                        Marcar como "No disponible"
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Útil si acabas de vender este equipo y no hay más stock.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Coming soon */}
+                  <button
+                    disabled={updatingStatus}
+                    onClick={() => handleUpdateAvailability('Coming soon')}
+                    className="w-full text-left group flex items-start gap-4 p-4 rounded-2xl border-2 border-slate-100 hover:border-blue-500/30 hover:bg-blue-50/20 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 transition-colors group-hover:bg-blue-100">
+                      {updatingStatus ? <Loader2 className="w-5 h-5 animate-spin" /> : <Clock className="w-5 h-5" />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors text-sm">
+                        Marcar como "Coming soon"
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Si esperas recibir más unidades de este modelo pronto.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 3: Keep Current / Seguir sin cambiar */}
+                  <button
+                    disabled={updatingStatus}
+                    onClick={() => handleUpdateAvailability('keep')}
+                    className="w-full text-left group flex items-start gap-4 p-4 rounded-2xl border-2 border-slate-100 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center flex-shrink-0 transition-colors group-hover:bg-slate-100">
+                      <Check className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-slate-900 group-hover:text-slate-700 transition-colors text-sm">
+                        Seguir sin cambiar
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Mantener el estado actual del equipo sin realizar cambios.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

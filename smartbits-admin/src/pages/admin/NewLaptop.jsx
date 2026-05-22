@@ -2,11 +2,10 @@ import { useState, useRef } from 'react';
 import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, Upload, X, Loader2, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { db, storage } from '../../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { compressImage } from '../../utils/imageOptimizer';
 
-// CONFIGURACIÓN CLOUDINARY
-const CLOUD_NAME = "dhzdul8vt";
-const UPLOAD_PRESET = "laptops_preset";
 
 export default function NewLaptop() {
   const navigate = useNavigate();
@@ -78,22 +77,26 @@ export default function NewLaptop() {
     try {
       const uploadedUrls = [];
       
-      // 1. Subir cada imagen a Cloudinary en bucle
+      // 1. Optimizar y subir cada imagen a Firebase Storage en bucle
       for (let i = 0; i < imageFiles.length; i++) {
-        setUploadProgress(`Subiendo foto ${i + 1} de ${imageFiles.length}...`);
+        const file = imageFiles[i];
         
-        const cloudinaryData = new FormData();
-        cloudinaryData.append('file', imageFiles[i]);
-        cloudinaryData.append('upload_preset', UPLOAD_PRESET);
-
-        const response = await fetch(
-          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-          { method: 'POST', body: cloudinaryData }
-        );
-
-        if (!response.ok) throw new Error(`Fallo al subir la imagen ${i + 1}`);
-        const result = await response.json();
-        uploadedUrls.push(result.secure_url);
+        // A. Optimizar imagen en el cliente
+        setUploadProgress(`Optimizando foto ${i + 1} de ${imageFiles.length}...`);
+        const compressedBlob = await compressImage(file, 1200, 0.8);
+        
+        // B. Crear referencia en Firebase Storage
+        const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+        const fileName = `${Date.now()}_${i}_${cleanName}`;
+        const storageRef = ref(storage, `laptops/${fileName}`);
+        
+        // C. Subir el Blob comprimido
+        setUploadProgress(`Subiendo foto ${i + 1} de ${imageFiles.length}...`);
+        const snapshot = await uploadBytes(storageRef, compressedBlob);
+        
+        // D. Obtener URL de descarga
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        uploadedUrls.push(downloadUrl);
       }
 
       // 2. Guardar datos en Firestore con el array de URLs

@@ -8,6 +8,7 @@ import NewLaptop from './pages/admin/NewLaptop';
 import EditLaptop from './pages/admin/EditLaptop';
 import SyncLaptops from './pages/admin/SyncLaptops';
 import DeliveryNote from './pages/admin/DeliveryNote';
+import MigrateImages from './pages/admin/MigrateImages';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
             <Route path="edit/:id" element={<EditLaptop />} />
             <Route path="sync" element={<SyncLaptops />} />
             <Route path="delivery/:id" element={<DeliveryNote />} />
+            <Route path="migrate" element={<MigrateImages />} />
           </Route>
         </Routes>
       </Router>

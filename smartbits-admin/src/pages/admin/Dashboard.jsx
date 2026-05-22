@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2, FileText, Download } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
 
 export default function Dashboard() {
   const [laptops, setLaptops] = useState([]);
@@ -11,15 +12,22 @@ export default function Dashboard() {
   const [filterDisp, setFilterDisp] = useState('Todas');
   const [filterMarca, setFilterMarca] = useState('Todas');
   const [searchTerm, setSearchTerm] = useState('');
-  const [priceSort, setPriceSort] = useState('default');
+  const [priceSort, setPriceSort] = useState('asc');
   const [selectedIds, setSelectedIds] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
 
+  // Normalize brand names after fetching
   useEffect(() => {
     const q = query(collection(db, 'laptops'), orderBy('modelo'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setLaptops(data);
+      const rawData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const normalized = rawData.map(l => {
+        if (l.marca && l.marca.toLowerCase() === 'hp') {
+          return { ...l, marca: 'HP' };
+        }
+        return l;
+      });
+      setLaptops(normalized);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -186,7 +194,11 @@ export default function Dashboard() {
     };
   };
 
-  const marcas = ['Todas', ...new Set(laptops.map(l => l.marca).filter(Boolean))];
+  const marcas = ['Todas', ...new Set(laptops.map(l => {
+    const m = l.marca;
+    if (m && m.toLowerCase() === 'hp') return 'HP';
+    return m;
+  }).filter(Boolean))];
 
   const filteredLaptops = laptops
     .filter(laptop => {
@@ -230,6 +242,13 @@ export default function Dashboard() {
             className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
           >
             Sincronizar Sheets
+          </Link>
+          <Link 
+            to="/admin/migrate" 
+            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <CloudLightning className="w-4 h-4 text-amber-500" />
+            Migrar Imágenes
           </Link>
           <Link 
             to="/admin/new" 
