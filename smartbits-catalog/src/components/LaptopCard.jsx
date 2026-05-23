@@ -1,26 +1,29 @@
 import { Cpu, MemoryStick, Database, ChevronRight } from 'lucide-react';
+// 1. IMPORTA TU FUNCIÓN DE UTILIDADES AQUÍ (Ajusta la ruta según tus carpetas)
+import { getCloudinaryUrl } from "../smartbits-admin/src/utils/imageOptimizer.js"
 
 export default function LaptopCard({ laptop, onClick }) {
   const isAvailable = laptop.disponibilidad === "Disponible";
-  
+
   return (
-    <div 
+    <div
       onClick={onClick}
       className="group bg-white dark:bg-brand-900 rounded-[2rem] border border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-500 cursor-pointer overflow-hidden flex flex-col h-full hover:shadow-[0_20px_40px_-15px_rgba(30,41,59,0.1)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.4)] transform hover:-translate-y-2 relative"
     >
       {/* Image Area */}
       <div className="aspect-[4/3] p-6 bg-brand-50/50 dark:bg-brand-800/50 overflow-hidden relative border-b border-brand-50 dark:border-brand-800/50">
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-           <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border backdrop-blur-sm ${
-             isAvailable ? 'bg-white/90 dark:bg-brand-950/80 text-brand-600 dark:text-brand-300 border-brand-100 dark:border-brand-700' : 'bg-white/90 dark:bg-brand-950/80 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-900'
-           }`}>
-             {laptop.disponibilidad}
-           </span>
+          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border backdrop-blur-sm ${isAvailable ? 'bg-white/90 dark:bg-brand-950/80 text-brand-600 dark:text-brand-300 border-brand-100 dark:border-brand-700' : 'bg-white/90 dark:bg-brand-950/80 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-900'
+            }`}>
+            {laptop.disponibilidad}
+          </span>
         </div>
-        
-        <img 
-          src={laptop.imagen || '/default-laptop.png'} 
+
+        {/* 2. ENVUELVE LA URL CON getCloudinaryUrl USANDO EL TAMAÑO 'card' */}
+        <img
+          src={getCloudinaryUrl(laptop.imagen, 'card') || '/default-laptop.png'}
           alt={laptop.modelo}
+          loading="lazy"
           onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
           className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110"
         />
@@ -55,7 +58,7 @@ export default function LaptopCard({ laptop, onClick }) {
             <span className="text-2xl font-black text-brand-900 dark:text-white tracking-tighter">${laptop.precio}</span>
             <span className="text-[10px] font-bold text-brand-400 dark:text-brand-500 uppercase">USD</span>
           </div>
-          
+
           <div className="w-10 h-10 rounded-full bg-brand-50 dark:bg-brand-800 text-brand-600 dark:text-brand-300 flex items-center justify-center group-hover:bg-brand-600 dark:group-hover:bg-brand-400 group-hover:text-white dark:group-hover:text-brand-900 transition-all duration-300">
             <ChevronRight className="w-5 h-5" />
           </div>
