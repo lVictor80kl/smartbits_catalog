@@ -1,10 +1,9 @@
 import { useState, useRef } from 'react';
-import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, Upload, X, Loader2, Plus } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, storage } from '../../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { compressImage } from '../../utils/imageOptimizer';
+import { db } from '../../firebase';
+import { uploadToCloudinary } from '../../utils/imageOptimizer';
 
 
 export default function NewLaptop() {
@@ -77,26 +76,14 @@ export default function NewLaptop() {
     try {
       const uploadedUrls = [];
       
-      // 1. Optimizar y subir cada imagen a Firebase Storage en bucle
+      // 1. Subir cada imagen a Cloudinary
       for (let i = 0; i < imageFiles.length; i++) {
         const file = imageFiles[i];
-        
-        // A. Optimizar imagen en el cliente
-        setUploadProgress(`Optimizando foto ${i + 1} de ${imageFiles.length}...`);
-        const compressedBlob = await compressImage(file, 1200, 0.8);
-        
-        // B. Crear referencia en Firebase Storage
-        const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-        const fileName = `${Date.now()}_${i}_${cleanName}`;
-        const storageRef = ref(storage, `laptops/${fileName}`);
-        
-        // C. Subir el Blob comprimido
         setUploadProgress(`Subiendo foto ${i + 1} de ${imageFiles.length}...`);
-        const snapshot = await uploadBytes(storageRef, compressedBlob);
-        
-        // D. Obtener URL de descarga
-        const downloadUrl = await getDownloadURL(snapshot.ref);
-        uploadedUrls.push(downloadUrl);
+        const secureUrl = await uploadToCloudinary(file, (pct) => {
+          setUploadProgress(`Subiendo foto ${i + 1} de ${imageFiles.length}... ${pct}%`);
+        });
+        uploadedUrls.push(secureUrl);
       }
 
       // 2. Guardar datos en Firestore con el array de URLs
@@ -115,7 +102,7 @@ export default function NewLaptop() {
         precio: Number(formData.precio),
         disponibilidad: formData.disponibilidad,
         imagenes: uploadedUrls,
-        imagen: uploadedUrls.length > 0 ? uploadedUrls[0] : '', // Fallback para compatibilidad con código viejo
+        imagen: uploadedUrls.length > 0 ? uploadedUrls[0] : '',
         estado: {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,

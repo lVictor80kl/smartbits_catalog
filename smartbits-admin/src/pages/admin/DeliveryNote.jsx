@@ -64,7 +64,7 @@ export default function DeliveryNote() {
         if (laptopSnap.exists()) {
           const data = laptopSnap.data();
           setLaptop({ id: laptopSnap.id, ...data });
-          
+
           const initialDesc = [
             data.cpu,
             data.ram,
@@ -268,7 +268,7 @@ export default function DeliveryNote() {
                 <option value="E-">E-</option>
               </select>
               <input
-                type="text" value={cliente.cedula} 
+                type="text" value={cliente.cedula}
                 onChange={(e) => {
                   const numbers = e.target.value.replace(/\D/g, '');
                   const formatted = numbers.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -303,15 +303,15 @@ export default function DeliveryNote() {
                 <option value="">Manual</option>
               </select>
               {cliente.prefijoTlf === '' ? (
-                 <input
-                   type="text" value={cliente.telefono} 
-                   onChange={(e) => setCliente(p => ({ ...p, telefono: e.target.value }))}
-                   placeholder="Ej: +58 414 1234567"
-                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                 />
+                <input
+                  type="text" value={cliente.telefono}
+                  onChange={(e) => setCliente(p => ({ ...p, telefono: e.target.value }))}
+                  placeholder="Ej: +58 414 1234567"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               ) : (
                 <input
-                  type="text" value={cliente.telefono} 
+                  type="text" value={cliente.telefono}
                   onChange={(e) => {
                     const numbers = e.target.value.replace(/\D/g, '').slice(0, 7);
                     setCliente(p => ({ ...p, telefono: numbers }));
@@ -404,7 +404,7 @@ export default function DeliveryNote() {
             <p className="text-xs text-amber-600 mt-1">Los precios del PDF se mostrarán en Bs según esta tasa.</p>
           </div>
         )}
-        
+
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Descripción del Equipo</label>
           <textarea
@@ -435,11 +435,11 @@ export default function DeliveryNote() {
         <div ref={noteRef} style={{ padding: '40px', fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", color: '#222', background: '#fff', maxWidth: '720px', margin: '0 auto' }}>
           {/* Logo + Title */}
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <img 
-              src="/logo-black.png" 
-              alt="Smartbits" 
-              style={{ height: '55px', display: 'block', margin: '0 auto' }} 
-              crossOrigin="anonymous" 
+            <img
+              src="/logo-black.png"
+              alt="Smartbits"
+              style={{ height: '55px', display: 'block', margin: '0 auto' }}
+              crossOrigin="anonymous"
             />
           </div>
 
@@ -510,7 +510,7 @@ export default function DeliveryNote() {
           {observaciones && (
             <div style={{ marginTop: '16px' }}>
               <span style={{ color: '#0ea5e9', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Observaciones:</span>
-              <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap' }}>{observaciones}</div>
+              <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap', fontSize: '11px' }}>{observaciones}</div>
             </div>
           )}
 
@@ -561,7 +561,7 @@ export default function DeliveryNote() {
       {showStatusModal && (
         <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
           {/* Backdrop with beautiful blur */}
-          <div 
+          <div
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300"
             onClick={() => !updatingStatus && setShowStatusModal(false)}
           />
@@ -569,10 +569,10 @@ export default function DeliveryNote() {
           <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0 pointer-events-none">
             {/* Modal Panel */}
             <div className="relative transform overflow-hidden rounded-3xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-md pointer-events-auto border border-slate-100 animate-in fade-in-0 zoom-in-95 duration-300 ease-out">
-              
+
               {/* Top accent line */}
               <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400" />
-              
+
               <div className="p-6">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">
@@ -580,7 +580,7 @@ export default function DeliveryNote() {
                     Actualizar disponibilidad
                   </h3>
                   {!updatingStatus && (
-                    <button 
+                    <button
                       onClick={() => setShowStatusModal(false)}
                       className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
                     >
@@ -596,13 +596,12 @@ export default function DeliveryNote() {
                 {/* Current Status Badge */}
                 <div className="flex items-center gap-2 mb-6 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado actual:</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${
-                    laptop.disponibilidad === 'Disponible' 
-                      ? 'bg-green-100 text-green-700' 
-                      : laptop.disponibilidad === 'Coming soon'
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${laptop.disponibilidad === 'Disponible'
+                    ? 'bg-green-100 text-green-700'
+                    : laptop.disponibilidad === 'Coming soon'
                       ? 'bg-blue-100 text-blue-700'
                       : 'bg-red-100 text-red-700'
-                  }`}>
+                    }`}>
                     {laptop.disponibilidad || 'No disponible'}
                   </span>
                 </div>

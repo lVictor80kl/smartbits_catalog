@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, Upload, X, Loader2, Plus } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, storage } from '../../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { compressImage } from '../../utils/imageOptimizer';
+import { db } from '../../firebase';
+import { uploadToCloudinary } from '../../utils/imageOptimizer';
 
 
 export default function EditLaptop() {
@@ -123,26 +122,14 @@ export default function EditLaptop() {
     try {
       const finalUrls = [...existingImages];
 
-      // 1. Optimizar y subir las nuevas imágenes a Firebase Storage si las hay
+      // 1. Subir las nuevas imágenes a Cloudinary si las hay
       for (let i = 0; i < newImageFiles.length; i++) {
         const file = newImageFiles[i];
-        
-        // A. Optimizar imagen en el cliente
-        setUploadProgress(`Optimizando foto ${i + 1} de ${newImageFiles.length}...`);
-        const compressedBlob = await compressImage(file, 1200, 0.8);
-        
-        // B. Crear referencia en Firebase Storage
-        const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-        const fileName = `${Date.now()}_${i}_${cleanName}`;
-        const storageRef = ref(storage, `laptops/${fileName}`);
-        
-        // C. Subir el Blob comprimido
         setUploadProgress(`Subiendo foto ${i + 1} de ${newImageFiles.length}...`);
-        const snapshot = await uploadBytes(storageRef, compressedBlob);
-        
-        // D. Obtener URL de descarga
-        const downloadUrl = await getDownloadURL(snapshot.ref);
-        finalUrls.push(downloadUrl);
+        const secureUrl = await uploadToCloudinary(file, (pct) => {
+          setUploadProgress(`Subiendo foto ${i + 1} de ${newImageFiles.length}... ${pct}%`);
+        });
+        finalUrls.push(secureUrl);
       }
 
       // 2. Actualizar en Firestore
@@ -162,7 +149,7 @@ export default function EditLaptop() {
         precio: Number(formData.precio),
         disponibilidad: formData.disponibilidad,
         imagenes: finalUrls,
-        imagen: finalUrls.length > 0 ? finalUrls[0] : '', // Fallback
+        imagen: finalUrls.length > 0 ? finalUrls[0] : '',
         estado: {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,
