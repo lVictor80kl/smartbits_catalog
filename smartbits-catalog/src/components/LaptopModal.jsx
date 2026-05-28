@@ -159,17 +159,17 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                   <>
                     <button
                       onClick={(e) => { e.stopPropagation(); goToPrev(); }}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-lg border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-md border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-105 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                       aria-label="Imagen anterior"
                     >
-                      <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                      <ChevronLeft className="w-4 h-4 sm:w-5 h-5" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); goToNext(); }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-lg border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-md border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-105 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                       aria-label="Imagen siguiente"
                     >
-                      <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+                      <ChevronRight className="w-4 h-4 sm:w-5 h-5" />
                     </button>
                   </>
                 )}
@@ -322,17 +322,17 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrev(); }}
-                className="fixed left-6 top-1/2 -translate-y-1/2 z-[10001] w-14 h-14 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-2xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm"
+                className="fixed left-4 top-1/2 -translate-y-1/2 z-[10001] w-10 h-10 sm:w-12 sm:h-12 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-105 backdrop-blur-sm"
                 aria-label="Imagen anterior"
               >
-                <ChevronLeft className="w-7 h-7" />
+                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); goToNext(); }}
-                className="fixed right-6 top-1/2 -translate-y-1/2 z-[10001] w-14 h-14 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-2xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm"
+                className="fixed right-4 top-1/2 -translate-y-1/2 z-[10001] w-10 h-10 sm:w-12 sm:h-12 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-105 backdrop-blur-sm"
                 aria-label="Imagen siguiente"
               >
-                <ChevronRight className="w-7 h-7" />
+                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </>
           )}
