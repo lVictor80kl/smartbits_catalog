@@ -318,7 +318,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
           )}
 
           {/* Arrow Navigation in Zoom */}
-          {hasMultiple && (
+          {hasMultiple && zoomLevel === 1 && (
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrev(); }}
