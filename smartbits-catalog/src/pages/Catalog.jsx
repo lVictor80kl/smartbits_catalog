@@ -101,18 +101,18 @@ export default function Catalog() {
     <div className="min-h-screen bg-brand-50 dark:bg-brand-950 w-full transition-colors duration-500 pt-[44px]">
       
       {/* Clean Hero Section - Tech / Brand Styled */}
-      <section className="w-full flex flex-col items-center justify-center px-6 text-center pt-16 pb-8 md:pt-20 md:pb-10 bg-white dark:bg-brand-900 border-b border-brand-100 dark:border-brand-800">
-        <h1 className="text-3xl md:text-5xl font-extrabold text-brand-800 dark:text-white mb-2 tracking-tight">
+      <section className="w-full flex flex-col items-center justify-center px-6 text-center pt-24 pb-16 bg-white dark:bg-brand-900 border-b border-brand-100 dark:border-brand-800">
+        <h1 className="text-4xl md:text-6xl font-bold text-brand-800 dark:text-white mb-4 tracking-tight">
           Catálogo Smartbits
         </h1>
-        <p className="text-sm md:text-base text-brand-500 dark:text-brand-300 max-w-2xl text-balance">
+        <p className="text-lg text-brand-500 dark:text-brand-300 max-w-2xl text-balance">
           Encuentra el equipo ideal para ti. Filtra por características, explora detalles completos y compra con confianza.
         </p>
         
         {import.meta.env.DEV && (
             <button
               onClick={migrateMockToFirestore}
-              className="mt-4 px-3 py-1.5 bg-transparent border border-brand-300 text-brand-500 hover:text-brand-800 hover:border-brand-500 rounded-full text-xs font-semibold transition-colors dark:border-brand-700 dark:text-brand-300 dark:hover:text-white dark:hover:border-brand-500"
+              className="mt-6 px-4 py-2 bg-transparent border border-brand-300 text-brand-500 hover:text-brand-800 hover:border-brand-500 rounded-full text-xs font-semibold transition-colors dark:border-brand-700 dark:text-brand-300 dark:hover:text-white dark:hover:border-brand-500"
             >
               Migrar Datos Reales (Dev)
             </button>
@@ -120,10 +120,10 @@ export default function Catalog() {
       </section>
 
       {/* Main Container */}
-      <div className="w-full max-w-[1400px] mx-auto px-6 py-6 md:py-10">
+      <div className="w-full max-w-[1400px] mx-auto px-6 py-12">
         
         {/* Search & Filters */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
           
           <div className="relative w-full max-w-md">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-400 w-5 h-5" />

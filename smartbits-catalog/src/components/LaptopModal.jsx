@@ -159,24 +159,24 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                   <>
                     <button
                       onClick={(e) => { e.stopPropagation(); goToPrev(); }}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-md border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-105 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-lg border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                       aria-label="Imagen anterior"
                     >
-                      <ChevronLeft className="w-4 h-4 sm:w-5 h-5" />
+                      <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); goToNext(); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-md border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-105 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-lg border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                       aria-label="Imagen siguiente"
                     >
-                      <ChevronRight className="w-4 h-4 sm:w-5 h-5" />
+                      <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                   </>
                 )}
 
                 {/* Image Position Counter */}
                 {hasMultiple && (
-                  <div className="absolute top-4 left-4 z-20 bg-brand-900/70 dark:bg-black/70 text-white text-xs font-bold px-3 py-1.5 rounded-xl backdrop-blur-sm flex items-center gap-2">
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-brand-900/70 dark:bg-black/70 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm flex items-center gap-2">
                     <span>{activeImageIndex + 1} / {images.length}</span>
                   </div>
                 )}
@@ -298,12 +298,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             <div className="flex items-center gap-3 bg-brand-900/80 dark:bg-brand-100/10 text-white text-xs px-4 py-2 rounded-full backdrop-blur-sm shadow-xl pointer-events-none">
               <ZoomIn className="w-4 h-4" />
               <span>Haz clic para Zoom</span>
-              {hasMultiple && (
-                <>
-                  <span className="w-px h-4 bg-white/20 mx-1" />
-                  <span className="font-bold">{activeImageIndex + 1} / {images.length}</span>
-                </>
-              )}
+              <span className="w-px h-4 bg-white/20 mx-1" />
+              <span>Flechas o ← → para navegar</span>
             </div>
 
             <button
@@ -314,22 +310,29 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             </button>
           </div>
 
+          {/* Image Counter in Zoom */}
+          {hasMultiple && (
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10001] bg-brand-900/70 dark:bg-black/70 text-white text-sm font-bold px-4 py-2 rounded-full backdrop-blur-sm">
+              {activeImageIndex + 1} / {images.length}
+            </div>
+          )}
+
           {/* Arrow Navigation in Zoom */}
-          {hasMultiple && zoomLevel === 1 && (
+          {hasMultiple && (
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrev(); }}
-                className="fixed left-4 top-1/2 -translate-y-1/2 z-[10001] w-10 h-10 sm:w-12 sm:h-12 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-105 backdrop-blur-sm"
+                className="fixed left-6 top-1/2 -translate-y-1/2 z-[10001] w-14 h-14 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-2xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm"
                 aria-label="Imagen anterior"
               >
-                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                <ChevronLeft className="w-7 h-7" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); goToNext(); }}
-                className="fixed right-4 top-1/2 -translate-y-1/2 z-[10001] w-10 h-10 sm:w-12 sm:h-12 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-105 backdrop-blur-sm"
+                className="fixed right-6 top-1/2 -translate-y-1/2 z-[10001] w-14 h-14 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-2xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm"
                 aria-label="Imagen siguiente"
               >
-                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+                <ChevronRight className="w-7 h-7" />
               </button>
             </>
           )}
