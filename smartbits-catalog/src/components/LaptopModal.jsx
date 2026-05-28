@@ -176,7 +176,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
                 {/* Image Position Counter */}
                 {hasMultiple && (
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-brand-900/70 dark:bg-black/70 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm flex items-center gap-2">
+                  <div className="absolute top-4 left-4 z-20 bg-brand-900/70 dark:bg-black/70 text-white text-xs font-bold px-3 py-1.5 rounded-xl backdrop-blur-sm flex items-center gap-2">
                     <span>{activeImageIndex + 1} / {images.length}</span>
                   </div>
                 )}
@@ -298,8 +298,12 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             <div className="flex items-center gap-3 bg-brand-900/80 dark:bg-brand-100/10 text-white text-xs px-4 py-2 rounded-full backdrop-blur-sm shadow-xl pointer-events-none">
               <ZoomIn className="w-4 h-4" />
               <span>Haz clic para Zoom</span>
-              <span className="w-px h-4 bg-white/20 mx-1" />
-              <span>Flechas o ← → para navegar</span>
+              {hasMultiple && (
+                <>
+                  <span className="w-px h-4 bg-white/20 mx-1" />
+                  <span className="font-bold">{activeImageIndex + 1} / {images.length}</span>
+                </>
+              )}
             </div>
 
             <button
@@ -309,13 +313,6 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
               <X className="w-8 h-8" />
             </button>
           </div>
-
-          {/* Image Counter in Zoom */}
-          {hasMultiple && (
-            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10001] bg-brand-900/70 dark:bg-black/70 text-white text-sm font-bold px-4 py-2 rounded-full backdrop-blur-sm">
-              {activeImageIndex + 1} / {images.length}
-            </div>
-          )}
 
           {/* Arrow Navigation in Zoom */}
           {hasMultiple && zoomLevel === 1 && (
