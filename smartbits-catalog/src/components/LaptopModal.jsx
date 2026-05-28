@@ -32,18 +32,20 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
       setActiveImageIndex(0);
       setIsZoomed(false);
       setZoomLevel(1);
       const timer = setTimeout(() => setShowBars(true), 100);
       return () => clearTimeout(timer);
     } else {
-      document.body.style.overflow = 'auto';
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) {
       setShowBars(false);
     }
   }, [isOpen]);
