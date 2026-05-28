@@ -25,7 +25,13 @@ export default function Catalog() {
         id: doc.id,
         ...doc.data()
       }));
-      setLaptops(laptopData);
+      const normalized = laptopData.map(l => {
+        if (l.marca && l.marca.toLowerCase() === 'hp') {
+          return { ...l, marca: 'HP' };
+        }
+        return l;
+      });
+      setLaptops(normalized);
       setLoading(false);
     }, (error) => {
       console.error("Error al obtener laptops:", error);

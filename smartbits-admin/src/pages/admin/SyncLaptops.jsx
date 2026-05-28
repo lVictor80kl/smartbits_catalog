@@ -97,7 +97,10 @@ export default function SyncLaptops() {
     setPreviewData(null);
     setSavedCount(0);
 
-    Papa.parse(csvUrl, {
+    // Route through our serverless proxy to avoid CORS blocks from Google
+    const proxyUrl = `/api/csv-proxy?url=${encodeURIComponent(csvUrl)}`;
+
+    Papa.parse(proxyUrl, {
       download: true,
       header: false,
       skipEmptyLines: true,

@@ -1,9 +1,16 @@
+<<<<<<< HEAD
 import { useState } from 'react';
 import { Cpu, MemoryStick, Database, ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+=======
+import { Cpu, MemoryStick, Database, ChevronRight } from 'lucide-react';
+// 1. IMPORTA TU FUNCIÓN DE UTILIDADES AQUÍ (Ajusta la ruta según tus carpetas)
+import { getCloudinaryUrl } from '../utils/imageOptimizer.js';
+>>>>>>> e4df20260687c94b53714ace549fe14a77fd1d17
 
 export default function LaptopCard({ laptop, onClick }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const isAvailable = laptop.disponibilidad === "Disponible";
+<<<<<<< HEAD
   const imageCount = laptop.imagenes?.length || (laptop.imagen ? 1 : 0);
   const hasGallery = imageCount > 1;
 
@@ -21,12 +28,15 @@ export default function LaptopCard({ laptop, onClick }) {
   const currentImage = laptop.imagenes && laptop.imagenes.length > 0
     ? laptop.imagenes[currentImageIndex]
     : (laptop.imagen || '/default-laptop.png');
+=======
+>>>>>>> e4df20260687c94b53714ace549fe14a77fd1d17
 
   return (
-    <div 
+    <div
       onClick={onClick}
       className="flex flex-col h-full bg-white dark:bg-brand-900 premium-shadow rounded-[24px] p-6 cursor-pointer hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 relative group"
     >
+<<<<<<< HEAD
       {/* Etiqueta (Brand / Availability) */}
       <div className="flex justify-between items-start mb-4">
         <span className="text-[12px] font-semibold text-brand-500 uppercase tracking-widest">
@@ -41,7 +51,22 @@ export default function LaptopCard({ laptop, onClick }) {
       <div className="w-full relative flex justify-center mb-6 h-48 group/slider mt-2">
         <img 
           src={currentImage} 
+=======
+      {/* Image Area */}
+      <div className="aspect-[4/3] p-6 bg-brand-50/50 dark:bg-brand-800/50 overflow-hidden relative border-b border-brand-50 dark:border-brand-800/50">
+        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border backdrop-blur-sm ${isAvailable ? 'bg-white/90 dark:bg-brand-950/80 text-brand-600 dark:text-brand-300 border-brand-100 dark:border-brand-700' : 'bg-white/90 dark:bg-brand-950/80 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-900'
+            }`}>
+            {laptop.disponibilidad}
+          </span>
+        </div>
+
+        {/* 2. ENVUELVE LA URL CON getCloudinaryUrl USANDO EL TAMAÑO 'card' */}
+        <img
+          src={getCloudinaryUrl(laptop.imagen, 'card') || '/default-laptop.png'}
+>>>>>>> e4df20260687c94b53714ace549fe14a77fd1d17
           alt={laptop.modelo}
+          loading="lazy"
           onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
           className="w-full h-full object-contain group-hover:scale-[1.03] transition-transform duration-500 ease-out z-10"
         />
@@ -98,10 +123,19 @@ export default function LaptopCard({ laptop, onClick }) {
         <div>
           <p className="text-[11px] font-semibold text-gray-500 dark:text-brand-400 uppercase tracking-widest mb-1">Precio</p>
           <div className="flex items-baseline gap-1">
+<<<<<<< HEAD
             <span className="text-[22px] font-semibold text-brand-600 dark:text-brand-400 tracking-tight">
               ${laptop.precio}
             </span>
             <span className="text-[12px] font-bold text-gray-400 dark:text-brand-500">USD</span>
+=======
+            <span className="text-2xl font-black text-brand-900 dark:text-white tracking-tighter">${laptop.precio}</span>
+            <span className="text-[10px] font-bold text-brand-400 dark:text-brand-500 uppercase">USD</span>
+          </div>
+
+          <div className="w-10 h-10 rounded-full bg-brand-50 dark:bg-brand-800 text-brand-600 dark:text-brand-300 flex items-center justify-center group-hover:bg-brand-600 dark:group-hover:bg-brand-400 group-hover:text-white dark:group-hover:text-brand-900 transition-all duration-300">
+            <ChevronRight className="w-5 h-5" />
+>>>>>>> e4df20260687c94b53714ace549fe14a77fd1d17
           </div>
         </div>
         

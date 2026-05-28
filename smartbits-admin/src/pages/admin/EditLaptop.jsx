@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, Upload, X, Loader2, Plus } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { uploadToCloudinary } from '../../utils/imageOptimizer';
 
-// CONFIGURACIÓN CLOUDINARY
-const CLOUD_NAME = "dhzdul8vt";
-const UPLOAD_PRESET = "laptops_preset";
 
 export default function EditLaptop() {
   const { id } = useParams();
@@ -124,22 +122,14 @@ export default function EditLaptop() {
     try {
       const finalUrls = [...existingImages];
 
-      // 1. Subir las nuevas imágenes si las hay
+      // 1. Subir las nuevas imágenes a Cloudinary si las hay
       for (let i = 0; i < newImageFiles.length; i++) {
+        const file = newImageFiles[i];
         setUploadProgress(`Subiendo foto ${i + 1} de ${newImageFiles.length}...`);
-        
-        const cloudinaryData = new FormData();
-        cloudinaryData.append('file', newImageFiles[i]);
-        cloudinaryData.append('upload_preset', UPLOAD_PRESET);
-
-        const response = await fetch(
-          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-          { method: 'POST', body: cloudinaryData }
-        );
-
-        if (!response.ok) throw new Error('Fallo al subir nuevas imágenes');
-        const result = await response.json();
-        finalUrls.push(result.secure_url);
+        const secureUrl = await uploadToCloudinary(file, (pct) => {
+          setUploadProgress(`Subiendo foto ${i + 1} de ${newImageFiles.length}... ${pct}%`);
+        });
+        finalUrls.push(secureUrl);
       }
 
       // 2. Actualizar en Firestore
@@ -159,7 +149,7 @@ export default function EditLaptop() {
         precio: Number(formData.precio),
         disponibilidad: formData.disponibilidad,
         imagenes: finalUrls,
-        imagen: finalUrls.length > 0 ? finalUrls[0] : '', // Fallback
+        imagen: finalUrls.length > 0 ? finalUrls[0] : '',
         estado: {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,
@@ -239,10 +229,10 @@ export default function EditLaptop() {
                         <button
                           type="button"
                           onClick={() => handleRemoveExisting(url)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
-                          title="Eliminar de la galería"
+                          className="absolute top-1 right-1 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md"
+                          title="Eliminar foto"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                         <span className="absolute bottom-1 left-1 bg-white/80 text-[8px] px-1 rounded border border-gray-200 text-gray-500 font-bold">Cloud</span>
                       </div>
@@ -255,10 +245,10 @@ export default function EditLaptop() {
                         <button
                           type="button"
                           onClick={() => handleRemoveNew(index)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
-                          title="Quitar"
+                          className="absolute top-1 right-1 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md"
+                          title="Quitar foto"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                         <span className="absolute bottom-1 left-1 bg-blue-500 text-white text-[8px] px-1 rounded font-bold">Local</span>
                       </div>

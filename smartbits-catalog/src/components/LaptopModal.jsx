@@ -6,6 +6,7 @@ import {
   Monitor, LayoutDashboard, MessageCircle, ZoomIn,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
+import { getCloudinaryUrl } from '../utils/imageOptimizer.js';
 
 export default function LaptopModal({ laptop, isOpen, onClose }) {
   const [showBars, setShowBars] = useState(false);
@@ -131,6 +132,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               >
+<<<<<<< HEAD
                 <div
                   className="w-full h-full flex items-center justify-center cursor-zoom-in group"
                   onClick={() => setIsZoomed(true)}
@@ -147,6 +149,16 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
                 {/* Always-visible Zoom Hint */}
                 <div className="absolute top-4 right-4 bg-white/90 dark:bg-brand-950/90 p-2 rounded-xl text-brand-600 dark:text-brand-400 backdrop-blur-sm shadow-sm transition-all hover:scale-110">
+=======
+                <img
+                  src={getCloudinaryUrl(images[activeImageIndex], 'full') || '/default-laptop.png'}
+                  alt={laptop.modelo}
+                  loading="lazy"
+                  onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
+                  className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out"
+                />
+                <div className="absolute top-4 right-4 bg-white/90 dark:bg-brand-950/90 p-2 rounded-xl text-brand-600 dark:text-brand-400 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+>>>>>>> e4df20260687c94b53714ace549fe14a77fd1d17
                   <ZoomIn className="w-5 h-5" />
                 </div>
 
@@ -190,7 +202,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                         : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 opacity-60 hover:opacity-100'
                         }`}
                     >
-                      <img src={img || '/default-laptop.png'} onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
+                      <img src={getCloudinaryUrl(img, 'thumb') || '/default-laptop.png'} loading="lazy" onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
                     </button>
                   ))}
                 </div>
@@ -334,9 +346,14 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
           )}
 
           <img
+<<<<<<< HEAD
             key={`zoom-${activeImageIndex}`}
             src={images[activeImageIndex] || '/default-laptop.png'}
+=======
+            src={getCloudinaryUrl(images[activeImageIndex], 'full') || '/default-laptop.png'}
+>>>>>>> e4df20260687c94b53714ace549fe14a77fd1d17
             alt="Zoom"
+            loading="lazy"
             onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
             className="w-full h-full max-w-[95vw] max-h-[95vh] md:max-w-[85vw] md:max-h-[85vh] object-contain transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] animate-in fade-in duration-300"
             style={{ transform: `scale(${zoomLevel})`, cursor: zoomLevel === 1 ? 'zoom-in' : 'zoom-out' }}
