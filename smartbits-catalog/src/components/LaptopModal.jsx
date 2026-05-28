@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Plus, ShieldCheck, BatteryCharging,
   Cpu, MemoryStick, Database, MonitorPlay,
-  Monitor, LayoutDashboard, MessageCircle, ZoomIn
+  Monitor, LayoutDashboard, MessageCircle, ZoomIn,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 export default function LaptopModal({ laptop, isOpen, onClose }) {
@@ -11,10 +12,21 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const touchStartX = useRef(null);
 
   const images = (laptop?.imagenes && laptop.imagenes.length > 0)
     ? laptop.imagenes
     : (laptop?.imagen ? [laptop.imagen] : []);
+
+  const hasMultiple = images.length > 1;
+
+  const goToPrev = useCallback(() => {
+    setActiveImageIndex(prev => (prev === 0 ? images.length - 1 : prev - 1));
+  }, [images.length]);
+
+  const goToNext = useCallback(() => {
+    setActiveImageIndex(prev => (prev === images.length - 1 ? 0 : prev + 1));
+  }, [images.length]);
 
   useEffect(() => {
     if (isOpen) {
@@ -34,6 +46,33 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
       setShowBars(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft' && hasMultiple) { goToPrev(); e.preventDefault(); }
+      if (e.key === 'ArrowRight' && hasMultiple) { goToNext(); e.preventDefault(); }
+      if (e.key === 'Escape') {
+        if (isZoomed) { setIsZoomed(false); setZoomLevel(1); }
+        else onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isZoomed, hasMultiple, goToPrev, goToNext, onClose]);
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!hasMultiple || touchStartX.current === null) return;
+    const diff = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(diff) > 50) {
+      diff > 0 ? goToPrev() : goToNext();
+    }
+    touchStartX.current = null;
+  };
 
   if (!isOpen || !laptop) return null;
 
@@ -55,7 +94,6 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} listado a $${laptop.precio}. ¿Aún está disponible?`;
   const whatsappUrl = `https://wa.me/584128444445?text=${encodeURIComponent(whatsappMessage)}`;
 
-  // Función para manejar el zoom interno
   const handleZoomClick = (e) => {
     e.stopPropagation();
     setZoomLevel(prev => prev === 1 ? 1.5 : 1);
@@ -86,31 +124,70 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
             {/* Left Column: Photos */}
             <div className="bg-brand-50/50 dark:bg-brand-900/30 p-6 sm:p-8 lg:p-10 flex flex-col gap-6 border-b md:border-b-0 md:border-r border-brand-100/50 dark:border-brand-800 h-full">
-              {/* Contenedor de Imagen con Lupa */}
+
+              {/* Main Image with Arrow Navigation + Swipe */}
               <div
-                className="flex-grow aspect-[4/3] md:aspect-auto md:min-h-[400px] rounded-3xl overflow-hidden bg-white dark:bg-brand-900 shadow-sm border border-brand-100 dark:border-brand-800 relative group flex items-center justify-center cursor-zoom-in group-zoom"
-                onClick={() => setIsZoomed(true)}
-                title="Conocer más de cerca"
+                className="relative flex-grow aspect-[4/3] md:aspect-auto md:min-h-[400px] rounded-3xl overflow-hidden bg-white dark:bg-brand-900 shadow-sm border border-brand-100 dark:border-brand-800 select-none"
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
               >
-                <img
-                  src={images[activeImageIndex] || '/default-laptop.png'}
-                  alt={laptop.modelo}
-                  onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
-                  className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out"
-                />
-                <div className="absolute top-4 right-4 bg-white/90 dark:bg-brand-950/90 p-2 rounded-xl text-brand-600 dark:text-brand-400 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                <div
+                  className="w-full h-full flex items-center justify-center cursor-zoom-in group"
+                  onClick={() => setIsZoomed(true)}
+                  title="Conocer más de cerca"
+                >
+                  <img
+                    key={activeImageIndex}
+                    src={images[activeImageIndex] || '/default-laptop.png'}
+                    alt={laptop.modelo}
+                    onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
+                    className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out animate-in fade-in duration-300"
+                  />
+                </div>
+
+                {/* Always-visible Zoom Hint */}
+                <div className="absolute top-4 right-4 bg-white/90 dark:bg-brand-950/90 p-2 rounded-xl text-brand-600 dark:text-brand-400 backdrop-blur-sm shadow-sm transition-all hover:scale-110">
                   <ZoomIn className="w-5 h-5" />
                 </div>
+
+                {/* Left/Right Arrows - Solo si hay múltiples imágenes */}
+                {hasMultiple && (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); goToPrev(); }}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-lg border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label="Imagen anterior"
+                    >
+                      <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); goToNext(); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/90 dark:bg-brand-900/90 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-lg border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label="Imagen siguiente"
+                    >
+                      <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </button>
+                  </>
+                )}
+
+                {/* Image Position Counter */}
+                {hasMultiple && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-brand-900/70 dark:bg-black/70 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm flex items-center gap-2">
+                    <span>{activeImageIndex + 1} / {images.length}</span>
+                  </div>
+                )}
               </div>
 
-              {/* Thumbnails */}
-              {images.length > 1 && (
-                <div className="flex flex-wrap justify-center gap-3">
+              {/* Thumbnails - Horizontal Scroll */}
+              {hasMultiple && (
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-brand-300 dark:scrollbar-thumb-brand-700 scrollbar-track-transparent">
                   {images.map((img, idx) => (
                     <button
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`w-14 h-14 sm:w-20 lg:w-24 aspect-square bg-white dark:bg-brand-900 rounded-2xl border-2 transition-all overflow-hidden p-1.5 ${activeImageIndex === idx ? 'border-brand-600 dark:border-brand-500 shadow-md scale-95' : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 opacity-60 hover:opacity-100'
+                      className={`shrink-0 w-14 h-14 sm:w-20 lg:w-24 aspect-square bg-white dark:bg-brand-900 rounded-2xl border-2 transition-all overflow-hidden p-1.5 ${activeImageIndex === idx
+                        ? 'border-brand-600 dark:border-brand-500 shadow-md scale-95 ring-2 ring-brand-600/20 dark:ring-brand-500/20'
+                        : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 opacity-60 hover:opacity-100'
                         }`}
                     >
                       <img src={img || '/default-laptop.png'} onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
@@ -149,7 +226,6 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 </h4>
 
                 <div className="space-y-10">
-                  {/* Bars */}
                   {[
                     { label: "Integridad Pantalla", val: pScreen },
                     { label: "Estética / Chasis", val: pBody }
@@ -168,7 +244,6 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                     </div>
                   ))}
 
-                  {/* Battery */}
                   <div className="flex items-center justify-between pt-8 border-t border-brand-200/50 dark:border-brand-800">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-white dark:bg-brand-950 border border-brand-100 dark:border-brand-800 flex items-center justify-center text-brand-600 dark:text-brand-400">
@@ -181,7 +256,6 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 </div>
               </div>
 
-              {/* Specifications */}
               <h4 className="text-[10px] lg:text-xs font-black text-brand-400 dark:text-brand-600 mb-8 uppercase tracking-[0.4em]">Ficha Técnica</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12 mb-14">
                 <SpecItem icon={Cpu} label="Procesador" value={laptop.cpu} />
@@ -192,7 +266,6 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 <SpecItem icon={LayoutDashboard} label="Sistema" value={laptop.windows} />
               </div>
 
-              {/* CTA Action */}
               <div className="mt-auto pt-10 border-t border-brand-100 dark:border-brand-800">
                 <a
                   href={whatsappUrl}
@@ -209,36 +282,84 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
         </div>
       </div>
 
-      {/* OVERLAY DEL ZOOM DE IMAGEN */}
+      {/* OVERLAY DEL ZOOM DE IMAGEN - CON NAVEGACIÓN */}
       {isZoomed && createPortal(
         <div
-          className="fixed inset-0 z-[10000] bg-white/95 dark:bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center cursor-zoom-out animate-in fade-in duration-300 overflow-auto"
-          onClick={() => {
-            setIsZoomed(false);
-            setZoomLevel(1);
-          }}
+          className="fixed inset-0 z-[10000] bg-white/95 dark:bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center cursor-zoom-out animate-in fade-in duration-300 select-none"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
-          {/* Instrucción Visual */}
-          <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-brand-900/80 dark:bg-brand-100/10 text-white text-xs px-4 py-2 rounded-full backdrop-blur-sm shadow-xl flex items-center gap-2 pointer-events-none z-[10001]">
-            <ZoomIn className="w-4 h-4" />
-            Haz clic para alternar el Zoom
+          {/* Top Bar */}
+          <div className="fixed top-0 left-0 right-0 z-[10001] flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/10 to-transparent">
+            <div className="flex items-center gap-3 bg-brand-900/80 dark:bg-brand-100/10 text-white text-xs px-4 py-2 rounded-full backdrop-blur-sm shadow-xl pointer-events-none">
+              <ZoomIn className="w-4 h-4" />
+              <span>Haz clic para Zoom</span>
+              <span className="w-px h-4 bg-white/20 mx-1" />
+              <span>Flechas o ← → para navegar</span>
+            </div>
+
+            <button
+              className="p-3 bg-brand-900/10 dark:bg-white/10 hover:bg-brand-900/20 dark:hover:bg-white/20 rounded-full text-brand-900 dark:text-white transition-all backdrop-blur-sm"
+              onClick={(e) => { e.stopPropagation(); setIsZoomed(false); setZoomLevel(1); }}
+            >
+              <X className="w-8 h-8" />
+            </button>
           </div>
 
+          {/* Image Counter in Zoom */}
+          {hasMultiple && (
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[10001] bg-brand-900/70 dark:bg-black/70 text-white text-sm font-bold px-4 py-2 rounded-full backdrop-blur-sm">
+              {activeImageIndex + 1} / {images.length}
+            </div>
+          )}
+
+          {/* Arrow Navigation in Zoom */}
+          {hasMultiple && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); goToPrev(); }}
+                className="fixed left-6 top-1/2 -translate-y-1/2 z-[10001] w-14 h-14 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-2xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm"
+                aria-label="Imagen anterior"
+              >
+                <ChevronLeft className="w-7 h-7" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); goToNext(); }}
+                className="fixed right-6 top-1/2 -translate-y-1/2 z-[10001] w-14 h-14 bg-white/80 dark:bg-brand-900/80 hover:bg-white dark:hover:bg-brand-800 rounded-full flex items-center justify-center shadow-2xl border border-brand-100 dark:border-brand-700 text-brand-700 dark:text-brand-300 transition-all hover:scale-110 backdrop-blur-sm"
+                aria-label="Imagen siguiente"
+              >
+                <ChevronRight className="w-7 h-7" />
+              </button>
+            </>
+          )}
+
           <img
+            key={`zoom-${activeImageIndex}`}
             src={images[activeImageIndex] || '/default-laptop.png'}
             alt="Zoom"
             onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
-            className="w-full h-full max-w-[95vw] max-h-[95vh] md:max-w-[85vw] md:max-h-[85vh] object-contain transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]"
+            className="w-full h-full max-w-[95vw] max-h-[95vh] md:max-w-[85vw] md:max-h-[85vh] object-contain transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] animate-in fade-in duration-300"
             style={{ transform: `scale(${zoomLevel})`, cursor: zoomLevel === 1 ? 'zoom-in' : 'zoom-out' }}
             onClick={handleZoomClick}
           />
 
-          <button
-            className="fixed top-6 right-6 p-3 bg-brand-900/10 dark:bg-white/10 hover:bg-brand-900/20 dark:hover:bg-white/20 rounded-full text-brand-900 dark:text-white transition-all backdrop-blur-sm z-[10001]"
-            onClick={(e) => { e.stopPropagation(); setIsZoomed(false); setZoomLevel(1); }}
-          >
-            <X className="w-8 h-8" />
-          </button>
+          {/* Thumbnails en Zoom */}
+          {hasMultiple && (
+            <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[10001] flex gap-2 max-w-[90vw] overflow-x-auto pb-1 px-4">
+              {images.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={(e) => { e.stopPropagation(); setActiveImageIndex(idx); }}
+                  className={`shrink-0 w-12 h-12 rounded-xl border-2 overflow-hidden transition-all ${activeImageIndex === idx
+                    ? 'border-white shadow-lg scale-110 ring-2 ring-white/50'
+                    : 'border-white/30 opacity-50 hover:opacity-100 hover:border-white/60'
+                    }`}
+                >
+                  <img src={img} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>,
         document.body
       )}
