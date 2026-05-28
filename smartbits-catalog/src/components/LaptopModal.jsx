@@ -132,7 +132,6 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               >
-<<<<<<< HEAD
                 <div
                   className="w-full h-full flex items-center justify-center cursor-zoom-in group"
                   onClick={() => setIsZoomed(true)}
@@ -140,8 +139,9 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 >
                   <img
                     key={activeImageIndex}
-                    src={images[activeImageIndex] || '/default-laptop.png'}
+                    src={getCloudinaryUrl(images[activeImageIndex], 'full') || '/default-laptop.png'}
                     alt={laptop.modelo}
+                    loading="lazy"
                     onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
                     className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out animate-in fade-in duration-300"
                   />
@@ -149,16 +149,6 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
                 {/* Always-visible Zoom Hint */}
                 <div className="absolute top-4 right-4 bg-white/90 dark:bg-brand-950/90 p-2 rounded-xl text-brand-600 dark:text-brand-400 backdrop-blur-sm shadow-sm transition-all hover:scale-110">
-=======
-                <img
-                  src={getCloudinaryUrl(images[activeImageIndex], 'full') || '/default-laptop.png'}
-                  alt={laptop.modelo}
-                  loading="lazy"
-                  onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
-                  className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out"
-                />
-                <div className="absolute top-4 right-4 bg-white/90 dark:bg-brand-950/90 p-2 rounded-xl text-brand-600 dark:text-brand-400 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
->>>>>>> e4df20260687c94b53714ace549fe14a77fd1d17
                   <ZoomIn className="w-5 h-5" />
                 </div>
 
@@ -346,12 +336,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
           )}
 
           <img
-<<<<<<< HEAD
             key={`zoom-${activeImageIndex}`}
-            src={images[activeImageIndex] || '/default-laptop.png'}
-=======
             src={getCloudinaryUrl(images[activeImageIndex], 'full') || '/default-laptop.png'}
->>>>>>> e4df20260687c94b53714ace549fe14a77fd1d17
             alt="Zoom"
             loading="lazy"
             onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
