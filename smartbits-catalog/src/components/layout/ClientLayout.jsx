@@ -32,7 +32,7 @@ export default function ClientLayout() {
           </Link>
 
           <div className="flex flex-1 items-center justify-end gap-3 text-sm font-semibold text-brand-600 dark:text-brand-300">
-            <span className="hidden sm:inline text-[10px] font-bold text-brand-400 dark:text-brand-500 uppercase tracking-wider">Contáctanos:</span>
+            <span className="text-[10px] font-bold text-brand-400 dark:text-brand-500 uppercase tracking-wider">Contáctanos:</span>
             <a
               href="https://www.instagram.com/smartbits.ve/"
               target="_blank"
@@ -51,7 +51,7 @@ export default function ClientLayout() {
                 <circle cx="12" cy="12" r="5" stroke="url(#ig-grad)" strokeWidth="2" fill="none"/>
                 <circle cx="17.5" cy="6.5" r="1.5" fill="url(#ig-grad)"/>
               </svg>
-              <span className="hidden sm:inline text-brand-600 dark:text-brand-300 font-semibold text-sm">Instagram</span>
+              <span className="text-brand-600 dark:text-brand-300 font-semibold text-sm">Instagram</span>
             </a>
             <a
               href="https://wa.me/584128444445"
@@ -63,7 +63,7 @@ export default function ClientLayout() {
                 <path d="M12 2C6.48 2 2 6.48 2 12c0 2.08.64 4.01 1.73 5.62L2 22l4.53-1.57C8.04 21.4 9.96 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" fill="#25D366"/>
                 <path d="M17 13.5c-.27-.14-1.63-.8-1.88-.9s-.44-.1-.62.1-.7.9-.87 1.08c-.16.18-.32.23-.6.1s-1.16-.43-2.21-1.37c-.82-.73-1.37-1.63-1.53-1.9-.16-.28-.02-.43.12-.56.12-.12.28-.32.41-.5.14-.18.18-.32.28-.5.1-.18.04-.37-.02-.5-.08-.14-.62-1.5-.85-2.06-.23-.56-.46-.5-.64-.5-.16 0-.34-.02-.52-.02-.18 0-.46.08-.7.37-.24.3-.92 1.01-.92 2.49 0 1.48.96 2.9 1.1 3.1.14.2 1.88 2.88 4.58 4.06.64.28 1.14.44 1.53.58.64.23 1.24.18 1.71.14.53-.05 1.6-.69 1.82-1.36.23-.66.23-1.24.16-1.35-.07-.11-.23-.18-.5-.32z" fill="white"/>
               </svg>
-              <span className="hidden sm:inline text-brand-600 dark:text-brand-300 font-semibold text-sm">WhatsApp</span>
+              <span className="text-brand-600 dark:text-brand-300 font-semibold text-sm">WhatsApp</span>
             </a>
             {import.meta.env.DEV && (
               <a
