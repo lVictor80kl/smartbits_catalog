@@ -317,8 +317,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
             </div>
           )}
 
-          {/* Arrow Navigation in Zoom */}
-          {hasMultiple && (
+          {/* Arrow Navigation in Zoom — ocultas cuando está haciendo zoom-in */}
+          {hasMultiple && zoomLevel === 1 && (
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrev(); }}
