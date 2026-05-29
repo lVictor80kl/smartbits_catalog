@@ -16,6 +16,13 @@ export default function Dashboard() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
 
+  // Model count: how many units per model name
+  const modelCounts = laptops.reduce((acc, l) => {
+    const key = l.modelo?.trim().toLowerCase();
+    if (key) acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
   // Normalize brand names after fetching
   useEffect(() => {
     const q = query(collection(db, 'laptops'), orderBy('modelo'));
@@ -379,7 +386,12 @@ export default function Dashboard() {
                           />
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{laptop.modelo}</div>
+                          <div className="font-medium text-gray-900 line-clamp-1 flex items-center gap-2">
+                            {laptop.modelo}
+                            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full shrink-0">
+                              ×{modelCounts[laptop.modelo?.trim().toLowerCase()] ?? 1}
+                            </span>
+                          </div>
                           <div className="text-xs text-gray-500">{laptop.marca}</div>
                         </div>
                       </div>

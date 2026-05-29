@@ -18,11 +18,11 @@ export default function ClientLayout() {
     <div className="min-h-screen flex flex-col bg-brand-50 dark:bg-brand-950 transition-colors duration-500 font-sans">
       {/* Navbar Fixed - Technical Brand Style */}
       <nav className="fixed top-0 left-0 right-0 h-[56px] bg-white/80 dark:bg-brand-900/80 border-b border-brand-100 dark:border-brand-800 backdrop-blur-md z-50 transition-all flex items-center">
-        <div className="w-full max-w-[1400px] mx-auto px-6 flex items-center justify-between">
+        <div className="w-full max-w-[400px] mx-auto px-3 flex items-center justify-between">
           <Link
             to="/"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center group h-full"
+            className="flex items-center group h-full mr-3"
           >
             <img
               src="/icon-white.png"

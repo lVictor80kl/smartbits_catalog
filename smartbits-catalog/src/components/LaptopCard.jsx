@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Cpu, MemoryStick, Database, ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Cpu, MemoryStick, Database, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getCloudinaryUrl } from '../utils/imageOptimizer.js';
 
 export default function LaptopCard({ laptop, onClick }) {
@@ -35,14 +35,6 @@ export default function LaptopCard({ laptop, onClick }) {
             {laptop.disponibilidad}
           </span>
         </div>
-
-        {/* Badge contador de fotos */}
-        {hasGallery && (
-          <div className="absolute top-4 right-4 z-10 bg-white/90 dark:bg-brand-800/90 backdrop-blur-sm px-2 py-1 rounded-full border border-brand-100 dark:border-brand-700 flex items-center gap-1.5 text-brand-700 dark:text-brand-300 text-xs font-semibold shadow-sm">
-            <ImageIcon className="w-3 h-3" />
-            <span>{currentImageIndex + 1}/{imageCount}</span>
-          </div>
-        )}
 
         {/* Imagen */}
         <img
@@ -102,9 +94,12 @@ export default function LaptopCard({ laptop, onClick }) {
             <span className="text-[10px] font-bold text-brand-400 dark:text-brand-500 uppercase">USD</span>
           </div>
 
-          <div className="w-10 h-10 rounded-full bg-brand-50 dark:bg-brand-800 text-brand-600 dark:text-brand-300 flex items-center justify-center group-hover:bg-brand-600 dark:group-hover:bg-brand-400 group-hover:text-white dark:group-hover:text-brand-900 transition-all duration-300">
-            <ChevronRight className="w-5 h-5" />
-          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="bg-brand-900 hover:bg-brand-800 dark:bg-brand-600 dark:hover:bg-brand-500 text-white rounded-full px-5 py-2.5 text-[13px] font-bold transition-all hover:scale-105 ring-2 ring-brand-300 dark:ring-brand-400 hover:ring-brand-500"
+          >
+            Ver más
+          </button>
         </div>
       </div>
     </div>

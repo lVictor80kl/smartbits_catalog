@@ -101,12 +101,16 @@ export default function Catalog() {
     <div className="min-h-screen bg-brand-50 dark:bg-brand-950 w-full transition-colors duration-500 pt-[44px]">
       
       {/* Clean Hero Section - Tech / Brand Styled */}
-      <section className="w-full flex flex-col items-center justify-center px-6 text-center pt-24 pb-16 bg-white dark:bg-brand-900 border-b border-brand-100 dark:border-brand-800">
-        <h1 className="text-4xl md:text-6xl font-bold text-brand-800 dark:text-white mb-4 tracking-tight">
+      <section className="w-full flex flex-col items-center justify-center px-6 text-center pt-6 pb-4 bg-white dark:bg-brand-900 border-b border-brand-100 dark:border-brand-800">
+        <h1 className="text-3xl md:text-2xl font-bold text-brand-600 dark:text-white mb-4 tracking-tight">
           Catálogo Smartbits
         </h1>
-        <p className="text-lg text-brand-500 dark:text-brand-300 max-w-2xl text-balance">
-          Encuentra el equipo ideal para ti. Filtra por características, explora detalles completos y compra con confianza.
+        <p className="text-lg text-brand-800 dark:text-brand-100 max-w-1x1 text-center">
+          {"Encuentra el equipo ideal para ti. Filtra por características, explora detalles completos y compra con confianza.".split(" ").map((word, i) => (
+            <span key={i} className="stagger-word" style={{ '--word-index': i }}>
+              {word}
+            </span>
+          ))}
         </p>
         
         {import.meta.env.DEV && (
