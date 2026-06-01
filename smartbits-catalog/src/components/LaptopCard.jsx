@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Cpu, MemoryStick, Database, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getCloudinaryUrl } from '../utils/imageOptimizer.js';
+import { Cpu, MemoryStick, Database, ChevronRight } from 'lucide-react';
+// 1. IMPORTA TU FUNCIÓN DE UTILIDADES AQUÍ (Ajusta la ruta según tus carpetas)
+import { getCloudinaryUrl } from "../smartbits-admin/src/utils/imageOptimizer.js"
 
 export default function LaptopCard({ laptop, onClick }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);

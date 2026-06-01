@@ -6,7 +6,7 @@ import {
   Monitor, LayoutDashboard, MessageCircle, ZoomIn,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { getCloudinaryUrl } from '../utils/imageOptimizer.js';
+import { getCloudinaryUrl } from "../smartbits-admin/src/utils/imageOptimizer.js";
 
 export default function LaptopModal({ laptop, isOpen, onClose }) {
   const [showBars, setShowBars] = useState(false);
@@ -194,7 +194,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                         : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 opacity-60 hover:opacity-100'
                         }`}
                     >
-                      <img src={getCloudinaryUrl(img, 'thumb') || '/default-laptop.png'} loading="lazy" onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
+                      <img src={img || '/default-laptop.png'} loading="lazy" onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
                     </button>
                   ))}
                 </div>
@@ -338,8 +338,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
           )}
 
           <img
-            key={`zoom-${activeImageIndex}`}
-            src={getCloudinaryUrl(images[activeImageIndex], 'full') || '/default-laptop.png'}
+            src={images[activeImageIndex] || '/default-laptop.png'}
             alt="Zoom"
             loading="lazy"
             onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
