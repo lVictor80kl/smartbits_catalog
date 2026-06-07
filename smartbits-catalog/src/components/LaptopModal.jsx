@@ -6,7 +6,8 @@ import {
   Monitor, LayoutDashboard, MessageCircle, ZoomIn,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { getCloudinaryUrl } from "../smartbits-admin/src/utils/imageOptimizer.js";
+import { getCloudinaryUrl } from "../utils/imageOptimizer.js";
+
 
 export default function LaptopModal({ laptop, isOpen, onClose }) {
   const [showBars, setShowBars] = useState(false);
