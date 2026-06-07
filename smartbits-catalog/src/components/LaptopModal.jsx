@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { getCloudinaryUrl } from "../utils/imageOptimizer.js";
+import { useState, useEffect, useCallback } from 'react';
 
 
 export default function LaptopModal({ laptop, isOpen, onClose }) {

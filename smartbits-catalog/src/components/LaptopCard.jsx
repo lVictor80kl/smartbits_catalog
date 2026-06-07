@@ -1,6 +1,7 @@
 import { Cpu, MemoryStick, Database, ChevronRight } from 'lucide-react';
 // 1. IMPORTA TU FUNCIÓN DE UTILIDADES AQUÍ (Ajusta la ruta según tus carpetas)
 import { getCloudinaryUrl } from "../utils/imageOptimizer.js";
+import { useState, useEffect, useCallback } from 'react';
 
 
 export default function LaptopCard({ laptop, onClick }) {
