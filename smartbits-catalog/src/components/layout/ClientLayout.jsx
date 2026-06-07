@@ -1,6 +1,6 @@
 import { Outlet, Link } from 'react-router-dom';
 import { Shield } from 'lucide-react';
-import { useState, useEffec } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function ClientLayout() {
   const [isDarkMode, setIsDarkMode] = useState(false);
