@@ -99,36 +99,36 @@ export default function Catalog() {
 
   return (
     <div className="min-h-screen bg-brand-50 dark:bg-brand-950 w-full transition-colors duration-500 pt-[44px]">
-      
+
       {/* Clean Hero Section - Tech / Brand Styled */}
       <section className="w-full flex flex-col items-center justify-center px-6 text-center pt-6 pb-4 bg-white dark:bg-brand-900 border-b border-brand-100 dark:border-brand-800">
-        <h1 className="text-3xl md:text-2xl font-bold text-brand-600 dark:text-white mb-4 tracking-tight">
+        <h1 className="contrail-one-regular main-color text-3xl md:text-2xl font-bold text-brand-600 dark:text-white mb-4 tracking-tight animate-welcome">
           Catálogo Smartbits
         </h1>
-        <p className="text-lg text-brand-800 dark:text-brand-100 max-w-1x1 text-center">
-          {"Encuentra el equipo ideal para ti. Filtra por características, explora detalles completos y compra con confianza.".split(" ").map((word, i) => (
+        <p className="text-lg text-brand-800 dark:text-brand-100 max-w-1x1 text-center contrail-one-regular  ">
+          {"Compra inteligente, compra en Smartbits".split(" ").map((word, i) => (
             <span key={i} className="stagger-word" style={{ '--word-index': i }}>
               {word}
             </span>
           ))}
         </p>
-        
+
         {import.meta.env.DEV && (
-            <button
-              onClick={migrateMockToFirestore}
-              className="mt-6 px-4 py-2 bg-transparent border border-brand-300 text-brand-500 hover:text-brand-800 hover:border-brand-500 rounded-full text-xs font-semibold transition-colors dark:border-brand-700 dark:text-brand-300 dark:hover:text-white dark:hover:border-brand-500"
-            >
-              Migrar Datos Reales (Dev)
-            </button>
+          <button
+            onClick={migrateMockToFirestore}
+            className="mt-6 px-4 py-2 bg-transparent border border-brand-300 text-brand-500 hover:text-brand-800 hover:border-brand-500 rounded-full text-xs font-semibold transition-colors dark:border-brand-700 dark:text-brand-300 dark:hover:text-white dark:hover:border-brand-500"
+          >
+            Migrar Datos Reales (Dev)
+          </button>
         )}
       </section>
 
       {/* Main Container */}
       <div className="w-full max-w-[1400px] mx-auto px-6 py-12">
-        
+
         {/* Search & Filters */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
-          
+
           <div className="relative w-full max-w-md">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-400 w-5 h-5" />
             <input
@@ -144,9 +144,9 @@ export default function Catalog() {
               </button>
             )}
           </div>
-          
-          <button 
-            onClick={() => setShowFilters(!showFilters)} 
+
+          <button
+            onClick={() => setShowFilters(!showFilters)}
             className="w-full md:w-auto text-sm font-bold text-brand-800 dark:text-white bg-white dark:bg-brand-900 border border-brand-100 dark:border-brand-800 px-6 py-3.5 rounded-full flex items-center justify-center gap-2 shadow-sm hover:bg-brand-100 dark:hover:bg-brand-800 transition-colors shrink-0"
           >
             Filtros Avanzados <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
@@ -189,24 +189,24 @@ export default function Catalog() {
 
         {/* Grid Store Layout */}
         <div className="mb-8">
-           <p className="text-sm font-semibold text-brand-500 dark:text-brand-300 mb-6 pl-2">Mostrando {filteredLaptops.length} resultados</p>
-           {filteredLaptops.length > 0 ? (
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-               {filteredLaptops.map(laptop => (
-                 <LaptopCard 
-                   key={laptop.id} 
-                   laptop={laptop} 
-                   onClick={() => setSelectedLaptop(laptop)} 
-                 />
-               ))}
-             </div>
-           ) : (
-             <div className="w-full min-h-[40vh] flex flex-col items-center justify-center bg-white dark:bg-brand-900 rounded-3xl border border-brand-100 dark:border-brand-800 p-12 text-center">
-               <PackageSearch className="w-12 h-12 text-brand-400 mb-4" />
-               <h2 className="text-xl font-bold text-brand-800 dark:text-white mb-2">No se encontraron equipos</h2>
-               <p className="text-sm text-brand-500 dark:text-brand-300">Intenta cambiar los filtros o el término de búsqueda.</p>
-             </div>
-           )}
+          <p className="text-sm font-semibold text-brand-500 dark:text-brand-300 mb-6 pl-2">Mostrando {filteredLaptops.length} resultados</p>
+          {filteredLaptops.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredLaptops.map(laptop => (
+                <LaptopCard
+                  key={laptop.id}
+                  laptop={laptop}
+                  onClick={() => setSelectedLaptop(laptop)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="w-full min-h-[40vh] flex flex-col items-center justify-center bg-white dark:bg-brand-900 rounded-3xl border border-brand-100 dark:border-brand-800 p-12 text-center">
+              <PackageSearch className="w-12 h-12 text-brand-400 mb-4" />
+              <h2 className="text-xl font-bold text-brand-800 dark:text-white mb-2">No se encontraron equipos</h2>
+              <p className="text-sm text-brand-500 dark:text-brand-300">Intenta cambiar los filtros o el término de búsqueda.</p>
+            </div>
+          )}
         </div>
       </div>
 

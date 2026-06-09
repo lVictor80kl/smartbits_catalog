@@ -56,7 +56,7 @@ export default function ClientLayout() {
                 <circle cx="12" cy="12" r="5" stroke="url(#ig-grad)" strokeWidth="2" fill="none" />
                 <circle cx="17.5" cy="6.5" r="1.5" fill="url(#ig-grad)" />
               </svg>
-              <span className="text-brand-600 dark:text-brand-300 font-semibold text-sm">Instagram</span>
+              <span className="text-brand-600 dark:text-brand-300 font-semibold text-sm ">Instagram</span>
             </a>
             <a
               href="https://wa.me/584128444445"

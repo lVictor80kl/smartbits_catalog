@@ -1,4 +1,5 @@
 ﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Contrail+One&display=swap');
 @import "tailwindcss";
 
 @variant dark (&:where(.dark, .dark *));
@@ -10,12 +11,18 @@
   --color-brand-300: #cbd5e1;
   --color-brand-400: #94a3b8;
   --color-brand-500: #64748b;
-  --color-brand-600: #3b82f6; /* Electric Blue Accent */
+  --color-brand-600: #3b82f6;
+  /* Electric Blue Accent */
   --color-brand-700: #1d4ed8;
-  --color-brand-800: #1e293b; /* Midnight Primary */
+  --color-brand-800: #1e293b;
+  /* Midnight Primary */
   --color-brand-900: #0f172a;
-  --color-brand-950: #020617; /* Deepest Dark */
+  --color-brand-950: #020617;
+  /* Deepest Dark */
   --font-sans: "Inter", sans-serif;
+  /* logo colour */
+  --logo-colour: #5ce1e6;
+
 }
 
 @layer base {
@@ -25,8 +32,15 @@
 }
 
 @keyframes welcome-entrance {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-welcome {
@@ -34,8 +48,15 @@
 }
 
 @keyframes stagger-fade-in {
-  0% { opacity: 0; transform: translateY(8px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .stagger-word {
@@ -45,6 +66,7 @@
   animation-delay: calc(var(--word-index) * 80ms);
   margin-right: 0.3em;
 }
+
 .stagger-word:last-child {
   margin-right: 0;
 }
@@ -83,4 +105,15 @@
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-brand-600);
+}
+
+.contrail-one-regular {
+  font-family: "Contrail One", sans-serif !important;
+  /* El !important ayuda a romper cualquier otra fuente heredada */
+  font-weight: 400;
+  font-style: normal;
+}
+
+.main-color {
+  color: var(--logo-colour);
 }
