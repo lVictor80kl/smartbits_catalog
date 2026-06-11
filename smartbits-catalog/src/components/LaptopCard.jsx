@@ -77,15 +77,17 @@ export default function LaptopCard({ laptop, onClick }) {
         <div className="flex items-center gap-4 text-brand-500 dark:text-brand-400 mb-6 py-4 border-y border-brand-50 dark:border-brand-800/50">
           <div className="flex items-center gap-1.5" title="Procesador">
             <Cpu className="w-4 h-4 text-brand-400 dark:text-brand-500" />
-            <span className="text-xs font-bold text-brand-800 dark:text-brand-200">{laptop.cpu.split(' ')[0]}</span>
+            <span className="text-xs font-bold text-brand-800 dark:text-brand-200">{laptop.cpu.split(' ').slice(0, 3).join(' ')}</span>
           </div>
           <div className="flex items-center gap-1.5" title="RAM">
             <MemoryStick className="w-4 h-4 text-brand-400 dark:text-brand-500" />
-            <span className="text-xs font-bold text-brand-800 dark:text-brand-200">{laptop.ram}</span>
+            <span className="text-xs font-bold text-brand-800 dark:text-brand-200">
+              {laptop.ram.split(' ').slice(0, 2).join(' ')}
+            </span>
           </div>
           <div className="flex items-center gap-1.5" title="Almacenamiento">
             <Database className="w-4 h-4 text-brand-400 dark:text-brand-500" />
-            <span className="text-xs font-bold text-brand-800 dark:text-brand-200">{laptop.almacenamiento}</span>
+            <span className="text-xs font-bold text-brand-800 dark:text-brand-200">{laptop.almacenamiento.split(' ').slice(0, 2).join(' ')}</span>
           </div>
         </div>
 
