@@ -47,7 +47,7 @@ export default function DeliveryNote() {
 
   // Payment methods (dynamic)
   const [pagos, setPagos] = useState([
-    { metodo: 'Zelle', monto: '' }
+    { metodo: 'Efectivo', monto: '' }
   ]);
 
   const [unidades, setUnidades] = useState(1);
@@ -111,7 +111,7 @@ export default function DeliveryNote() {
   };
 
   const addPago = () => {
-    setPagos(prev => [...prev, { metodo: 'Efectivo', monto: '' }]);
+    setPagos(prev => [...prev, { metodo: 'Zelle', monto: '' }]);
   };
 
   const removePago = (index) => {
@@ -341,6 +341,7 @@ export default function DeliveryNote() {
                 <option value="Pago Móvil">Pago Móvil</option>
                 <option value="Transferencia">Transferencia</option>
                 <option value="Binance Pay">Binance Pay</option>
+                <option value="Zinli">Zinli</option>
                 <option value="PayPal">PayPal</option>
                 <option value="Otro">Otro</option>
               </select>
