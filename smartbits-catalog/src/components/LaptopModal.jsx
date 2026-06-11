@@ -96,7 +96,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
     ? `${laptop.pantalla} (Táctil)`
     : laptop.pantalla;
 
-  const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} listado a $${laptop.precio}. ¿Aún está disponible?`;
+  const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} listado a $${laptop.precio}. ¿Pueden brindarme mayor información?`;
   const whatsappUrl = `https://wa.me/584128444445?text=${encodeURIComponent(whatsappMessage)}`;
 
   const handleZoomClick = (e) => {
@@ -280,7 +280,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                   className="w-full bg-brand-900 dark:bg-brand-800 hover:bg-brand-800 dark:hover:bg-brand-700 text-white py-6 px-10 rounded-3xl font-black transition-all shadow-2xl shadow-brand-900/20 dark:shadow-none flex items-center justify-center gap-5 text-lg lg:text-xl transform hover:-translate-y-1.5 active:translate-y-0 text-center"
                 >
                   <MessageCircle className="w-8 h-8 text-brand-400 dark:text-brand-500" />
-                  CONSULTAR DISPONIBILIDAD
+                  Más información
                 </a>
               </div>
             </div>
