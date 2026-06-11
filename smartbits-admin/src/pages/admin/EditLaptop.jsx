@@ -33,7 +33,8 @@ export default function EditLaptop() {
     disponibilidad: 'Disponible',
     imagenes: [],
     estadoPantalla: 10,
-    estadoCarcasa: 9
+    estadoCarcasa: 9,
+    otros: ''
   });
 
   // Cargar datos actuales del equipo
@@ -61,7 +62,8 @@ export default function EditLaptop() {
             disponibilidad: data.disponibilidad || 'Disponible',
             imagenes: imgs,
             estadoPantalla: data.estado?.pantalla || 10,
-            estadoCarcasa: data.estado?.carcasa || 9
+            estadoCarcasa: data.estado?.carcasa || 9,
+            otros: data.otros || ''
           });
           setExistingImages(imgs);
         } else {
@@ -87,7 +89,7 @@ export default function EditLaptop() {
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
-    
+
     const validFiles = files.filter(file => {
       if (!file.type.startsWith('image/')) {
         alert(`${file.name} no es una imagen.`);
@@ -118,7 +120,7 @@ export default function EditLaptop() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const finalUrls = [...existingImages];
 
@@ -154,6 +156,7 @@ export default function EditLaptop() {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,
         },
+        otros: formData.otros,
         actualizadoEn: serverTimestamp(),
       });
 
@@ -179,7 +182,7 @@ export default function EditLaptop() {
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <div className="flex items-center gap-4 mb-8">
-        <Link 
+        <Link
           to="/admin"
           className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-gray-900 transition-colors shadow-sm"
         >
@@ -202,14 +205,14 @@ export default function EditLaptop() {
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
+
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-gray-400" />
                   Foto del Equipo
                 </h3>
-                
+
                 <div className="space-y-4">
                   <input
                     ref={fileInputRef}
@@ -253,7 +256,7 @@ export default function EditLaptop() {
                         <span className="absolute bottom-1 left-1 bg-blue-500 text-white text-[8px] px-1 rounded font-bold">Local</span>
                       </div>
                     ))}
-                    
+
                     <label
                       htmlFor="foto-input"
                       className="flex flex-col items-center justify-center aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
@@ -262,7 +265,7 @@ export default function EditLaptop() {
                       <span className="text-[10px] font-medium text-gray-600 text-center px-2">Añadir más fotos</span>
                     </label>
                   </div>
-                  
+
                   <p className="text-[10px] text-gray-400 italic">
                     {existingImages.length} en la nube • {newImageFiles.length} nuevas por subir
                   </p>
@@ -277,7 +280,7 @@ export default function EditLaptop() {
                       <label className="font-medium text-gray-700">Estado de Pantalla</label>
                       <span className="font-bold text-gray-900">{formData.estadoPantalla}/10</span>
                     </div>
-                    <input 
+                    <input
                       type="range" name="estadoPantalla" min="1" max="10" step="1"
                       value={formData.estadoPantalla} onChange={handleSliderChange}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
@@ -288,7 +291,7 @@ export default function EditLaptop() {
                       <label className="font-medium text-gray-700">Estado de Carcasa</label>
                       <span className="font-bold text-gray-900">{formData.estadoCarcasa}/10</span>
                     </div>
-                    <input 
+                    <input
                       type="range" name="estadoCarcasa" min="1" max="10" step="1"
                       value={formData.estadoCarcasa} onChange={handleSliderChange}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
@@ -296,7 +299,7 @@ export default function EditLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Salud de Batería</label>
-                    <select 
+                    <select
                       name="bateria" value={formData.bateria} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                     >
@@ -316,7 +319,7 @@ export default function EditLaptop() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Modelo Exacto</label>
-                    <input 
+                    <input
                       type="text" name="modelo" required
                       value={formData.modelo} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -324,7 +327,7 @@ export default function EditLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
-                    <select 
+                    <select
                       name="marca" required
                       value={formData.marca} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -345,7 +348,7 @@ export default function EditLaptop() {
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <span className="text-gray-500 sm:text-sm">$</span>
                       </div>
-                      <input 
+                      <input
                         type="number" name="precio" required min="0"
                         value={formData.precio} onChange={handleChange}
                         className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -360,7 +363,7 @@ export default function EditLaptop() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Procesador (CPU)</label>
-                    <input 
+                    <input
                       type="text" name="cpu" required
                       value={formData.cpu} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -368,7 +371,7 @@ export default function EditLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Memoria RAM</label>
-                    <input 
+                    <input
                       type="text" name="ram" required
                       value={formData.ram} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -376,7 +379,7 @@ export default function EditLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Almacenamiento</label>
-                    <input 
+                    <input
                       type="text" name="almacenamiento" required
                       value={formData.almacenamiento} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -384,7 +387,7 @@ export default function EditLaptop() {
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Gráficos (GPU)</label>
-                    <input 
+                    <input
                       type="text" name="gpu" required
                       value={formData.gpu} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -392,7 +395,7 @@ export default function EditLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pantalla</label>
-                    <input 
+                    <input
                       type="text" name="pantalla" required
                       value={formData.pantalla} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -400,7 +403,7 @@ export default function EditLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Sistema Operativo</label>
-                    <input 
+                    <input
                       type="text" name="windows" required
                       value={formData.windows} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -409,7 +412,7 @@ export default function EditLaptop() {
                   <div className="grid grid-cols-2 gap-4 sm:col-span-2">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">¿Pantalla Táctil?</label>
-                      <select 
+                      <select
                         name="touch" value={formData.touch} onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                       >
@@ -419,7 +422,7 @@ export default function EditLaptop() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Disponibilidad</label>
-                      <select 
+                      <select
                         name="disponibilidad" value={formData.disponibilidad} onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-medium"
                       >
@@ -427,6 +430,17 @@ export default function EditLaptop() {
                         <option value="Coming soon">Coming soon</option>
                         <option value="No disponible">No disponible</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Otros</label>
+                      <textarea
+                        name="otros"
+                        value={formData.otros}
+                        onChange={handleChange}
+                        placeholder="Ej. Teclado retroiluminado&#10;Batería de larga duración&#10;Carga rápida"
+                        rows={3} // Controla la altura inicial del cuadro
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
+                      />
                     </div>
                   </div>
                 </div>
@@ -438,7 +452,7 @@ export default function EditLaptop() {
             <Link to="/admin" className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
               Cancelar
             </Link>
-            <button 
+            <button
               type="submit" disabled={isSubmitting}
               className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 min-w-[180px] disabled:opacity-70 shadow-md shadow-blue-500/20"
             >

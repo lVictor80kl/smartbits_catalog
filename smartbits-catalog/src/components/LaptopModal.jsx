@@ -272,6 +272,16 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 <SpecItem icon={LayoutDashboard} label="Sistema" value={laptop.windows} />
               </div>
 
+              {laptop.otros && laptop.otros.trim() !== "" && (
+                <div className="others">
+                  <p className='text-[10px] lg:text-xs font-black text-brand-400 dark:text-brand-600 mb-8 uppercase tracking-[0.4em]'>Otros:</p>
+                  <div className='flex items-center gap-4'>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12 mb-14">
+                      <SpecItem icon={Plus} label="Otras Caracteristicas" value={laptop.otros} />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="mt-auto pt-10 border-t border-brand-100 dark:border-brand-800">
                 <a
                   href={whatsappUrl}

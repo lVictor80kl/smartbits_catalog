@@ -100,7 +100,7 @@ export default function LaptopCard({ laptop, onClick }) {
 
           <button
             onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className="bg-brand-900 hover:bg-brand-800 dark:bg-brand-600 dark:hover:bg-brand-500 text-white rounded-full px-5 py-2.5 text-[13px] font-bold transition-all hover:scale-105 ring-2 ring-brand-300 dark:ring-brand-400 hover:ring-brand-500"
+            className="bg-brand-900 hover:bg-brand-800 dark:bg-brand-600 dark:hover:bg-brand-500 text-white rounded-full px-4 py-1 text-[12px] font-bold transition-all hover:scale-105 ring-2 ring-brand-300 dark:ring-brand-400 hover:ring-brand-500"
           >
             Ver más
           </button>

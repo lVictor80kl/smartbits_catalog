@@ -30,7 +30,8 @@ export default function NewLaptop() {
     disponibilidad: 'Disponible',
     imagenes: [],
     estadoPantalla: 10,
-    estadoCarcasa: 9
+    estadoCarcasa: 9,
+    otros: '',
   });
 
   const handleChange = (e) => {
@@ -72,10 +73,10 @@ export default function NewLaptop() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const uploadedUrls = [];
-      
+
       // 1. Subir cada imagen a Cloudinary
       for (let i = 0; i < imageFiles.length; i++) {
         const file = imageFiles[i];
@@ -107,6 +108,7 @@ export default function NewLaptop() {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,
         },
+        otros: formData.otros,
         creadoEn: serverTimestamp(),
       });
 
@@ -123,7 +125,7 @@ export default function NewLaptop() {
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <div className="flex items-center gap-4 mb-8">
-        <Link 
+        <Link
           to="/admin"
           className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-gray-900 transition-colors shadow-sm"
         >
@@ -146,7 +148,7 @@ export default function NewLaptop() {
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
+
             {/* Columna Izquierda: Imagen y Estado (1 fr) */}
             <div className="space-y-6">
               {/* Imagen URL */}
@@ -155,7 +157,7 @@ export default function NewLaptop() {
                   <ImageIcon className="w-5 h-5 text-gray-400" />
                   Foto Principal
                 </h3>
-                
+
                 <div className="space-y-4">
                   <input
                     ref={fileInputRef}
@@ -181,7 +183,7 @@ export default function NewLaptop() {
                         </button>
                       </div>
                     ))}
-                    
+
                     <label
                       htmlFor="foto-input"
                       className="flex flex-col items-center justify-center aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
@@ -202,16 +204,16 @@ export default function NewLaptop() {
               {/* Estado Visual (Sliders) */}
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                 <h3 className="font-semibold text-gray-900 mb-4">Estado Visual Certificado</h3>
-                
+
                 <div className="space-y-6">
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <label className="font-medium text-gray-700">Estado de Pantalla</label>
                       <span className="font-bold text-gray-900">{formData.estadoPantalla}/10</span>
                     </div>
-                    <input 
-                      type="range" 
-                      name="estadoPantalla" 
+                    <input
+                      type="range"
+                      name="estadoPantalla"
                       min="1" max="10" step="1"
                       value={formData.estadoPantalla}
                       onChange={handleSliderChange}
@@ -224,9 +226,9 @@ export default function NewLaptop() {
                       <label className="font-medium text-gray-700">Estado de Carcasa</label>
                       <span className="font-bold text-gray-900">{formData.estadoCarcasa}/10</span>
                     </div>
-                    <input 
-                      type="range" 
-                      name="estadoCarcasa" 
+                    <input
+                      type="range"
+                      name="estadoCarcasa"
                       min="1" max="10" step="1"
                       value={formData.estadoCarcasa}
                       onChange={handleSliderChange}
@@ -236,7 +238,7 @@ export default function NewLaptop() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Salud de Batería</label>
-                    <select 
+                    <select
                       name="bateria"
                       value={formData.bateria}
                       onChange={handleChange}
@@ -254,13 +256,13 @@ export default function NewLaptop() {
 
             {/* Columna Derecha: Specs (2 fr) */}
             <div className="md:col-span-2 space-y-6">
-              
+
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                 <h3 className="font-semibold text-gray-900 mb-4">Información Básica</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Modelo Exacto</label>
-                    <input 
+                    <input
                       type="text" name="modelo" required
                       value={formData.modelo} onChange={handleChange}
                       placeholder="Ej. DELL Inspiron 5570"
@@ -269,7 +271,7 @@ export default function NewLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
-                    <select 
+                    <select
                       name="marca" required
                       value={formData.marca} onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -290,7 +292,7 @@ export default function NewLaptop() {
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <span className="text-gray-500 sm:text-sm">$</span>
                       </div>
-                      <input 
+                      <input
                         type="number" name="precio" required min="0"
                         value={formData.precio} onChange={handleChange}
                         className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
@@ -305,7 +307,7 @@ export default function NewLaptop() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Procesador (CPU)</label>
-                    <input 
+                    <input
                       type="text" name="cpu" required
                       value={formData.cpu} onChange={handleChange}
                       placeholder="Ej. Intel Core i5-8250U 3.40 GHz"
@@ -314,7 +316,7 @@ export default function NewLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Memoria RAM</label>
-                    <input 
+                    <input
                       type="text" name="ram" required
                       value={formData.ram} onChange={handleChange}
                       placeholder="Ej. 16 Gb DDR4"
@@ -323,7 +325,7 @@ export default function NewLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Almacenamiento</label>
-                    <input 
+                    <input
                       type="text" name="almacenamiento" required
                       value={formData.almacenamiento} onChange={handleChange}
                       placeholder="Ej. 512 Gb SSD NVMe"
@@ -332,7 +334,7 @@ export default function NewLaptop() {
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Gráficos (GPU)</label>
-                    <input 
+                    <input
                       type="text" name="gpu" required
                       value={formData.gpu} onChange={handleChange}
                       placeholder="Ej. Intel Iris Xe Graphics"
@@ -341,7 +343,7 @@ export default function NewLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pantalla</label>
-                    <input 
+                    <input
                       type="text" name="pantalla" required
                       value={formData.pantalla} onChange={handleChange}
                       placeholder="Ej. 15.6&quot; FHD 1920x1080"
@@ -350,18 +352,18 @@ export default function NewLaptop() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Sistema Operativo</label>
-                    <input 
+                    <input
                       type="text" name="windows" required
                       value={formData.windows} onChange={handleChange}
                       placeholder="Ej. W11 PRO original"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4 sm:col-span-2">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">¿Pantalla Táctil?</label>
-                      <select 
+                      <select
                         name="touch" value={formData.touch} onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                       >
@@ -371,7 +373,7 @@ export default function NewLaptop() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Disponibilidad</label>
-                      <select 
+                      <select
                         name="disponibilidad" value={formData.disponibilidad} onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-medium"
                       >
@@ -380,6 +382,17 @@ export default function NewLaptop() {
                         <option value="No disponible">No disponible</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Otros</label>
+                      <textarea
+                        name="otros"
+                        value={formData.otros}
+                        onChange={handleChange}
+                        placeholder="Ej. Teclado retroiluminado&#10;Batería de larga duración&#10;Carga rápida"
+                        rows={3} // Controla la altura inicial del cuadro
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -387,13 +400,13 @@ export default function NewLaptop() {
           </div>
 
           <div className="flex justify-end pt-4 gap-3">
-            <Link 
+            <Link
               to="/admin"
               className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </Link>
-            <button 
+            <button
               type="submit"
               disabled={isSubmitting}
               className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 min-w-[180px] disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-500/20"
