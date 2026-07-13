@@ -8,21 +8,6 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
-    proxy: {
-      '/api/csv-proxy': {
-        target: 'https://docs.google.com',
-        changeOrigin: true,
-        rewrite: (_path) => {
-          // Extract the original Google URL from the query parameter
-          const url = new URL(_path, 'http://localhost');
-          const googleUrl = url.searchParams.get('url');
-          if (googleUrl) {
-            const parsed = new URL(googleUrl);
-            return parsed.pathname + parsed.search;
-          }
-          return _path;
-        },
-      },
-    },
+    port: 3000,
   },
 })

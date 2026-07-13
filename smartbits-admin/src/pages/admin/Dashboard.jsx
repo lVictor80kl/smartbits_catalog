@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 
@@ -245,20 +245,21 @@ export default function Dashboard() {
             Exportar PDF
           </button>
           <Link 
-            to="/admin/sync" 
-            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
-          >
-            Sincronizar Sheets
-          </Link>
-          <Link 
             to="/admin/migrate" 
             className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
           >
             <CloudLightning className="w-4 h-4 text-amber-500" />
             Migrar Imágenes
           </Link>
-          <Link 
-            to="/admin/new" 
+          <Link
+            to="/admin/components/new"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <Package className="w-5 h-5" />
+            Añadir Componente
+          </Link>
+          <Link
+            to="/admin/new"
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
           >
             <PlusCircle className="w-5 h-5" />

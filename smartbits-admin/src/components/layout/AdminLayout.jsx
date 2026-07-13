@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Laptop, LayoutDashboard, PlusCircle, LogOut, CloudLightning } from 'lucide-react';
+import { Laptop, LayoutDashboard, PlusCircle, LogOut, CloudLightning, Package } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminLayout() {
@@ -25,6 +25,8 @@ export default function AdminLayout() {
     { path: '/admin', label: 'Inventario', icon: LayoutDashboard },
     { path: '/admin/new', label: 'Añadir Laptop', icon: PlusCircle },
     { path: '/admin/migrate', label: 'Migrar Imágenes', icon: CloudLightning },
+    { path: '/admin/components', label: 'Componentes', icon: Package },
+    { path: '/admin/components/new', label: 'Añadir Componente', icon: PlusCircle },
   ];
 
   const handleLogout = () => {
@@ -51,7 +53,9 @@ export default function AdminLayout() {
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
+            const isActive = item.path === '/admin/components'
+              ? location.pathname.startsWith('/admin/components')
+              : location.pathname === item.path;
             return (
               <Link
                 key={item.path}

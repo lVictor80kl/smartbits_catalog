@@ -6,9 +6,11 @@ import Login from './pages/Login';
 import Dashboard from './pages/admin/Dashboard';
 import NewLaptop from './pages/admin/NewLaptop';
 import EditLaptop from './pages/admin/EditLaptop';
-import SyncLaptops from './pages/admin/SyncLaptops';
 import DeliveryNote from './pages/admin/DeliveryNote';
 import MigrateImages from './pages/admin/MigrateImages';
+import ComponentsDashboard from './pages/admin/ComponentsDashboard';
+import NewComponent from './pages/admin/NewComponent';
+import EditComponent from './pages/admin/EditComponent';
 
 function App() {
   return (
@@ -31,9 +33,11 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="new" element={<NewLaptop />} />
             <Route path="edit/:id" element={<EditLaptop />} />
-            <Route path="sync" element={<SyncLaptops />} />
             <Route path="delivery/:id" element={<DeliveryNote />} />
             <Route path="migrate" element={<MigrateImages />} />
+            <Route path="components" element={<ComponentsDashboard />} />
+            <Route path="components/new" element={<NewComponent />} />
+            <Route path="components/edit/:id" element={<EditComponent />} />
           </Route>
         </Routes>
       </Router>

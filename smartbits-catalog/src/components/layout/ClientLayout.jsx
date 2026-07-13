@@ -1,9 +1,10 @@
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Shield } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function ClientLayout() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     // Default to a dark theme preference visually, or sync with the system
@@ -35,6 +36,31 @@ export default function ClientLayout() {
               className="block dark:hidden h-5 object-contain opacity-80 group-hover:opacity-100"
             />
           </Link>
+
+          <div className="flex items-center gap-1 ml-4">
+            <Link
+              to="/"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                location.pathname === '/'
+                  ? 'bg-brand-900 dark:bg-brand-700 text-white'
+                  : 'text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-800'
+              }`}
+            >
+              Equipos
+            </Link>
+            <Link
+              to="/componentes"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                location.pathname === '/componentes'
+                  ? 'bg-brand-900 dark:bg-brand-700 text-white'
+                  : 'text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-800'
+              }`}
+            >
+              Componentes
+            </Link>
+          </div>
 
           <div className="flex flex-1 items-center justify-end gap-3 text-sm font-semibold text-brand-600 dark:text-brand-300">
 
