@@ -59,10 +59,16 @@ export default function ServiceDeliveryNote() {
 
   const costoServicioNum = Number(costoServicio) || 0;
 
+  const [tasa, setTasa] = useState('');
+
   const METODOS_BS = ['Pago Móvil', 'Transferencia', 'Otro'];
   const isBs = (metodo) => METODOS_BS.includes(metodo);
 
+  // Si al menos un método es Bs, toda la nota se muestra en Bs
   const usandoBs = pagos.some(p => isBs(p.metodo));
+  const tasaNum = Number(tasa) || 0;
+
+  const precioDisplay = usandoBs && tasaNum > 0 ? costoServicioNum * tasaNum : costoServicioNum;
   const moneda = usandoBs ? 'Bs' : '$';
   const formatMonto = (val) => Number(val || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 });
 
@@ -316,6 +322,25 @@ export default function ServiceDeliveryNote() {
           </button>
         </div>
 
+        {/* Tasa de cambio - solo visible si hay método en Bs */}
+        {usandoBs && (
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <label className="block text-sm font-medium text-amber-800 mb-1">Tasa de cambio (Bs por $)</label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-amber-700 font-medium">1 $ =</span>
+              <input
+                type="number" min="0" step="0.01"
+                value={tasa}
+                onChange={(e) => setTasa(e.target.value)}
+                placeholder="Ej: 95.50"
+                className="w-40 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none bg-white"
+              />
+              <span className="text-sm text-amber-700 font-medium">Bs</span>
+            </div>
+            <p className="text-xs text-amber-600 mt-1">Los precios del PDF se mostrarán en Bs según esta tasa.</p>
+          </div>
+        )}
+
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
           <textarea
@@ -408,7 +433,7 @@ export default function ServiceDeliveryNote() {
             <tbody>
               <tr>
                 <td style={{ padding: '10px', fontWeight: '600' }}>Servicio Técnico</td>
-                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>${formatMonto(costoServicioNum)}</td>
+                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>{moneda} {formatMonto(precioDisplay)}</td>
               </tr>
             </tbody>
           </table>
@@ -433,12 +458,12 @@ export default function ServiceDeliveryNote() {
               {pagos.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '7px 10px' }}>{p.metodo}</td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right' }}>${formatMonto(Number(p.monto) || 0)}</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right' }}>{isBs(p.metodo) ? 'Bs' : '$'} {formatMonto(Number(p.monto) || 0)}</td>
                 </tr>
               ))}
               <tr style={{ borderTop: '2px solid #222' }}>
                 <td style={{ padding: '10px', fontWeight: '800', fontSize: '14px' }}>Total:</td>
-                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>${formatMonto(costoServicioNum)}</td>
+                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>{moneda} {formatMonto(precioDisplay)}</td>
               </tr>
             </tbody>
           </table>
