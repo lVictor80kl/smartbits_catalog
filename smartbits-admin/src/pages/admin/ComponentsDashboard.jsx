@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function ComponentsDashboard() {
@@ -91,7 +91,8 @@ export default function ComponentsDashboard() {
     RAM: 'bg-blue-100 text-blue-700',
     SSD: 'bg-green-100 text-green-700',
     Bateria: 'bg-amber-100 text-amber-700',
-    Otros: 'bg-purple-100 text-purple-700',
+    Teclado: 'bg-purple-100 text-purple-700',
+    Mouse: 'bg-pink-100 text-pink-700',
   };
 
   return (
@@ -280,6 +281,13 @@ export default function ComponentsDashboard() {
 
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Link
+                          to={`/admin/components/delivery/${comp.id}`}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 transition-colors"
+                          title="Nota de Entrega"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </Link>
                         <Link
                           to={`/admin/components/edit/${comp.id}`}
                           className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"

@@ -28,7 +28,7 @@ export default function ComponentsCatalog() {
     return () => unsubscribe();
   }, []);
 
-  const tipos = ['Todos', 'RAM', 'SSD', 'Bateria', 'Otros'];
+  const tipos = ['Todos', 'RAM', 'SSD', 'Bateria', 'Teclado', 'Mouse'];
 
   const filteredComponents = useMemo(() => {
     return components.filter(comp => {

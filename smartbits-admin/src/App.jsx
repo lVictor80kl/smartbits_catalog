@@ -11,6 +11,8 @@ import MigrateImages from './pages/admin/MigrateImages';
 import ComponentsDashboard from './pages/admin/ComponentsDashboard';
 import NewComponent from './pages/admin/NewComponent';
 import EditComponent from './pages/admin/EditComponent';
+import ComponentDeliveryNote from './pages/admin/ComponentDeliveryNote';
+import ServiceDeliveryNote from './pages/admin/ServiceDeliveryNote';
 
 function App() {
   return (
@@ -38,6 +40,8 @@ function App() {
             <Route path="components" element={<ComponentsDashboard />} />
             <Route path="components/new" element={<NewComponent />} />
             <Route path="components/edit/:id" element={<EditComponent />} />
+            <Route path="components/delivery/:id" element={<ComponentDeliveryNote />} />
+            <Route path="service" element={<ServiceDeliveryNote />} />
           </Route>
         </Routes>
       </Router>

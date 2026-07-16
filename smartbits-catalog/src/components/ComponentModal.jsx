@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   X, ShieldCheck,
   MessageCircle, ZoomIn,
-  ChevronLeft, ChevronRight, Zap, HardDrive, BatteryFull, Package
+  ChevronLeft, ChevronRight, Zap, HardDrive, BatteryFull, Package, Keyboard, Mouse
 } from 'lucide-react';
 import { getCloudinaryUrl } from "../utils/imageOptimizer.js";
 
@@ -11,7 +11,8 @@ const tipoIcons = {
   RAM: Zap,
   SSD: HardDrive,
   Bateria: BatteryFull,
-  Otros: Package,
+  Teclado: Keyboard,
+  Mouse: Mouse,
 };
 
 function SpecItem({ icon: Icon, label, value }) {
@@ -139,10 +140,14 @@ export default function ComponentModal({ component, isOpen, onClose }) {
             {component.ciclo && <SpecItem icon={BatteryFull} label="Ciclos de Carga" value={component.ciclo} />}
           </>
         );
-      case 'Otros':
-        return component.descripcion_personalizada
-          ? <SpecItem icon={Package} label="Descripción" value={component.descripcion_personalizada} />
-          : null;
+      case 'Teclado':
+      case 'Mouse':
+        return (
+          <>
+            {component.bluetooth && <SpecItem icon={component.tipo === 'Teclado' ? Keyboard : Mouse} label="Conexión" value={component.bluetooth} />}
+            {component.descripcion_personalizada && <SpecItem icon={Package} label="Descripción" value={component.descripcion_personalizada} />}
+          </>
+        );
       default:
         return null;
     }

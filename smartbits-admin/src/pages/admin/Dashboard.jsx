@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 
@@ -257,6 +257,13 @@ export default function Dashboard() {
           >
             <Package className="w-5 h-5" />
             Añadir Componente
+          </Link>
+          <Link
+            to="/admin/service"
+            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <Wrench className="w-5 h-5" />
+            Servicio Técnico
           </Link>
           <Link
             to="/admin/new"

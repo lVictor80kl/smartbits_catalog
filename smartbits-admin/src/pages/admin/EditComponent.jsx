@@ -36,6 +36,7 @@ export default function EditComponent() {
     capacidad_bateria: '',
     ciclo: '',
     descripcion_personalizada: '',
+    bluetooth: '',
   });
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function EditComponent() {
             capacidad_bateria: data.capacidad_bateria || '',
             ciclo: data.ciclo || '',
             descripcion_personalizada: data.descripcion_personalizada || '',
+            bluetooth: data.bluetooth || '',
           });
           setExistingImages(imgs);
         } else {
@@ -165,7 +167,8 @@ export default function EditComponent() {
       } else if (formData.tipo === 'Bateria') {
         componentData.capacidad_bateria = formData.capacidad_bateria;
         componentData.ciclo = formData.ciclo;
-      } else if (formData.tipo === 'Otros') {
+      } else if (formData.tipo === 'Teclado' || formData.tipo === 'Mouse') {
+        componentData.bluetooth = formData.bluetooth;
         componentData.descripcion_personalizada = formData.descripcion_personalizada;
       }
 
@@ -325,7 +328,8 @@ export default function EditComponent() {
                       <option value="RAM">RAM</option>
                       <option value="SSD">SSD</option>
                       <option value="Bateria">Batería</option>
-                      <option value="Otros">Otros</option>
+                      <option value="Teclado">Teclado</option>
+                      <option value="Mouse">Mouse</option>
                     </select>
                   </div>
                   <div>
@@ -502,16 +506,32 @@ export default function EditComponent() {
                     </>
                   )}
 
-                  {formData.tipo === 'Otros' && (
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Personalizada</label>
-                      <textarea
-                        name="descripcion_personalizada"
-                        value={formData.descripcion_personalizada} onChange={handleChange}
-                        rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
-                      />
-                    </div>
+                  {(formData.tipo === 'Teclado' || formData.tipo === 'Mouse') && (
+                    <>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Conexión</label>
+                        <select
+                          name="bluetooth"
+                          value={formData.bluetooth} onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        >
+                          <option value="" disabled>Seleccionar...</option>
+                          <option value="USB">USB (Cable)</option>
+                          <option value="Bluetooth">Bluetooth</option>
+                          <option value="USB + Bluetooth">USB + Bluetooth</option>
+                          <option value="2.4 GHz">Inalámbrico 2.4 GHz</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                        <textarea
+                          name="descripcion_personalizada"
+                          value={formData.descripcion_personalizada} onChange={handleChange}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
+                        />
+                      </div>
+                    </>
                   )}
 
                   <div className="sm:col-span-2">
