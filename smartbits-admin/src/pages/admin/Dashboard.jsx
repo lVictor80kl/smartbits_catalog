@@ -399,6 +399,11 @@ export default function Dashboard() {
                             <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full shrink-0">
                               ×{modelCounts[laptop.modelo?.trim().toLowerCase()] ?? 1}
                             </span>
+                            {laptop.borrador && (
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">
+                                Borrador
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-gray-500">{laptop.marca}</div>
                         </div>

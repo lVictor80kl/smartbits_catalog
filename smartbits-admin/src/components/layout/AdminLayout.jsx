@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Laptop, LayoutDashboard, PlusCircle, LogOut, CloudLightning, Package, Wrench } from 'lucide-react';
+import { Laptop, LayoutDashboard, PlusCircle, LogOut, CloudLightning, Package, Wrench, DollarSign } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminLayout() {
@@ -28,6 +28,7 @@ export default function AdminLayout() {
     { path: '/admin/components', label: 'Componentes', icon: Package },
     { path: '/admin/components/new', label: 'Añadir Componente', icon: PlusCircle },
     { path: '/admin/service', label: 'Servicio Técnico', icon: Wrench },
+    { path: '/admin/finanzas', label: 'Finanzas', icon: DollarSign },
   ];
 
   const handleLogout = () => {

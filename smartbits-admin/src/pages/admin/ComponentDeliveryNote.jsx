@@ -127,14 +127,21 @@ export default function ComponentDeliveryNote() {
   const METODOS_BS = ['Pago Móvil', 'Transferencia', 'Otro'];
   const isBs = (metodo) => METODOS_BS.includes(metodo);
 
-  // Si al menos un método es Bs, toda la nota se muestra en Bs
-  const usandoBs = pagos.some(p => isBs(p.metodo));
   const tasaNum = Number(tasa) || 0;
-
-  const precioDisplay = usandoBs && tasaNum > 0 ? component?.precio * tasaNum * unidades : subtotal;
-  const moneda = usandoBs ? 'Bs' : '$';
   const formatMonto = (val) => Number(val || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 });
-  const precioUnitDisplay = usandoBs && tasaNum > 0 ? (component?.precio ?? 0) * tasaNum : (component?.precio ?? 0);
+
+  const precioUnitUSD = component?.precio ?? 0;
+  const precioDisplay = subtotal;
+  const precioUnitDisplay = precioUnitUSD;
+
+  const getMontoUSD = (pago) => {
+    const monto = Number(pago.monto) || 0;
+    if (isBs(pago.metodo) && tasaNum > 0) return monto / tasaNum;
+    return monto;
+  };
+
+  const totalPaidUSD = pagos.reduce((sum, p) => sum + getMontoUSD(p), 0);
+  const remainingUSD = precioDisplay - totalPaidUSD;
 
   const handleDownloadPDF = () => {
     const element = noteRef.current;
@@ -350,6 +357,11 @@ export default function ComponentDeliveryNote() {
                   className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
                 />
               </div>
+              {isBs(pago.metodo) && tasaNum > 0 && (
+                <span className="text-xs text-gray-500 whitespace-nowrap">
+                  ≈ ${formatMonto(Number(pago.monto) / tasaNum)}
+                </span>
+              )}
               {pagos.length > 1 && (
                 <button onClick={() => removePago(index)} className="p-1.5 text-red-400 hover:text-red-600 transition-colors">
                   <X className="w-4 h-4" />
@@ -382,24 +394,42 @@ export default function ComponentDeliveryNote() {
           </div>
         </div>
 
-        {/* Tasa de cambio - solo visible si hay método en Bs */}
-        {usandoBs && (
-          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <label className="block text-sm font-medium text-amber-800 mb-1">Tasa de cambio (Bs por $)</label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-amber-700 font-medium">1 $ =</span>
-              <input
-                type="number" min="0" step="0.01"
-                value={tasa}
-                onChange={(e) => setTasa(e.target.value)}
-                placeholder="Ej: 95.50"
-                className="w-40 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none bg-white"
-              />
-              <span className="text-sm text-amber-700 font-medium">Bs</span>
-            </div>
-            <p className="text-xs text-amber-600 mt-1">Los precios del PDF se mostrarán en Bs según esta tasa.</p>
+        {/* Tasa de cambio */}
+        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <label className="block text-sm font-medium text-amber-800 mb-1">Tasa de cambio (Bs por $)</label>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-amber-700 font-medium">1 $ =</span>
+            <input
+              type="number" min="0" step="0.01"
+              value={tasa}
+              onChange={(e) => setTasa(e.target.value)}
+              placeholder="Ej: 95.50"
+              className="w-40 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none bg-white"
+            />
+            <span className="text-sm text-amber-700 font-medium">Bs</span>
           </div>
-        )}
+        </div>
+
+        <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wider">Resumen de Venta</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Total de la Venta:</span>
+              <span className="font-bold text-slate-900">${formatMonto(precioDisplay)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Pagado (Equivalente USD):</span>
+              <span className="font-bold text-blue-600">${formatMonto(totalPaidUSD)}</span>
+            </div>
+            <hr className="border-slate-200" />
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Resta por Pagar:</span>
+              <span className={`font-bold ${remainingUSD > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                ${formatMonto(remainingUSD)}
+              </span>
+            </div>
+          </div>
+        </div>
 
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Descripción del Componente</label>
@@ -492,8 +522,8 @@ export default function ComponentDeliveryNote() {
               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={{ padding: '10px' }}>{unidades}</td>
                 <td style={{ padding: '10px', fontWeight: '600' }}>{component.nombre}</td>
-                <td style={{ padding: '10px', textAlign: 'right' }}>{moneda} {formatMonto(precioUnitDisplay)}</td>
-                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>{moneda} {formatMonto(precioDisplay)}</td>
+                <td style={{ padding: '10px', textAlign: 'right' }}>$ {formatMonto(precioUnitDisplay)}</td>
+                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>$ {formatMonto(precioDisplay)}</td>
               </tr>
             </tbody>
           </table>
@@ -524,12 +554,12 @@ export default function ComponentDeliveryNote() {
               {pagos.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '7px 10px' }}>{p.metodo}</td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right' }}>{isBs(p.metodo) ? 'Bs' : '$'} {formatMonto(Number(p.monto) || 0)}</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right' }}>{isBs(p.metodo) ? `Bs ${formatMonto(Number(p.monto) || 0)}${tasaNum > 0 ? ` (≈ $${formatMonto((Number(p.monto) || 0) / tasaNum)})` : ''}` : `$ ${formatMonto(Number(p.monto) || 0)}`}</td>
                 </tr>
               ))}
               <tr style={{ borderTop: '2px solid #222' }}>
                 <td style={{ padding: '10px', fontWeight: '800', fontSize: '14px' }}>Total:</td>
-                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>{moneda} {formatMonto(precioDisplay)}</td>
+                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>$ {formatMonto(precioDisplay)}</td>
               </tr>
             </tbody>
           </table>

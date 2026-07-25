@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus, DollarSign, Calculator, TrendingUp } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -32,6 +32,16 @@ export default function NewLaptop() {
     estadoPantalla: 10,
     estadoCarcasa: 9,
     otros: '',
+    fecha_compra: '',
+    precio_ebay: '',
+    costo_banco: '',
+    comision_banco: '2',
+    costos_adicionales: '',
+    envio_usd: '',
+    envio_bs: '',
+    tasa_bcv: '',
+    socio_compra: 'ysmael',
+    borrador: true,
   });
 
   const handleChange = (e) => {
@@ -69,6 +79,20 @@ export default function NewLaptop() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: parseInt(value) }));
   };
+
+  const precioEbay = Number(formData.precio_ebay) || 0;
+  const costoBanco = Number(formData.costo_banco) || 0;
+  const comisionBanco = Number(formData.comision_banco) || 0;
+  const costosAdicionales = Number(formData.costos_adicionales) || 0;
+  const envioUsd = Number(formData.envio_usd) || 0;
+  const envioBs = Number(formData.envio_bs) || 0;
+  const tasaBcv = Number(formData.tasa_bcv) || 1;
+
+  const costoReal = precioEbay + costoBanco + comisionBanco;
+  const envioUsdConvertido = envioBs / tasaBcv;
+  const costoTotal = costoReal + costosAdicionales + envioUsd + envioUsdConvertido;
+  const precioPublicado = Number(formData.precio) || 0;
+  const gananciaEstimada = precioPublicado - costoTotal;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -109,6 +133,20 @@ export default function NewLaptop() {
           carcasa: formData.estadoCarcasa,
         },
         otros: formData.otros,
+        fecha_compra: formData.fecha_compra || null,
+        precio_ebay: precioEbay,
+        costo_banco: costoBanco,
+        comision_banco: comisionBanco,
+        costo_real: costoReal,
+        costos_adicionales: costosAdicionales,
+        envio_usd: envioUsd,
+        envio_bs: envioBs,
+        tasa_bcv: tasaBcv,
+        envio_usd_convertido: envioUsdConvertido,
+        socio_compra: formData.socio_compra,
+        borrador: formData.borrador,
+        costo_total: costoTotal,
+        ganancia_estimada: gananciaEstimada,
         creadoEn: serverTimestamp(),
       });
 
@@ -382,6 +420,20 @@ export default function NewLaptop() {
                         <option value="No disponible">No disponible</option>
                       </select>
                     </div>
+                    <div className="sm:col-span-2">
+                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={formData.borrador}
+                          onChange={e => setFormData(prev => ({ ...prev, borrador: e.target.checked }))}
+                          className="w-4 h-4 text-amber-500 border-gray-300 rounded focus:ring-amber-500"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Borrador</span>
+                        <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
+                          No se muestra en el catálogo público
+                        </span>
+                      </label>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Otros</label>
                       <textarea
@@ -395,6 +447,163 @@ export default function NewLaptop() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sección de Costos y Finanzas */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <h3 className="font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-500" />
+              Datos de Compra y Costos
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Compra</label>
+                <input
+                  type="date" name="fecha_compra"
+                  value={formData.fecha_compra} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Comprador</label>
+                <select
+                  name="socio_compra" value={formData.socio_compra} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="ysmael">Ysmael</option>
+                  <option value="victor">Víctor</option>
+                  <option value="both">Ambos</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Precio eBay (USD)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
+                  <input
+                    type="number" step="0.01" name="precio_ebay" min="0"
+                    value={formData.precio_ebay} onChange={handleChange}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Costo al Banco (USD)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
+                  <input
+                    type="number" step="0.01" name="costo_banco" min="0"
+                    value={formData.costo_banco} onChange={handleChange}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Comisión Banco (USD)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
+                  <input
+                    type="number" step="0.01" name="comision_banco" min="0"
+                    value={formData.comision_banco} onChange={handleChange}
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Costo Real</p>
+                <p className="text-lg font-black text-gray-900">${costoReal.toFixed(2)}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RAM / Cargador / Otros (USD)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
+                  <input
+                    type="number" step="0.01" name="costos_adicionales" min="0"
+                    value={formData.costos_adicionales} onChange={handleChange}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Envío (USD)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
+                  <input
+                    type="number" step="0.01" name="envio_usd" min="0"
+                    value={formData.envio_usd} onChange={handleChange}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Envío en Bs.</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">Bs</span>
+                  <input
+                    type="number" step="0.01" name="envio_bs" min="0"
+                    value={formData.envio_bs} onChange={handleChange}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tasa BCV</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">Bs</span>
+                  <input
+                    type="number" step="0.01" name="tasa_bcv" min="0"
+                    value={formData.tasa_bcv} onChange={handleChange}
+                    placeholder="Ej. 36.50"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                {envioBs > 0 && tasaBcv > 0 && (
+                  <p className="text-[10px] text-gray-400 mt-1">= ${envioUsdConvertido.toFixed(2)} USD</p>
+                )}
+              </div>
+            </div>
+
+            {/* Resumen de Costos */}
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Costo Total (USD)</p>
+                <p className="text-2xl font-black text-blue-800">${costoTotal.toFixed(2)}</p>
+                <p className="text-[10px] text-blue-400 mt-1">Real + Adicionales + Envíos</p>
+              </div>
+
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+                <p className="text-xs font-bold text-purple-600 uppercase tracking-wider mb-1">Precio Publicado</p>
+                <p className="text-2xl font-black text-purple-800">${precioPublicado.toFixed(2)}</p>
+              </div>
+
+              <div className={`rounded-lg p-4 border ${gananciaEstimada >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${gananciaEstimada >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  Ganancia Estimada
+                </p>
+                <p className={`text-2xl font-black ${gananciaEstimada >= 0 ? 'text-emerald-800' : 'text-red-800'}`}>
+                  {gananciaEstimada >= 0 ? '+' : ''}${gananciaEstimada.toFixed(2)}
+                </p>
+                {costoTotal > 0 && (
+                  <p className={`text-[10px] mt-1 ${gananciaEstimada >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {((gananciaEstimada / costoTotal) * 100).toFixed(1)}% de margen
+                  </p>
+                )}
               </div>
             </div>
           </div>

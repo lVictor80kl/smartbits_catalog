@@ -47,6 +47,8 @@ export default function Catalog() {
 
   const filteredLaptops = useMemo(() => {
     return laptops.filter(laptop => {
+      if (laptop.borrador) return false;
+
       let parsedSearch = searchTerm.toLowerCase();
       const searchWords = parsedSearch.split(' ').filter(w => w.trim() !== '');
       const matchSearch = searchWords.every(word => {

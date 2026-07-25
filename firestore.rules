@@ -1,20 +1,49 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    function isAdmin() {
+      // Idealmente, esto debería verificar un claim personalizado o una colección /roles.
+      // Por ahora, verificamos si está autenticado, pero en el frontend bloquearemos
+      // a menos que sean Victor o Ysmael.
+      // Puedes ajustar esto para que coincida con tus correos:
+      // return request.auth.token.email in ['correo_victor@gmail.com', 'correo_ysmael@gmail.com'];
+      return request.auth != null;
+    }
 
     // Colección laptops
     match /laptops/{laptopId} {
-      // Lectura pública
+      // Lectura pública (catálogo) + admin
       allow read: if true;
-
-      // Escritura solo para usuarios autenticados
-      allow create, update, delete: if request.auth != null;
+      // Escritura solo para admins
+      allow create, update, delete: if isAdmin();
     }
 
     // Colección componentes
     match /componentes/{componenteId} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Colecciones de FINANZAS (Solo Admins)
+    match /finanzas/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /caja/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /gastos_personales/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /gastos_operativos/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /historico_ingresos/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /ventas/{document=**} {
+      allow read, write: if isAdmin();
     }
 
     // Denegar todo lo demás por defecto
