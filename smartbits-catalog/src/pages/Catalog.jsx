@@ -15,6 +15,7 @@ export default function Catalog() {
   const [selectedRam, setSelectedRam] = useState("Todas");
   const [selectedStorage, setSelectedStorage] = useState("Todas");
   const [maxPrice, setMaxPrice] = useState(2500);
+  const [selectedAvailability, setSelectedAvailability] = useState("Todos");
   const [selectedLaptop, setSelectedLaptop] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -44,6 +45,7 @@ export default function Catalog() {
   const cpuOptions = ["Todos", "Intel Core i3", "Intel Core i5", "Intel Core i7", "Intel Core i9", "AMD Ryzen 3", "AMD Ryzen 5", "AMD Ryzen 7", "AMD Ryzen 9"];
   const ramOptions = ["Todas", "8 Gb", "12 Gb", "16 Gb", "32 Gb"];
   const storageOptions = ["Todas", "256 Gb", "512 Gb", "1 Tb", "2 Tb"];
+  const availabilityOptions = ["Todos", "Disponible", "Coming soon", "No disponible"];
 
   const filteredLaptops = useMemo(() => {
     return laptops.filter(laptop => {
@@ -64,8 +66,9 @@ export default function Catalog() {
       const laptopStorage = (laptop.almacenamiento || "").toLowerCase();
       const matchStorage = selectedStorage === "Todas" || laptopStorage.includes(selectedStorage.toLowerCase());
       const matchPrice = Number(laptop.precio) <= maxPrice;
+      const matchAvailability = selectedAvailability === "Todos" || (laptop.disponibilidad || "Disponible") === selectedAvailability;
 
-      return matchSearch && matchBrand && matchRam && matchStorage && matchCpu && matchPrice;
+      return matchSearch && matchBrand && matchRam && matchStorage && matchCpu && matchPrice && matchAvailability;
     }).sort((a, b) => {
       const getDispWeight = (disp) => {
         if (!disp) return 4;
@@ -80,7 +83,7 @@ export default function Catalog() {
       if (weightA !== weightB) return weightA - weightB;
       return Number(a.precio) - Number(b.precio);
     });
-  }, [laptops, searchTerm, selectedBrand, selectedRam, selectedStorage, selectedCpu, maxPrice]);
+  }, [laptops, searchTerm, selectedBrand, selectedRam, selectedStorage, selectedCpu, maxPrice, selectedAvailability]);
 
   const chunkedLaptops = useMemo(() => {
     const chunks = [];
@@ -157,7 +160,7 @@ export default function Catalog() {
 
         {/* Inline Advanced Filters */}
         {showFilters && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full mb-10 p-6 bg-white dark:bg-brand-900 rounded-3xl border border-brand-100 dark:border-brand-800 shadow-sm text-left animate-in fade-in slide-in-from-top-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 w-full mb-10 p-6 bg-white dark:bg-brand-900 rounded-3xl border border-brand-100 dark:border-brand-800 shadow-sm text-left animate-in fade-in slide-in-from-top-4">
             <div>
               <label className="block text-xs uppercase font-bold tracking-wider text-brand-400 dark:text-brand-300 mb-2">Marca</label>
               <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)} className="w-full bg-brand-50 dark:bg-brand-800 px-4 py-3 rounded-xl border-none outline-none text-sm text-brand-800 dark:text-white font-medium cursor-pointer">
@@ -180,6 +183,12 @@ export default function Catalog() {
               <label className="block text-xs uppercase font-bold tracking-wider text-brand-400 dark:text-brand-300 mb-2">Disco</label>
               <select value={selectedStorage} onChange={(e) => setSelectedStorage(e.target.value)} className="w-full bg-brand-50 dark:bg-brand-800 px-4 py-3 rounded-xl border-none outline-none text-sm text-brand-800 dark:text-white font-medium cursor-pointer">
                 {storageOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs uppercase font-bold tracking-wider text-brand-400 dark:text-brand-300 mb-2">Disponibilidad</label>
+              <select value={selectedAvailability} onChange={(e) => setSelectedAvailability(e.target.value)} className="w-full bg-brand-50 dark:bg-brand-800 px-4 py-3 rounded-xl border-none outline-none text-sm text-brand-800 dark:text-white font-medium cursor-pointer">
+                {availabilityOptions.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
             <div className="col-span-2 md:col-span-1">
