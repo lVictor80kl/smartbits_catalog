@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus, DollarSign, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
 import { getBancosConfig } from '../../utils/bancos';
@@ -9,8 +9,9 @@ import { getBancosConfig } from '../../utils/bancos';
 
 export default function EditLaptop() {
   const { id } = useParams();
+  const isEditMode = Boolean(id);
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isEditMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [newImageFiles, setNewImageFiles] = useState([]);
@@ -53,12 +54,17 @@ export default function EditLaptop() {
     { metodoId: 'paypal', bancoNombre: 'PayPal', monto: '', comisionPct: 0 }
   ]);
 
-  // Cargar datos actuales del equipo
+  // Cargar datos actuales del equipo si estamos en modo edición
   useEffect(() => {
     const fetchLaptop = async () => {
       try {
         const bancos = await getBancosConfig();
         setBancosList(bancos);
+
+        if (!isEditMode) {
+          setLoading(false);
+          return;
+        }
 
         const laptopRef = doc(db, 'laptops', id);
         const laptopSnap = await getDoc(laptopRef);
@@ -117,7 +123,7 @@ export default function EditLaptop() {
     };
 
     fetchLaptop();
-  }, [id, navigate]);
+  }, [id, isEditMode, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -243,10 +249,10 @@ export default function EditLaptop() {
         finalUrls.push(secureUrl);
       }
 
-      // 2. Actualizar en Firestore
-      setUploadProgress('Actualizando base de datos...');
-      const laptopRef = doc(db, 'laptops', id);
-      await updateDoc(laptopRef, {
+      // 2. Guardar o actualizar en Firestore
+      setUploadProgress(isEditMode ? 'Actualizando base de datos...' : 'Guardando en base de datos...');
+
+      const laptopDataPayload = {
         modelo: formData.modelo,
         marca: formData.marca,
         cpu: formData.cpu,
@@ -283,14 +289,26 @@ export default function EditLaptop() {
         costo_total: costoTotal,
         costo_total_usd: costoTotalUsd,
         ganancia_estimada: gananciaEstimada,
-        actualizadoEn: serverTimestamp(),
-      });
+      };
+
+      if (isEditMode) {
+        const laptopRef = doc(db, 'laptops', id);
+        await updateDoc(laptopRef, {
+          ...laptopDataPayload,
+          actualizadoEn: serverTimestamp(),
+        });
+      } else {
+        await addDoc(collection(db, 'laptops'), {
+          ...laptopDataPayload,
+          creadoEn: serverTimestamp(),
+        });
+      }
 
       setShowSuccess(true);
       setTimeout(() => navigate('/admin'), 1500);
     } catch (err) {
       console.error('Error:', err);
-      alert('Error al actualizar: ' + err.message);
+      alert('Error al guardar: ' + err.message);
       setIsSubmitting(false);
       setUploadProgress('');
     }
@@ -306,19 +324,23 @@ export default function EditLaptop() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-12">
-      <div className="flex items-center gap-4 mb-8">
-        <Link
-          to="/admin"
-          className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-gray-900 transition-colors shadow-sm"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Editar Equipo</h1>
-          <p className="text-gray-500 text-sm mt-1">Modifica los detalles de la laptop seleccionada.</p>
+      <div className="max-w-4xl mx-auto pb-12">
+        <div className="flex items-center gap-4 mb-8">
+          <Link
+            to="/admin"
+            className="p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-gray-900 transition-colors shadow-sm"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">
+              {isEditMode ? 'Editar Laptop' : 'Añadir Nuevo Equipo'}
+            </h1>
+            <p className="text-sm text-slate-500">
+              {isEditMode ? 'Modifica las especificaciones, costos y fotos del equipo' : 'Registra una laptop en el catálogo público.'}
+            </p>
+          </div>
         </div>
-      </div>
 
       {showSuccess ? (
         <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-4">

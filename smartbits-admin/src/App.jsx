@@ -7,7 +7,6 @@ import Dashboard from './pages/admin/Dashboard';
 import NewLaptop from './pages/admin/NewLaptop';
 import EditLaptop from './pages/admin/EditLaptop';
 import DeliveryNote from './pages/admin/DeliveryNote';
-import MigrateImages from './pages/admin/MigrateImages';
 import ComponentsDashboard from './pages/admin/ComponentsDashboard';
 import NewComponent from './pages/admin/NewComponent';
 import EditComponent from './pages/admin/EditComponent';
