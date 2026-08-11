@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { Package, Edit2, Save, X, RefreshCw, DollarSign, TrendingDown, Layers, Check } from 'lucide-react';
+import { Package, Edit2, Save, X, RefreshCw, Layers, Check, TrendingDown } from 'lucide-react';
 
 const ESTADOS_ACTIVOS = ['Disponible', 'Coming soon'];
 
@@ -31,21 +31,49 @@ export default function InventarioFinanciero() {
     return () => { unsubLaptops(); unsubComponentes(); };
   }, []);
 
+  // Función helper para obtener los desgloses de costo real de un item
+  const getItemCostos = (item) => {
+    const costoBase = Number(item.precio_ebay ?? item.costo_compra ?? 0);
+    const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
+
+    // Costo + Comisión acumulado
+    const costoMasComision = Number(item.costo_mas_comision ?? (costoBase + comisiones));
+
+    const adicionales = Number(item.costos_adicionales ?? item.gastos_adicionales ?? 0);
+    const envio = Number(item.envio_usd ?? 0);
+    const gastosFlete = adicionales + envio;
+
+    // Costo Total USD final
+    const costoTotalUSD = Number(item.costo_total_usd ?? item.costo_total ?? (costoMasComision + gastosFlete));
+
+    return {
+      costoBase,
+      comisiones,
+      costoMasComision,
+      adicionales,
+      envio,
+      gastosFlete,
+      costoTotalUSD
+    };
+  };
+
   const laptopsActivas = laptops.filter(l => ESTADOS_ACTIVOS.includes(l.disponibilidad));
   const componentesActivos = componentes.filter(c => ESTADOS_ACTIVOS.includes(c.disponibilidad));
 
-  const costoInvLaptops = laptopsActivas.reduce((acc, l) => acc + (Number(l.costo_total_usd) || 0), 0);
-  const costoInvComponentes = componentesActivos.reduce((acc, c) => acc + (Number(c.costo_total_usd) || 0), 0);
+  const costoInvLaptops = laptopsActivas.reduce((acc, l) => acc + getItemCostos(l).costoTotalUSD, 0);
+  const costoInvComponentes = componentesActivos.reduce((acc, c) => acc + getItemCostos(c).costoTotalUSD, 0);
   const costoInvTotal = costoInvLaptops + costoInvComponentes;
 
   const items = activeTab === 'laptops' ? laptopsActivas : componentesActivos;
 
   const startEdit = (item) => {
+    const c = getItemCostos(item);
     setEditingId(item.id);
     setEditData({
-      costo_compra: item.costo_compra ?? item.costo_total_usd ?? 0,
-      gastos_adicionales: item.gastos_adicionales ?? 0,
-      precio_venta: item.precio_venta ?? item.precio ?? 0,
+      costo_compra: c.costoBase,
+      costos_adicionales: c.adicionales,
+      envio_usd: c.envio,
+      precio_venta: item.precio ?? item.precio_venta ?? 0,
     });
   };
 
@@ -58,14 +86,24 @@ export default function InventarioFinanciero() {
     setSaving(true);
     try {
       const costo_compra = Number(editData.costo_compra) || 0;
-      const gastos_adicionales = Number(editData.gastos_adicionales) || 0;
-      const precio_venta = Number(editData.precio_venta) || 0;
-      const costo_total_usd = costo_compra + gastos_adicionales;
+      const costos_adicionales = Number(editData.costos_adicionales) || 0;
+      const envio_usd = Number(editData.envio_usd) || 0;
+      const precio = Number(editData.precio_venta) || 0;
+
+      const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
+      const costo_mas_comision = costo_compra + comisiones;
+      const costo_total_usd = costo_mas_comision + costos_adicionales + envio_usd;
 
       await updateDoc(doc(db, item._col, item.id), {
+        precio_ebay: costo_compra,
         costo_compra,
-        gastos_adicionales,
-        precio_venta,
+        costos_adicionales,
+        gastos_adicionales: costos_adicionales,
+        envio_usd,
+        precio,
+        precio_venta: precio,
+        costo_mas_comision,
+        costo_total: costo_total_usd,
         costo_total_usd,
       });
       setEditingId(null);
@@ -92,7 +130,7 @@ export default function InventarioFinanciero() {
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg">
           <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Costo Inv. Total</p>
           <h2 className="text-3xl font-black">{fmt(costoInvTotal)}</h2>
-          <p className="text-slate-500 text-xs mt-1">A precio de adquisicion real</p>
+          <p className="text-slate-500 text-xs mt-1">A precio de adquisición real</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-1">
@@ -112,23 +150,22 @@ export default function InventarioFinanciero() {
         </div>
       </div>
 
-      {/* Tabs Laptops / Componentes */}
+      {/* Tabs */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex border-b border-gray-100 p-1">
           {[
-            { key: 'laptops', label: 'Laptops (' + laptopsActivas.length + ')', icon: Package },
-            { key: 'componentes', label: 'Componentes (' + componentesActivos.length + ')', icon: Layers },
+            { key: 'laptops', label: `Laptops (${laptopsActivas.length})`, icon: Package },
+            { key: 'componentes', label: `Componentes (${componentesActivos.length})`, icon: Layers },
           ].map(t => {
             const Icon = t.icon;
             return (
               <button
                 key={t.key}
                 onClick={() => { setActiveTab(t.key); cancelEdit(); }}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === t.key
-                    ? 'bg-brand-600 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === t.key
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
               >
                 <Icon className="w-4 h-4" />
                 {t.label}
@@ -149,9 +186,9 @@ export default function InventarioFinanciero() {
                 <tr>
                   <th className="px-5 py-4">Equipo</th>
                   <th className="px-5 py-4">Estado</th>
-                  <th className="px-5 py-4 text-right">Costo Compra</th>
+                  <th className="px-5 py-4 text-right">Costo + Comisión</th>
                   <th className="px-5 py-4 text-right">Gastos/Flete</th>
-                  <th className="px-5 py-4 text-right">Costo Total USD</th>
+                  <th className="px-5 py-4 text-right font-semibold text-slate-700">Costo Total (USD)</th>
                   <th className="px-5 py-4 text-right">Precio Venta</th>
                   <th className="px-5 py-4 text-right">Margen</th>
                   <th className="px-5 py-4 text-center">Editar</th>
@@ -160,12 +197,23 @@ export default function InventarioFinanciero() {
               <tbody>
                 {items.map(item => {
                   const isEditing = editingId === item.id;
+                  const c = getItemCostos(item);
+
+                  const costoBaseEdit = isEditing ? (Number(editData.costo_compra) || 0) : c.costoBase;
+                  const costoMasComision = isEditing ? (costoBaseEdit + c.comisiones) : c.costoMasComision;
+
+                  const gastosFlete = isEditing
+                    ? (Number(editData.costos_adicionales) || 0) + (Number(editData.envio_usd) || 0)
+                    : c.gastosFlete;
+
                   const costoTotal = isEditing
-                    ? (Number(editData.costo_compra) || 0) + (Number(editData.gastos_adicionales) || 0)
-                    : (Number(item.costo_total_usd) || 0);
+                    ? (costoMasComision + gastosFlete)
+                    : c.costoTotalUSD;
+
                   const precioVenta = isEditing
                     ? (Number(editData.precio_venta) || 0)
-                    : (Number(item.precio_venta) || Number(item.precio) || 0);
+                    : (Number(item.precio) || Number(item.precio_venta) || 0);
+
                   const margen = precioVenta > 0 ? precioVenta - costoTotal : null;
 
                   return (
@@ -175,41 +223,66 @@ export default function InventarioFinanciero() {
                         {item.procesador && <div className="text-xs text-gray-400">{item.procesador}</div>}
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                          item.disponibilidad === 'Disponible'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.disponibilidad === 'Disponible'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-amber-100 text-amber-700'
+                          }`}>
                           {item.disponibilidad}
                         </span>
                       </td>
+
+                      {/* Costo + Comisión */}
                       <td className="px-5 py-4 text-right">
                         {isEditing ? (
-                          <input
-                            type="number" step="0.01" min="0"
-                            value={editData.costo_compra}
-                            onChange={e => setEditData(p => ({ ...p, costo_compra: e.target.value }))}
-                            className="w-28 px-2 py-1.5 border border-blue-300 rounded-lg text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                          />
+                          <div className="flex flex-col items-end">
+                            <input
+                              type="number" step="0.01" min="0"
+                              value={editData.costo_compra}
+                              onChange={e => setEditData(p => ({ ...p, costo_compra: e.target.value }))}
+                              className="w-28 px-2 py-1.5 border border-blue-300 rounded-lg text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              title="Precio de compra eBay"
+                            />
+                          </div>
                         ) : (
-                          <span className="font-medium">{fmt(item.costo_compra ?? item.costo_total_usd)}</span>
+                          <div className="flex flex-col items-end">
+                            <span className="font-bold text-gray-900">{fmt(costoMasComision)}</span>
+
+                          </div>
                         )}
                       </td>
+
+                      {/* Gastos / Flete (RAM + Cargador + Envío) */}
                       <td className="px-5 py-4 text-right">
                         {isEditing ? (
-                          <input
-                            type="number" step="0.01" min="0"
-                            value={editData.gastos_adicionales}
-                            onChange={e => setEditData(p => ({ ...p, gastos_adicionales: e.target.value }))}
-                            className="w-24 px-2 py-1.5 border border-blue-300 rounded-lg text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                          />
+                          <div className="flex flex-col gap-1 items-end">
+                            <input
+                              type="number" step="0.01" min="0" placeholder="RAM/Carg"
+                              value={editData.costos_adicionales}
+                              onChange={e => setEditData(p => ({ ...p, costos_adicionales: e.target.value }))}
+                              className="w-24 px-2 py-1 border border-blue-300 rounded text-right text-xs"
+                              title="Adicionales (RAM/Cargador)"
+                            />
+                            <input
+                              type="number" step="0.01" min="0" placeholder="Envío"
+                              value={editData.envio_usd}
+                              onChange={e => setEditData(p => ({ ...p, envio_usd: e.target.value }))}
+                              className="w-24 px-2 py-1 border border-blue-300 rounded text-right text-xs"
+                              title="Envío USD"
+                            />
+                          </div>
                         ) : (
-                          <span className="text-gray-500">{fmt(item.gastos_adicionales ?? 0)}</span>
+                          <div className="flex flex-col items-end">
+                            <span className="text-gray-800 font-semibold">{fmt(gastosFlete)}</span>
+                          </div>
                         )}
                       </td>
+
+                      {/* Costo Total */}
                       <td className="px-5 py-4 text-right">
                         <span className="font-bold text-slate-800">{fmt(costoTotal)}</span>
                       </td>
+
+                      {/* Precio Venta */}
                       <td className="px-5 py-4 text-right">
                         {isEditing ? (
                           <input
@@ -219,16 +292,20 @@ export default function InventarioFinanciero() {
                             className="w-28 px-2 py-1.5 border border-blue-300 rounded-lg text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                           />
                         ) : (
-                          <span className="font-medium text-brand-700">{precioVenta > 0 ? fmt(precioVenta) : '�'}</span>
+                          <span className="font-medium text-brand-700">{precioVenta > 0 ? fmt(precioVenta) : '—'}</span>
                         )}
                       </td>
+
+                      {/* Margen */}
                       <td className="px-5 py-4 text-right">
                         {margen !== null ? (
                           <span className={`font-bold ${margen >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {margen >= 0 ? '+' : ''}{fmt(margen)}
                           </span>
-                        ) : <span className="text-gray-300">�</span>}
+                        ) : <span className="text-gray-300">—</span>}
                       </td>
+
+                      {/* Acciones */}
                       <td className="px-5 py-4 text-center">
                         {isEditing ? (
                           <div className="flex items-center justify-center gap-1">
@@ -268,7 +345,7 @@ export default function InventarioFinanciero() {
                     Total Inventario Activo ({items.length} unidades)
                   </td>
                   <td className="px-5 py-4 text-right font-black text-slate-900 text-base">
-                    {fmt(items.reduce((acc, i) => acc + (Number(i.costo_total_usd) || 0), 0))}
+                    {fmt(items.reduce((acc, i) => acc + getItemCostos(i).costoTotalUSD, 0))}
                   </td>
                   <td colSpan={3} />
                 </tr>
@@ -281,7 +358,7 @@ export default function InventarioFinanciero() {
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
         <TrendingDown className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
         <p className="text-sm text-blue-800">
-          <strong>Costo Inv:</strong> Se calcula usando estrictamente <em>costo_total_usd</em> (costo de adquisicion real) para no inflar el capital. Al editar, el Costo Total USD se recalcula automaticamente como Costo de Compra + Gastos/Flete.
+          <strong>Costo + Comisión:</strong> Muestra el monto base de compra más la comisión del banco. El <strong>Costo Total USD</strong> se obtiene de sumar (Costo + Comisión) + (Gastos/Flete).
         </p>
       </div>
     </div>
