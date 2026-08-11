@@ -37,7 +37,6 @@ function App() {
             <Route path="new" element={<NewLaptop />} />
             <Route path="edit/:id" element={<EditLaptop />} />
             <Route path="delivery/:id" element={<DeliveryNote />} />
-            <Route path="migrate" element={<MigrateImages />} />
             <Route path="components" element={<ComponentsDashboard />} />
             <Route path="components/new" element={<NewComponent />} />
             <Route path="components/edit/:id" element={<EditComponent />} />

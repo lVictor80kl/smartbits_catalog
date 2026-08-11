@@ -23,10 +23,7 @@ export default function AdminLayout() {
 
   const navItems = [
     { path: '/admin', label: 'Inventario', icon: LayoutDashboard },
-    { path: '/admin/new', label: 'Añadir Laptop', icon: PlusCircle },
-    { path: '/admin/migrate', label: 'Migrar Imágenes', icon: CloudLightning },
     { path: '/admin/components', label: 'Componentes', icon: Package },
-    { path: '/admin/components/new', label: 'Añadir Componente', icon: PlusCircle },
     { path: '/admin/service', label: 'Servicio Técnico', icon: Wrench },
     { path: '/admin/finanzas', label: 'Finanzas', icon: DollarSign },
   ];

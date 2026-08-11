@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { doc, onSnapshot, setDoc, collection } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, addDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { Users, TrendingUp, Info, Activity, Settings } from 'lucide-react';
+import { Users, TrendingUp, Info, Activity, Settings, PlusCircle, Loader2 } from 'lucide-react';
 
 export default function CapitalSocios() {
   const [config, setConfig] = useState({ prestamo_mama: 0, inversion_ysmael: 0 });
@@ -13,6 +13,11 @@ export default function CapitalSocios() {
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState({ prestamo_mama: 0, inversion_ysmael: 0 });
   const editingRef = useRef(false);
+
+  // Estado para retiro personal
+  const [retiroForm, setRetiroForm] = useState({ socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo' });
+  const [savingRetiro, setSavingRetiro] = useState(false);
+  const [showRetiroForm, setShowRetiroForm] = useState(false);
 
   // Mantener ref sincronizada para no re-suscribir listeners
   useEffect(() => {
@@ -99,11 +104,62 @@ export default function CapitalSocios() {
         inversion_ysmael: Number(editValues.inversion_ysmael)
       }, { merge: true });
       setIsEditing(false);
-      alert("Configuración actualizada.");
+      alert("Configuracion actualizada.");
     } catch (e) {
       console.error(e);
       alert("Error actualizando: " + e.message);
     }
+  };
+
+  // Cuentas disponibles para retiro (fijas + dinamicas)
+  const cuentasRetiro = [
+    { key: 'efectivo', label: 'Efectivo (USD)' },
+    { key: 'zelle', label: 'Zelle (USD)' },
+    { key: 'bancamiga', label: 'Bancamiga (USD)' },
+    { key: 'binance', label: 'Binance (USD)' },
+    { key: 'zinli', label: 'Zinli (USD)' },
+    { key: 'paypal', label: 'PayPal (USD)' },
+    { key: 'venezuela', label: 'Banco Venezuela (Bs)' },
+    { key: 'bolivares_bs', label: 'Otros Bs' },
+    ...(caja._cuentas_dinamicas || []).map(c => ({ key: c.key, label: c.label + (c.moneda === 'BS' ? ' (Bs)' : ' (USD)') })),
+  ];
+
+  const handleRetiro = async (e) => {
+    e.preventDefault();
+    if (!retiroForm.monto || !retiroForm.concepto) return alert('Completa todos los campos');
+    const montoNum = Number(retiroForm.monto);
+    if (isNaN(montoNum) || montoNum <= 0) return alert('Ingresa un monto valido');
+
+    const confirmar = window.confirm(
+      `¿Confirmar retiro de $${montoNum.toFixed(2)} para ${retiroForm.socio === 'ysmael' ? 'Ysmael' : 'Victor'} desde ${retiroForm.cuenta_salida}?\n\nEsto descontara el saldo de la caja y se registrara como gasto personal del socio.`
+    );
+    if (!confirmar) return;
+
+    setSavingRetiro(true);
+    try {
+      // 1. Registrar en gastos_personales
+      await addDoc(collection(db, 'gastos_personales'), {
+        socio: retiroForm.socio,
+        concepto: retiroForm.concepto,
+        monto: montoNum,
+        metodo_pago: retiroForm.cuenta_salida,
+        cuenta_salida: retiroForm.cuenta_salida,
+        es_deuda: true,
+        fecha: serverTimestamp()
+      });
+      // 2. Descontar de la caja real
+      await updateDoc(doc(db, 'caja', 'saldos'), {
+        [retiroForm.cuenta_salida]: increment(-montoNum),
+        updated_at: new Date()
+      });
+      setRetiroForm({ socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo' });
+      setShowRetiroForm(false);
+      alert('Retiro registrado y descontado de la caja exitosamente.');
+    } catch (err) {
+      console.error(err);
+      alert('Error: ' + err.message);
+    }
+    setSavingRetiro(false);
   };
 
   if (loading) return <div className="p-8 text-center text-gray-500">Cargando capital...</div>;
@@ -279,8 +335,92 @@ export default function CapitalSocios() {
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3 mt-8">
         <Activity className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
         <p className="text-sm text-blue-800">
-          <strong>Fórmula de Capital:</strong> El capital base se calcula sumando la caja y el inventario, restando el préstamo inicial, y <em>sumando</em> los gastos personales de ambos. De esta forma, el dinero que cada quien saca para uso personal se convierte en una deuda hacia el negocio y <strong>no reduce la tajada de ganancia del otro socio</strong>.
+          <strong>Formula de Capital:</strong> El capital base se calcula sumando la caja y el inventario, restando el prestamo inicial, y <em>sumando</em> los gastos personales de ambos. De esta forma, el dinero que cada quien saca para uso personal se convierte en una deuda hacia el negocio y <strong>no reduce la tajada de ganancia del otro socio</strong>.
         </p>
+      </div>
+
+      {/* SECCION: Registrar Retiro Personal */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <PlusCircle className="w-5 h-5 text-brand-600" />
+            Registrar Retiro Personal
+          </h3>
+          <button
+            onClick={() => setShowRetiroForm(p => !p)}
+            className={`text-sm font-medium px-4 py-1.5 rounded-lg transition-colors ${showRetiroForm ? 'bg-gray-100 text-gray-600' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+          >
+            {showRetiroForm ? 'Cancelar' : '+ Nuevo Retiro'}
+          </button>
+        </div>
+
+        {showRetiroForm && (
+          <form onSubmit={handleRetiro} className="space-y-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Socio que retira</label>
+                <div className="flex gap-3">
+                  {[{v:'ysmael',l:'Ysmael'},{v:'victor',l:'Victor'}].map(s => (
+                    <label key={s.v} className={`flex-1 flex items-center justify-center py-2.5 rounded-xl border-2 cursor-pointer transition-colors font-semibold ${retiroForm.socio === s.v ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                      <input type="radio" value={s.v} checked={retiroForm.socio === s.v} onChange={() => setRetiroForm(p => ({...p, socio: s.v}))} className="hidden" />
+                      {s.l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta de donde sale</label>
+                <select
+                  value={retiroForm.cuenta_salida}
+                  onChange={e => setRetiroForm(p => ({...p, cuenta_salida: e.target.value}))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                >
+                  {cuentasRetiro.map(c => (
+                    <option key={c.key} value={c.key}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Concepto</label>
+                <input
+                  type="text"
+                  value={retiroForm.concepto}
+                  onChange={e => setRetiroForm(p => ({...p, concepto: e.target.value}))}
+                  placeholder="Ej: Adelanto quincena, pago personal..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Monto (USD o Bs segun cuenta)</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 text-sm">$</span>
+                  <input
+                    type="number" step="0.01" min="0.01"
+                    value={retiroForm.monto}
+                    onChange={e => setRetiroForm(p => ({...p, monto: e.target.value}))}
+                    className="w-full pl-8 border border-gray-300 rounded-lg px-3 py-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800 flex gap-2">
+              <Activity className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              El retiro descontara el monto de la cuenta seleccionada y se registrara como deuda personal de <strong>{retiroForm.socio === 'ysmael' ? 'Ysmael' : 'Victor'}</strong>, sin afectar el capital del otro socio.
+            </div>
+            <button
+              type="submit"
+              disabled={savingRetiro}
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {savingRetiro ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
+              {savingRetiro ? 'Registrando...' : 'Confirmar Retiro'}
+            </button>
+          </form>
+        )}
       </div>
 
     </div>

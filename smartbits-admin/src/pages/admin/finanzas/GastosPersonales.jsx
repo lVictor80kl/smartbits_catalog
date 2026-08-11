@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, orderBy, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { User, DollarSign, Calendar, PlusCircle, Activity, Trash2, Edit, Loader2, X, Save } from 'lucide-react';
 
@@ -20,7 +20,8 @@ export default function GastosPersonales() {
     socio: 'ysmael',
     concepto: '',
     monto: '',
-    metodo_pago: 'efectivo'
+    metodo_pago: 'efectivo',
+    cuenta_salida: 'efectivo'
   });
 
   useEffect(() => {
@@ -39,14 +40,25 @@ export default function GastosPersonales() {
     
     setSaving(true);
     try {
+      const montoNum = Number(formData.monto);
       await addDoc(collection(db, 'gastos_personales'), {
         ...formData,
-        monto: Number(formData.monto),
-        es_deuda: true, // Siempre true para gastos personales según requerimientos
+        monto: montoNum,
+        es_deuda: true,
         fecha: serverTimestamp()
       });
-      setFormData({ socio: 'ysmael', concepto: '', monto: '', metodo_pago: 'efectivo' });
-      alert("Gasto personal registrado. El capital se recalculará automáticamente.");
+      // Descontar de la caja si se seleccionó cuenta de salida
+      if (formData.cuenta_salida) {
+        await updateDoc(doc(db, 'caja', 'saldos'), {
+          [formData.cuenta_salida]: increment(-montoNum),
+          updated_at: new Date()
+        });
+      }
+      setFormData({ socio: 'ysmael', concepto: '', monto: '', metodo_pago: 'efectivo', cuenta_salida: 'efectivo' });
+      alert(formData.cuenta_salida
+        ? 'Gasto registrado y descontado de la caja seleccionada.'
+        : 'Gasto personal registrado. El capital se recalculara automaticamente.'
+      );
     } catch (e) {
       console.error(e);
       alert("Error al guardar");
@@ -174,25 +186,30 @@ export default function GastosPersonales() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Método / Cuenta de salida</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta de salida (descuenta caja)</label>
                 <select 
-                  value={formData.metodo_pago}
-                  onChange={e => setFormData({...formData, metodo_pago: e.target.value})}
+                  value={formData.cuenta_salida}
+                  onChange={e => setFormData({...formData, cuenta_salida: e.target.value})}
                   className="w-full border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500"
                 >
-                  <option value="efectivo">Efectivo</option>
-                  <option value="bancamiga">Bancamiga</option>
-                  <option value="zelle">Zelle</option>
-                  <option value="binance">Binance</option>
-                  <option value="zinli">Zinli</option>
-                  <option value="bolivares">Bolívares</option>
+                  <option value="efectivo">Efectivo (USD)</option>
+                  <option value="zelle">Zelle (USD)</option>
+                  <option value="bancamiga">Bancamiga (USD)</option>
+                  <option value="binance">Binance (USD)</option>
+                  <option value="zinli">Zinli (USD)</option>
+                  <option value="paypal">PayPal (USD)</option>
+                  <option value="venezuela">Banco Venezuela (Bs)</option>
+                  <option value="bolivares_bs">Otros Bs</option>
+                  <option value="">No descontar de caja</option>
                 </select>
               </div>
 
               <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 mt-2">
                 <p className="text-xs text-amber-800 flex gap-2 items-start">
                   <Activity className="w-4 h-4 flex-shrink-0 mt-0.5"/>
-                  IMPORTANTE: Este registro NO resta dinero de la caja automáticamente. Solo aumenta tu deuda con el negocio. Si sacaste de la caja, recuerda actualizar "Caja".
+                  {formData.cuenta_salida
+                    ? `El monto se descontara automaticamente de la cuenta: ${formData.cuenta_salida}.`
+                    : 'Solo se registra como deuda. No modifica saldo de caja (ajusta la caja manualmente si ya lo sacaste).'}
                 </p>
               </div>
 
