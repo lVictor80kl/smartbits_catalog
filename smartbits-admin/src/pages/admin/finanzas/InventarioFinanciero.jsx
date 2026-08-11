@@ -219,8 +219,8 @@ export default function InventarioFinanciero() {
                   return (
                     <tr key={item.id} className={`border-b border-gray-50 transition-colors ${isEditing ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}`}>
                       <td className="px-5 py-4">
-                        <div className="font-semibold text-gray-900">{item.marca} {item.modelo || item.nombre}</div>
-                        {item.procesador && <div className="text-xs text-gray-400">{item.procesador}</div>}
+                        <div className="font-semibold text-gray-900">{item.modelo || item.nombre}</div>
+
                       </td>
                       <td className="px-5 py-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.disponibilidad === 'Disponible'
