@@ -1,39 +1,38 @@
-import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { Wallet, PieChart, Users, TrendingUp, History, Receipt, FileText, DollarSign, Package, BarChart2 } from 'lucide-react';
-import ResumenCaja from './ResumenCaja';
-import CapitalSocios from './CapitalSocios';
-import GastosPersonales from './GastosPersonales';
-import GastosOperativos from './GastosOperativos';
-import InteligenciaVentas from './InteligenciaVentas';
-import Historico from './Historico';
-import NotasDeEntrega from './NotasDeEntrega';
+import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
+import { 
+  LayoutDashboard, ArrowRightLeft, Package, FileText, PieChart, BarChart2 
+} from 'lucide-react';
+import PanelPrincipal from './PanelPrincipal';
+import Movimientos from './Movimientos';
 import InventarioFinanciero from './InventarioFinanciero';
+import VentasNotas from './VentasNotas';
+import InteligenciaVentas from './InteligenciaVentas';
 import ReportesCierre from './ReportesCierre';
 
 export default function FinanzasDashboard() {
+  const navigate = useNavigate();
+
   const tabs = [
-    { path: '/admin/finanzas/inventario', label: 'Inventario', icon: Package },
-    { path: '/admin/finanzas/caja', label: 'Caja', icon: Wallet },
-    { path: '/admin/finanzas/capital', label: 'Capital Socios', icon: Users },
-    { path: '/admin/finanzas/gastos-personales', label: 'Gastos Personales', icon: Receipt },
-    { path: '/admin/finanzas/gastos-operativos', label: 'Gastos Operativos', icon: TrendingUp },
-    { path: '/admin/finanzas/inteligencia', label: 'Inteligencia de Ventas', icon: PieChart },
-    { path: '/admin/finanzas/historico', label: 'Histórico', icon: History },
-    { path: '/admin/finanzas/notas-de-entrega', label: 'Notas de Entrega', icon: FileText },
-    { path: '/admin/finanzas/reportes', label: 'Reportes / Cierre', icon: BarChart2 },
+    { path: '/admin/finanzas/panel', key: 'panel', label: 'Panel Principal', icon: LayoutDashboard },
+    { path: '/admin/finanzas/movimientos', key: 'movimientos', label: 'Movimientos', icon: ArrowRightLeft },
+    { path: '/admin/finanzas/inventario', key: 'inventario', label: 'Inventario', icon: Package },
+    { path: '/admin/finanzas/ventas', key: 'ventas', label: 'Ventas & Notas', icon: FileText },
+    { path: '/admin/finanzas/inteligencia', key: 'inteligencia', label: 'Inteligencia de Ventas', icon: PieChart },
+    { path: '/admin/finanzas/reportes', key: 'reportes', label: 'Cierre & Configuración', icon: BarChart2 },
   ];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Módulo de Finanzas</h1>
-          <p className="text-sm text-slate-500">Gestión de capital, gastos y métricas del negocio</p>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Módulo de Finanzas</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Control de capital, caja, utilidades compartidas y movimientos</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="flex overflow-x-auto border-b border-gray-100 p-1">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* BARRA DE NAVEGACIÓN SUPERIOR (6 TABS) */}
+        <div className="flex overflow-x-auto border-b border-slate-100 p-1.5 gap-1 bg-slate-50/50">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -41,9 +40,10 @@ export default function FinanzasDashboard() {
                 key={tab.path}
                 to={tab.path}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${isActive
-                    ? 'border-brand-600 text-brand-600 bg-brand-50/50 rounded-t-lg'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  `flex items-center gap-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap rounded-xl transition-all ${
+                    isActive
+                      ? 'bg-brand-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`
                 }
               >
@@ -54,18 +54,17 @@ export default function FinanzasDashboard() {
           })}
         </div>
 
-        <div className="p-4 md:p-6 bg-slate-50/50 min-h-[500px]">
+        {/* CONTENIDO DE LA PESTAÑA */}
+        <div className="p-4 md:p-6 bg-slate-50/40 min-h-[550px]">
           <Routes>
-            <Route index element={<Navigate to="inventario" replace />} />
+            <Route index element={<Navigate to="panel" replace />} />
+            <Route path="panel" element={<PanelPrincipal onNavigateTab={(tabKey) => navigate(`/admin/finanzas/${tabKey}`)} />} />
+            <Route path="movimientos" element={<Movimientos />} />
             <Route path="inventario" element={<InventarioFinanciero />} />
-            <Route path="caja" element={<ResumenCaja />} />
-            <Route path="capital" element={<CapitalSocios />} />
-            <Route path="gastos-personales" element={<GastosPersonales />} />
-            <Route path="gastos-operativos" element={<GastosOperativos />} />
+            <Route path="ventas" element={<VentasNotas />} />
             <Route path="inteligencia" element={<InteligenciaVentas />} />
-            <Route path="historico" element={<Historico />} />
-            <Route path="notas-de-entrega" element={<NotasDeEntrega />} />
             <Route path="reportes" element={<ReportesCierre />} />
+            <Route path="*" element={<Navigate to="panel" replace />} />
           </Routes>
         </div>
       </div>

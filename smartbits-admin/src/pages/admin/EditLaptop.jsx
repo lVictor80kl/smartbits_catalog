@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus, DollarSign, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
 import { getBancosConfig } from '../../utils/bancos';
+import { useCuentasCaja } from '../../utils/useCuentasCaja';
 
 
 export default function EditLaptop() {
@@ -44,6 +45,10 @@ export default function EditLaptop() {
     costos_adicionales: '',
     envio_usd: '',
     envio_bs: '',
+    envio_cuenta: '',
+    envio_estado: 'Estimado',
+    envio_pagado_monto_bs: 0,
+    envio_pagado_monto_usd: 0,
     tasa_bcv: '',
 
     borrador: false,
@@ -53,6 +58,7 @@ export default function EditLaptop() {
   const [pagosCompra, setPagosCompra] = useState([
     { metodoId: 'paypal', bancoNombre: 'PayPal', monto: '', comisionPct: 0 }
   ]);
+  const { todasCuentas } = useCuentasCaja();
 
   // Cargar datos actuales del equipo si estamos en modo edición
   useEffect(() => {
@@ -94,6 +100,10 @@ export default function EditLaptop() {
             costos_adicionales: data.costos_adicionales?.toString() || '',
             envio_usd: data.envio_usd?.toString() || '',
             envio_bs: data.envio_bs?.toString() || '',
+            envio_cuenta: data.envio_cuenta || '',
+            envio_estado: data.envio_estado || 'Estimado',
+            envio_pagado_monto_bs: data.envio_pagado_monto_bs || 0,
+            envio_pagado_monto_usd: data.envio_pagado_monto_usd || 0,
             tasa_bcv: data.tasa_bcv?.toString() || '',
             borrador: data.borrador ?? false,
           });
@@ -252,6 +262,104 @@ export default function EditLaptop() {
       // 2. Guardar o actualizar en Firestore
       setUploadProgress(isEditMode ? 'Actualizando base de datos...' : 'Guardando en base de datos...');
 
+      // --- LOGICA DE CAJA ---
+      let nuevoMontoPagadoBs = isEditMode ? (formData.envio_pagado_monto_bs || 0) : 0;
+      let nuevoMontoPagadoUsd = isEditMode ? (formData.envio_pagado_monto_usd || 0) : 0;
+      let cajaUpdates = {};
+      let movimientosToCreate = [];
+
+      // 1. Pago de Compra de Equipo (Solo al CREAR, Opción A)
+      if (!isEditMode) {
+        pagosCompra.forEach(p => {
+          const montoNum = parseFloat(p.monto);
+          if (montoNum > 0 && p.metodoId) {
+            cajaUpdates[p.metodoId] = increment(-montoNum);
+            movimientosToCreate.push({
+              coleccion: 'compras_inventario',
+              datos: {
+                categoria: 'compra_inventario',
+                concepto: `Compra equipo: ${formData.marca} ${formData.modelo}`,
+                monto: montoNum,
+                metodo_pago: p.metodoId,
+                fecha: serverTimestamp()
+              }
+            });
+          }
+        });
+      }
+
+      // 2. Pago de Envío
+      if (formData.envio_estado === 'Pagado' && formData.envio_cuenta) {
+        const cuentaObj = todasCuentas.find(c => c.key === formData.envio_cuenta);
+        const esBs = cuentaObj?.moneda === 'BS';
+        const montoEnvioActualBs = Number(formData.envio_bs) || 0;
+        const montoEnvioActualUsd = Number(formData.envio_usd) || 0;
+
+        if (!isEditMode) {
+            const montoADescontar = esBs ? montoEnvioActualBs : montoEnvioActualUsd;
+            if (montoADescontar > 0) {
+                cajaUpdates[formData.envio_cuenta] = increment(-montoADescontar);
+                nuevoMontoPagadoBs = esBs ? montoADescontar : 0;
+                nuevoMontoPagadoUsd = !esBs ? montoADescontar : 0;
+                
+                movimientosToCreate.push({
+                  coleccion: 'compras_inventario',
+                  datos: {
+                    categoria: 'envio',
+                    concepto: `Envío equipo: ${formData.marca} ${formData.modelo}`,
+                    monto: esBs ? (montoADescontar / (Number(formData.tasa_bcv)||1)) : montoADescontar,
+                    monto_original: montoADescontar,
+                    moneda_original: esBs ? 'BS' : 'USD',
+                    metodo_pago: formData.envio_cuenta,
+                    fecha: serverTimestamp()
+                  }
+                });
+            }
+        } else {
+            const montoAnteriorBs = Number(formData.envio_pagado_monto_bs) || 0;
+            const montoAnteriorUsd = Number(formData.envio_pagado_monto_usd) || 0;
+            
+            const montoADescontarBs = montoEnvioActualBs - montoAnteriorBs;
+            const montoADescontarUsd = montoEnvioActualUsd - montoAnteriorUsd;
+
+            if (esBs && montoADescontarBs !== 0) {
+                cajaUpdates[formData.envio_cuenta] = increment(-montoADescontarBs);
+                nuevoMontoPagadoBs = montoEnvioActualBs;
+                
+                movimientosToCreate.push({
+                  coleccion: 'compras_inventario',
+                  datos: {
+                    categoria: 'envio',
+                    concepto: `Ajuste envío equipo: ${formData.marca} ${formData.modelo}`,
+                    monto: Math.abs(montoADescontarBs / (Number(formData.tasa_bcv)||1)),
+                    monto_original: Math.abs(montoADescontarBs),
+                    moneda_original: 'BS',
+                    es_ingreso: montoADescontarBs < 0, 
+                    metodo_pago: formData.envio_cuenta,
+                    fecha: serverTimestamp()
+                  }
+                });
+            } else if (!esBs && montoADescontarUsd !== 0) {
+                cajaUpdates[formData.envio_cuenta] = increment(-montoADescontarUsd);
+                nuevoMontoPagadoUsd = montoEnvioActualUsd;
+
+                movimientosToCreate.push({
+                  coleccion: 'compras_inventario',
+                  datos: {
+                    categoria: 'envio',
+                    concepto: `Ajuste envío equipo: ${formData.marca} ${formData.modelo}`,
+                    monto: Math.abs(montoADescontarUsd),
+                    monto_original: Math.abs(montoADescontarUsd),
+                    moneda_original: 'USD',
+                    es_ingreso: montoADescontarUsd < 0,
+                    metodo_pago: formData.envio_cuenta,
+                    fecha: serverTimestamp()
+                  }
+                });
+            }
+        }
+      }
+
       const laptopDataPayload = {
         modelo: formData.modelo,
         marca: formData.marca,
@@ -284,6 +392,10 @@ export default function EditLaptop() {
         costos_adicionales: costosAdicionales,
         envio_usd: envioUsd,
         envio_bs: Number(formData.envio_bs) || 0,
+        envio_cuenta: formData.envio_cuenta,
+        envio_estado: formData.envio_estado,
+        envio_pagado_monto_bs: nuevoMontoPagadoBs,
+        envio_pagado_monto_usd: nuevoMontoPagadoUsd,
         tasa_bcv: Number(formData.tasa_bcv) || 0,
         borrador: formData.borrador,
         costo_total: costoTotal,
@@ -302,6 +414,14 @@ export default function EditLaptop() {
           ...laptopDataPayload,
           creadoEn: serverTimestamp(),
         });
+      }
+
+      if (Object.keys(cajaUpdates).length > 0) {
+        cajaUpdates.updated_at = new Date();
+        await updateDoc(doc(db, 'caja', 'saldos'), cajaUpdates);
+      }
+      for (const mov of movimientosToCreate) {
+        await addDoc(collection(db, mov.coleccion), mov.datos);
       }
 
       setShowSuccess(true);
@@ -752,7 +872,7 @@ export default function EditLaptop() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Envío (USD final)</label>
                 <div className="relative">
@@ -764,7 +884,32 @@ export default function EditLaptop() {
                     className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-semibold"
                   />
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1">Se calcula automáticamente al ingresar Bs y Tasa, o puede ingresarlo manualmente en USD.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Estado del Envío</label>
+                <select
+                  name="envio_estado" value={formData.envio_estado} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                >
+                  <option value="Estimado">Estimado (No pagado aún)</option>
+                  <option value="Pagado">Pagado (Descontar de caja)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta de Pago</label>
+                <select
+                  name="envio_cuenta" value={formData.envio_cuenta} onChange={handleChange}
+                  disabled={formData.envio_estado !== 'Pagado'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white disabled:opacity-50"
+                  required={formData.envio_estado === 'Pagado'}
+                >
+                  <option value="">Seleccionar cuenta...</option>
+                  {todasCuentas.map(c => (
+                    <option key={c.key} value={c.key}>{c.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div>

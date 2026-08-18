@@ -42,6 +42,26 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /transferencias_internas/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /reembolsos/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /compras_inventario/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /auditoria_caja/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /cierres_mensuales/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
     match /ventas/{document=**} {
       allow read, write: if isAdmin();
     }
