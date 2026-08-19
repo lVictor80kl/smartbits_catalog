@@ -166,11 +166,24 @@ export default function EditLaptop() {
   };
 
   // --- Lógica de Pagos Combinados y Comisiones ---
+  const getComisionPorCuenta = (cuentaKey, cuentaLabel) => {
+    const banco = bancosList.find(b =>
+      (b.id && b.id === cuentaKey) ||
+      (b.nombre && b.nombre.toLowerCase() === (cuentaLabel || '').toLowerCase())
+    );
+    return banco ? (Number(banco.comision) || 0) : 0;
+  };
+
   const handleAddPago = () => {
-    const defaultBanco = bancosList[0] || { id: 'efectivo', nombre: 'Efectivo USD', comision: 0 };
+    const defaultCuenta = todasCuentas[0] || { key: 'efectivo', label: 'Efectivo' };
     setPagosCompra(prev => [
       ...prev,
-      { metodoId: defaultBanco.id || defaultBanco.nombre, bancoNombre: defaultBanco.nombre, monto: '', comisionPct: defaultBanco.comision || 0 }
+      {
+        metodoId: defaultCuenta.key,
+        bancoNombre: defaultCuenta.label,
+        monto: '',
+        comisionPct: getComisionPorCuenta(defaultCuenta.key, defaultCuenta.label)
+      }
     ]);
   };
 
@@ -183,10 +196,10 @@ export default function EditLaptop() {
     setPagosCompra(prev => {
       const newPagos = [...prev];
       if (field === 'metodoId') {
-        const bancoObj = bancosList.find(b => (b.id || b.nombre) === value) || { nombre: value, comision: 0 };
-        newPagos[index].metodoId = value;
-        newPagos[index].bancoNombre = bancoObj.nombre;
-        newPagos[index].comisionPct = bancoObj.comision || 0;
+        const cuentaObj = todasCuentas.find(c => c.key === value) || { key: value, label: value, moneda: 'USD' };
+        newPagos[index].metodoId = cuentaObj.key;
+        newPagos[index].bancoNombre = cuentaObj.label;
+        newPagos[index].comisionPct = getComisionPorCuenta(cuentaObj.key, cuentaObj.label);
       } else if (field === 'monto') {
         newPagos[index].monto = value;
       }
@@ -280,6 +293,8 @@ export default function EditLaptop() {
                 categoria: 'compra_inventario',
                 concepto: `Compra equipo: ${formData.marca} ${formData.modelo}`,
                 monto: montoNum,
+                monto_original: montoNum,
+                moneda_original: 'USD',
                 metodo_pago: p.metodoId,
                 fecha: serverTimestamp()
               }
@@ -382,11 +397,15 @@ export default function EditLaptop() {
         otros: formData.otros,
         fecha_compra: formData.fecha_compra || null,
         precio_ebay: precioEbay,
-        pagos_compra: pagosCompra.map(p => ({
-          ...p,
-          monto: parseFloat(p.monto) || 0,
-          comisionMonto: (parseFloat(p.monto) || 0) * ((p.comisionPct || 0) / 100)
-        })),
+        pagos_compra: pagosCompra.map(p => {
+          const cuentaObj = todasCuentas.find(c => c.key === p.metodoId);
+          return {
+            ...p,
+            moneda: cuentaObj?.moneda || 'USD',
+            monto: parseFloat(p.monto) || 0,
+            comisionMonto: (parseFloat(p.monto) || 0) * ((p.comisionPct || 0) / 100)
+          };
+        }),
         total_comisiones: totalComisiones,
         costo_mas_comision: costoMasComision,
         costos_adicionales: costosAdicionales,
@@ -788,9 +807,9 @@ export default function EditLaptop() {
                         onChange={e => handlePagoChange(idx, 'metodoId', e.target.value)}
                         className="w-full px-2.5 py-1.5 border border-gray-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 font-medium"
                       >
-                        {bancosList.map(b => (
-                          <option key={b.id || b.nombre} value={b.id || b.nombre}>
-                            {b.nombre} ({b.comision}% comisión)
+                        {todasCuentas.map(c => (
+                          <option key={c.key} value={c.key}>
+                            {c.label} ({c.moneda})
                           </option>
                         ))}
                       </select>

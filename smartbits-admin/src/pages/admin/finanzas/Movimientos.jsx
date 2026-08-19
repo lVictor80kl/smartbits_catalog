@@ -300,9 +300,12 @@ export default function Movimientos() {
         }
         await deleteDoc(doc(db, 'reembolsos', item.id));
       } else if (item.tipo_mov === 'compra_inventario') {
-        if (item.metodo_pago && item.monto) {
+        if (item.metodo_pago && (item.monto || item.monto_original)) {
+          const montoReintegro = item.moneda_original === 'BS'
+            ? Number(item.monto_original || item.monto || 0)
+            : Number(item.monto || item.monto_original || 0);
           await updateDoc(doc(db, 'caja', 'saldos'), {
-            [item.metodo_pago]: increment(Number(item.monto)),
+            [item.metodo_pago]: increment(montoReintegro),
             updated_at: new Date()
           });
         }
@@ -724,7 +727,7 @@ export default function Movimientos() {
                         )}
                         {item.tipo_mov === 'compra_inventario' && (
                           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
-                            Inv / Envío
+                            Compra Inv
                           </span>
                         )}
                         {item.tipo_mov === 'retiro' && (

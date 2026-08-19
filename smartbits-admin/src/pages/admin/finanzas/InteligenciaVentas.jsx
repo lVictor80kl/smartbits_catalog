@@ -26,9 +26,23 @@ export default function InteligenciaVentas() {
 
   // Filtrar solo las vendidas
   const vendidas = laptops.filter(l => l.fecha_venta !== null && l.fecha_venta !== undefined);
-  
+
+  // Cálculo en vivo (no depende de campos guardados por cloud functions)
+  const gananciaDe = (l) => (Number(l.precio_final_venta) || 0) - (Number(l.costo_total) || 0);
+  const porcentajeDe = (l) => {
+    const costo = Number(l.costo_total) || 0;
+    const g = gananciaDe(l);
+    return costo > 0 ? (g / costo) * 100 : 0;
+  };
+  const diasDe = (l) => {
+    if (!l.fecha_compra || !l.fecha_venta) return 0;
+    const fc = l.fecha_compra.toDate ? l.fecha_compra.toDate() : new Date(l.fecha_compra);
+    const fv = l.fecha_venta.toDate ? l.fecha_venta.toDate() : new Date(l.fecha_venta);
+    return Math.floor((fv.getTime() - fc.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
   // Ganancia total
-  const gananciaTotal = vendidas.reduce((sum, l) => sum + (l.ganancia || 0), 0);
+  const gananciaTotal = vendidas.reduce((sum, l) => sum + gananciaDe(l), 0);
   
   // Procesadores más vendidos
   const cpuCount = {};
@@ -47,11 +61,11 @@ export default function InteligenciaVentas() {
   const marcaData = Object.keys(marcaCount).map(key => ({ name: key, value: marcaCount[key] })).sort((a,b) => b.value - a.value);
 
   // Días promedio en inventario
-  const totalDias = vendidas.reduce((sum, l) => sum + (l.dias_en_inventario || 0), 0);
+  const totalDias = vendidas.reduce((sum, l) => sum + diasDe(l), 0);
   const promDias = vendidas.length > 0 ? Math.round(totalDias / vendidas.length) : 0;
 
   // Top Modelos por Ganancia
-  const topModelos = [...vendidas].sort((a, b) => (b.ganancia || 0) - (a.ganancia || 0)).slice(0, 5);
+  const topModelos = [...vendidas].sort((a, b) => gananciaDe(b) - gananciaDe(a)).slice(0, 5);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -145,11 +159,11 @@ export default function InteligenciaVentas() {
                 <tr key={l.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="px-4 py-3 font-medium text-gray-900">{l.item}</td>
                   <td className="px-4 py-3">{l.marca}</td>
-                  <td className="px-4 py-3">{l.dias_en_inventario || 0}</td>
+                  <td className="px-4 py-3">{diasDe(l)}</td>
                   <td className="px-4 py-3 text-right">${l.costo_total?.toFixed(2)}</td>
                   <td className="px-4 py-3 text-right font-medium">${l.precio_final_venta?.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-bold text-emerald-600">${l.ganancia?.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right text-brand-600">{l.porcentaje_ganancia?.toFixed(1)}%</td>
+                  <td className="px-4 py-3 text-right font-bold text-emerald-600">${gananciaDe(l).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-brand-600">{porcentajeDe(l).toFixed(1)}%</td>
                 </tr>
               ))}
             </tbody>

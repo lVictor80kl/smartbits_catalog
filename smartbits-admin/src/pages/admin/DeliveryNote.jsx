@@ -128,8 +128,21 @@ export default function DeliveryNote() {
             return { metodo: p.metodo, monto, montoUSD };
           });
 
+        const costoTotal = laptop.costo_total || 0;
+        const ganancia = totalPagadoUSD - costoTotal;
+        const porcentaje_ganancia = costoTotal > 0 ? (ganancia / costoTotal) * 100 : 0;
+        let dias_en_inventario = 0;
+        if (laptop.fecha_compra) {
+          const fechaCompra = laptop.fecha_compra?.toDate ? laptop.fecha_compra.toDate() : new Date(laptop.fecha_compra);
+          const msDiferencia = new Date().getTime() - fechaCompra.getTime();
+          dias_en_inventario = Math.floor(msDiferencia / (1000 * 60 * 60 * 24));
+        }
+
         updateData.fecha_venta = serverTimestamp();
         updateData.precio_final_venta = totalPagadoUSD;
+        updateData.ganancia = ganancia;
+        updateData.porcentaje_ganancia = porcentaje_ganancia;
+        updateData.dias_en_inventario = dias_en_inventario;
         updateData.metodos_pago = metodosPago;
         updateData.tasa_venta = tasaNum;
         updateData.cliente_venta = {
@@ -160,7 +173,6 @@ export default function DeliveryNote() {
         }
 
         // 3. Registrar en historico de ingresos
-        const ganancia = totalPagadoUSD - (laptop.costo_total || 0);
         await addDoc(collection(db, 'historico_ingresos'), {
           fecha: serverTimestamp(),
           concepto: `Venta de ${laptop.marca || 'Laptop'} ${laptop.modelo || ''}`,
