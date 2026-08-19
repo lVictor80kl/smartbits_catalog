@@ -3,6 +3,7 @@ import { doc, onSnapshot, collection, query, where, orderBy, limit, addDoc, upda
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
 import { getCostoTotal } from '../../../utils/costos';
+import { calcularDiferencial, derivarTasaReal, calcularDestino } from '../../../utils/diferencialCambiario';
 import { 
   TrendingUp, TrendingDown, Users, Wallet, ArrowRightLeft, PlusCircle, 
   Settings, AlertTriangle, ShieldCheck, DollarSign, Landmark, RefreshCw,
@@ -136,6 +137,64 @@ export default function PanelPrincipal({ onNavigateTab }) {
   const cuentaGasto = todasCuentas.find(c => c.key === modalGasto.metodo_pago);
   const esGastoBs = cuentaGasto?.moneda === 'BS';
 
+  // Cuentas/monedas seleccionadas para la transferencia
+  const cuentaTransOrigen = todasCuentas.find(c => c.key === modalTransfer.cuenta_origen);
+  const cuentaTransDestino = todasCuentas.find(c => c.key === modalTransfer.cuenta_destino);
+  const monedaTransOrigen = cuentaTransOrigen?.moneda || 'USD';
+  const monedaTransDestino = cuentaTransDestino?.moneda || 'USD';
+  const esCambioDivisa = monedaTransOrigen !== monedaTransDestino;
+
+  // Handlers de sincronización bidireccional en el formulario de transferencia
+  const syncDestinoDesdeTasa = (p, montoOrigen, tasa) => {
+    const destino = calcularDestino({
+      montoOrigen, tasa,
+      monedaOrigen: monedaTransOrigen,
+      monedaDestino: monedaTransDestino
+    });
+    return Number.isFinite(destino) ? destino.toFixed(2) : p.monto_destino;
+  };
+  const handleTransOrigenChange = (e) => {
+    const val = e.target.value;
+    setModalTransfer(p => {
+      const up = { ...p, monto_origen: val };
+      if (esCambioDivisa && val && p.tasa_cambio) {
+        up.monto_destino = syncDestinoDesdeTasa(p, val, p.tasa_cambio);
+      }
+      return up;
+    });
+  };
+  const handleTransTasaChange = (e) => {
+    const val = e.target.value;
+    setModalTransfer(p => {
+      const up = { ...p, tasa_cambio: val };
+      if (esCambioDivisa && p.monto_origen && val) {
+        up.monto_destino = syncDestinoDesdeTasa(p, p.monto_origen, val);
+      }
+      return up;
+    });
+  };
+  const handleTransDestinoChange = (e) => {
+    const val = e.target.value;
+    setModalTransfer(p => {
+      const up = { ...p, monto_destino: val };
+      if (esCambioDivisa && p.monto_origen && val) {
+        const tasa = derivarTasaReal({
+          montoOrigen: p.monto_origen, montoDestino: val,
+          monedaOrigen: monedaTransOrigen,
+          monedaDestino: monedaTransDestino
+        });
+        if (tasa !== null && Number.isFinite(tasa)) up.tasa_cambio = tasa.toFixed(2);
+      }
+      return up;
+    });
+  };
+
+  // Formato de monto con moneda
+  const fmtMontoMoneda = (moneda, monto) => moneda === 'BS'
+    ? `Bs ${Number(monto).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `$${Number(monto).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const monedaDeCuenta = (key) => todasCuentas.find(c => c.key === key)?.moneda || 'USD';
+
   // 1. Caja Total USD
   const todasUSD = todasCuentas.filter(c => c.moneda === 'USD');
   const todasBS = todasCuentas.filter(c => c.moneda === 'BS');
@@ -162,8 +221,11 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // 3. Utilidades y Capitales post-corte
   const gananciaVentasPostCorte = ingresos.reduce((acc, i) => acc + (Number(i.ganancia) || 0), 0);
   const gastosOpPostCorte = gastosOp.reduce((acc, g) => acc + (Number(g.monto) || 0), 0);
-  const utilidadNetaPostCorte = gananciaVentasPostCorte - gastosOpPostCorte;
+  const diferencialesPostCorte = transferencias.reduce((acc, t) => acc + (Number(t.diferencial_usd) || 0), 0);
+  const utilidadNetaPostCorte = gananciaVentasPostCorte - gastosOpPostCorte + diferencialesPostCorte;
   const mitadUtilidad = utilidadNetaPostCorte / 2;
+  const mitadUtilidadOperativa = (gananciaVentasPostCorte - gastosOpPostCorte) / 2;
+  const mitadDiferencial = diferencialesPostCorte / 2;
 
   const retirosYsmael = gastosPers.filter(g => g.socio === 'ysmael').reduce((acc, g) => acc + (Number(g.monto) || 0), 0);
   const retirosVictor = gastosPers.filter(g => g.socio === 'victor').reduce((acc, g) => acc + (Number(g.monto) || 0), 0);
@@ -273,11 +335,36 @@ export default function PanelPrincipal({ onNavigateTab }) {
       return alert("La cuenta origen y destino deben ser distintas.");
     }
     const montoSale = Number(modalTransfer.monto_origen);
-    const montoLlega = Number(modalTransfer.monto_destino || modalTransfer.monto_origen);
+    const monedaOrigen = monedaTransOrigen;
+    const monedaDestino = monedaTransDestino;
+    const cambioDivisa = monedaOrigen !== monedaDestino;
+    const montoLlega = (() => {
+      const destinoManual = Number(modalTransfer.monto_destino);
+      if (destinoManual && destinoManual > 0) return destinoManual;
+      if (cambioDivisa) {
+        return calcularDestino({
+          montoOrigen: montoSale,
+          tasa: Number(modalTransfer.tasa_cambio) || tasaCambio,
+          monedaOrigen,
+          monedaDestino
+        });
+      }
+      return montoSale;
+    })();
 
     if (isNaN(montoSale) || montoSale <= 0 || isNaN(montoLlega) || montoLlega <= 0) {
       return alert("Montos inválidos.");
     }
+
+    const tasaReal = cambioDivisa ? (Number(modalTransfer.tasa_cambio) || tasaCambio) : null;
+    const tasaReferencia = tasaCambio;
+    const diferencialUsd = calcularDiferencial({
+      montoOrigen: montoSale,
+      montoDestino: montoLlega,
+      monedaOrigen,
+      monedaDestino,
+      tasaReferencia
+    });
 
     setModalTransfer(p => ({ ...p, saving: true }));
     try {
@@ -287,7 +374,11 @@ export default function PanelPrincipal({ onNavigateTab }) {
         cuenta_destino: modalTransfer.cuenta_destino,
         monto_origen: montoSale,
         monto_destino: montoLlega,
-        tasa_cambio: modalTransfer.tasa_cambio ? Number(modalTransfer.tasa_cambio) : null,
+        tasa_cambio: tasaReal,
+        tasa_referencia: tasaReferencia,
+        moneda_origen: monedaOrigen,
+        moneda_destino: monedaDestino,
+        diferencial_usd: diferencialUsd,
         concepto: modalTransfer.concepto || 'Transferencia entre cuentas propias',
         fecha: serverTimestamp()
       });
@@ -482,8 +573,14 @@ export default function PanelPrincipal({ onNavigateTab }) {
               <span className="font-semibold text-slate-800">{fmt(capInicialYsmael)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>+ 50% Utilidad generada</span>
-              <span className="font-semibold text-emerald-600">+{fmt(mitadUtilidad)}</span>
+              <span>+ 50% Utilidad operativa</span>
+              <span className="font-semibold text-emerald-600">+{fmt(mitadUtilidadOperativa)}</span>
+            </div>
+            <div className="flex justify-between text-slate-600">
+              <span>± 50% Diferencial cambiario</span>
+              <span className={`font-semibold ${mitadDiferencial >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {mitadDiferencial >= 0 ? '+' : '-'}{fmt(Math.abs(mitadDiferencial))}
+              </span>
             </div>
             <div className="flex justify-between text-slate-600">
               <span>- Retiros propios acumulados</span>
@@ -516,8 +613,14 @@ export default function PanelPrincipal({ onNavigateTab }) {
               <span className="font-semibold text-slate-800">{fmt(capInicialVictor)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>+ 50% Utilidad generada</span>
-              <span className="font-semibold text-emerald-600">+{fmt(mitadUtilidad)}</span>
+              <span>+ 50% Utilidad operativa</span>
+              <span className="font-semibold text-emerald-600">+{fmt(mitadUtilidadOperativa)}</span>
+            </div>
+            <div className="flex justify-between text-slate-600">
+              <span>± 50% Diferencial cambiario</span>
+              <span className={`font-semibold ${mitadDiferencial >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {mitadDiferencial >= 0 ? '+' : '-'}{fmt(Math.abs(mitadDiferencial))}
+              </span>
             </div>
             <div className="flex justify-between text-slate-600">
               <span>- Retiros propios acumulados</span>
@@ -548,7 +651,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
           </button>
 
           <button
-            onClick={() => setModalTransfer(p => ({ ...p, open: true }))}
+            onClick={() => setModalTransfer(p => ({ ...p, open: true, tasa_cambio: tasaCambio.toString() }))}
             className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-sm border border-blue-200/80 transition-colors"
           >
             <ArrowRightLeft className="w-5 h-5 text-blue-600" />
@@ -714,9 +817,16 @@ export default function PanelPrincipal({ onNavigateTab }) {
                         <p className="text-xs text-slate-400">{m.concepto || 'Movimiento entre cuentas'} • {fechaStr}</p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg">
-                      ${Number(m.monto_origen).toFixed(2)} → ${Number(m.monto_destino).toFixed(2)}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg">
+                        {fmtMontoMoneda(m.moneda_origen || monedaDeCuenta(m.cuenta_origen), m.monto_origen)} → {fmtMontoMoneda(m.moneda_destino || monedaDeCuenta(m.cuenta_destino), m.monto_destino)}
+                      </span>
+                      {Number(m.diferencial_usd) !== 0 && (
+                        <span className={`text-[10px] font-black ${Number(m.diferencial_usd) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {Number(m.diferencial_usd) > 0 ? 'Ganancia' : 'Pérdida'} cambiaria: {fmt(Math.abs(Number(m.diferencial_usd)))}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               }
@@ -983,27 +1093,51 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Monto que sale</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Monto que sale ({monedaTransOrigen})</label>
                   <input
                     type="number" step="0.01" min="0.01"
                     placeholder="0.00"
                     value={modalTransfer.monto_origen}
-                    onChange={e => setModalTransfer(p => ({ ...p, monto_origen: e.target.value }))}
+                    onChange={handleTransOrigenChange}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Monto que llega</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Monto que llega ({monedaTransDestino})</label>
                   <input
                     type="number" step="0.01" min="0.01"
                     placeholder={modalTransfer.monto_origen || '0.00'}
                     value={modalTransfer.monto_destino}
-                    onChange={e => setModalTransfer(p => ({ ...p, monto_destino: e.target.value }))}
+                    onChange={handleTransDestinoChange}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                    required
                   />
                 </div>
               </div>
+
+              {esCambioDivisa && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa real de la operación (Bs/$)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder={tasaCambio.toFixed(2)}
+                      value={modalTransfer.tasa_cambio}
+                      onChange={handleTransTasaChange}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setModalTransfer(p => ({ ...p, tasa_cambio: tasaCambio.toString() }))}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                    >
+                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Concepto / Motivo</label>

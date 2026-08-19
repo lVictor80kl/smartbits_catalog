@@ -57,7 +57,7 @@ export default function ReportesCierre() {
           // El corte fue posterior a este mes y se eligió start limpio
           setMetricas({
             mes: `${MES_LABELS[selectedMonth]} ${selectedYear}`,
-            ventasTotales: 0, cogs: 0, gananciaBruta: 0, gastosOp: 0, gananciaNeta: 0,
+            ventasTotales: 0, cogs: 0, gananciaBruta: 0, gastosOp: 0, diferenciales: 0, gananciaNeta: 0,
             gananciaNetaPorSocio: 0, retirosYsmael: 0, retirosVictor: 0, retirosTotal: 0,
             cantidadVentas: 0, preCorte: true
           });
@@ -107,14 +107,23 @@ export default function ReportesCierre() {
       const retirosVictor = retiros.filter(r => r.socio === 'victor').reduce((a,b) => a + (Number(b.monto)||0), 0);
       const retirosTotal = retirosYsmael + retirosVictor;
 
+      // 4b. Diferencial cambiario del mes (transferencias / cambio de divisas)
+      const qTransf = query(
+        collection(db, 'transferencias_internas'),
+        where('fecha', '>=', inicio),
+        where('fecha', '<=', fin)
+      );
+      const snapTransf = await getDocs(qTransf);
+      const diferenciales = snapTransf.docs.reduce((acc, d) => acc + (Number(d.data().diferencial_usd) || 0), 0);
+
       // 5. Cálculo de ganancias
       const gananciaBruta = ventasTotales - cogs;
-      const gananciaNeta = gananciaBruta - gastosOp;
+      const gananciaNeta = gananciaBruta - gastosOp + diferenciales;
       const gananciaNetaPorSocio = gananciaNeta / 2;
 
       setMetricas({
         mes: `${MES_LABELS[selectedMonth]} ${selectedYear}`,
-        ventasTotales, cogs, gananciaBruta, gastosOp, gananciaNeta,
+        ventasTotales, cogs, gananciaBruta, gastosOp, diferenciales, gananciaNeta,
         gananciaNetaPorSocio,
         retirosYsmael, retirosVictor, retirosTotal,
         cantidadVentas: ventas.length,
@@ -169,6 +178,7 @@ export default function ReportesCierre() {
           <div class="card red"><div class="label">Costo Mercancía (COGS)</div><div class="value">${fmt(metricas.cogs)}</div></div>
           <div class="card green"><div class="label">Ganancia Bruta</div><div class="value">${fmt(metricas.gananciaBruta)}</div></div>
           <div class="card red"><div class="label">Gastos Operativos</div><div class="value">${fmt(metricas.gastosOp)}</div></div>
+          <div class="card ${metricas.diferenciales >= 0 ? 'green' : 'red'}"><div class="label">Diferencial Cambiario</div><div class="value">${metricas.diferenciales >= 0 ? '+' : '-'}${fmt(Math.abs(metricas.diferenciales))}</div></div>
         </div>
         <div class="card ${metricas.gananciaNeta >= 0 ? 'green' : 'red'}" style="margin-bottom:20px">
           <div class="label">Ganancia Neta del Mes</div>
@@ -209,6 +219,7 @@ export default function ReportesCierre() {
         cogs: metricas.cogs,
         ganancia_bruta: metricas.gananciaBruta,
         gastos_operativos: metricas.gastosOp,
+        diferencial_cambiario: metricas.diferenciales,
         ganancia_neta: metricas.gananciaNeta,
         retiros_ysmael: metricas.retirosYsmael,
         retiros_victor: metricas.retirosVictor,
@@ -349,6 +360,7 @@ export default function ReportesCierre() {
                     <MetricaCard label="COGS" value={fmt(metricas.cogs)} color="red" subtitle="Costo mercancía vendida" />
                     <MetricaCard label="Ganancia Bruta" value={fmt(metricas.gananciaBruta)} color={metricas.gananciaBruta >= 0 ? 'green' : 'red'} />
                     <MetricaCard label="Gastos Operativos" value={fmt(metricas.gastosOp)} color="red" />
+                    <MetricaCard label="Diferencial Cambiario" value={`${metricas.diferenciales >= 0 ? '+' : '-'}${fmt(Math.abs(metricas.diferenciales))}`} color={metricas.diferenciales >= 0 ? 'green' : 'red'} subtitle="Cambios de divisa" />
                   </div>
 
                   <div className={`rounded-2xl p-6 shadow-sm border-2 ${metricas.gananciaNeta >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
@@ -420,6 +432,7 @@ export default function ReportesCierre() {
                       <th className="px-5 py-4 text-right">Ventas</th>
                       <th className="px-5 py-4 text-right">COGS</th>
                       <th className="px-5 py-4 text-right">G. Operativos</th>
+                      <th className="px-5 py-4 text-right">Dif. Camb</th>
                       <th className="px-5 py-4 text-right">G. Neta</th>
                       <th className="px-5 py-4 text-right">Neto Ysmael</th>
                       <th className="px-5 py-4 text-right">Neto Víctor</th>
@@ -432,6 +445,9 @@ export default function ReportesCierre() {
                         <td className="px-5 py-4 text-right text-blue-600 font-semibold">{fmt(cierre.ventas_totales)}</td>
                         <td className="px-5 py-4 text-right text-red-500">{fmt(cierre.cogs)}</td>
                         <td className="px-5 py-4 text-right text-orange-500">{fmt(cierre.gastos_operativos)}</td>
+                        <td className={`px-5 py-4 text-right font-semibold ${Number(cierre.diferencial_cambiario) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {Number(cierre.diferencial_cambiario) >= 0 ? '+' : '-'}{fmt(Math.abs(Number(cierre.diferencial_cambiario)))}
+                        </td>
                         <td className={`px-5 py-4 text-right font-black ${cierre.ganancia_neta >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {fmt(cierre.ganancia_neta)}
                         </td>
@@ -463,6 +479,7 @@ export default function ReportesCierre() {
                   <div className="flex justify-between font-medium"><span>Ventas Totales:</span><span className="font-bold text-blue-600">{fmt(metricas.ventasTotales)}</span></div>
                   <div className="flex justify-between font-medium"><span>Costo Mercancía (COGS):</span><span className="font-bold text-red-600">-{fmt(metricas.cogs)}</span></div>
                   <div className="flex justify-between font-medium"><span>Gastos Operativos:</span><span className="font-bold text-orange-600">-{fmt(metricas.gastosOp)}</span></div>
+                  <div className="flex justify-between font-medium"><span>Diferencial Cambiario:</span><span className={`font-bold ${metricas.diferenciales >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{metricas.diferenciales >= 0 ? '+' : '-'}{fmt(Math.abs(metricas.diferenciales))}</span></div>
                   <div className="flex justify-between font-bold pt-2 border-t border-slate-200 text-sm">
                     <span>Ganancia Neta:</span>
                     <span className={metricas.gananciaNeta >= 0 ? 'text-emerald-700' : 'text-red-700'}>{fmt(metricas.gananciaNeta)}</span>

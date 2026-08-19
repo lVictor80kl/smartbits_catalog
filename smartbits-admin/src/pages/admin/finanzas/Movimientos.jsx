@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
+import { calcularDiferencial, derivarTasaReal, calcularDestino } from '../../../utils/diferencialCambiario';
 import { 
   TrendingDown, Users, ArrowRightLeft, PlusCircle, Search, Trash2, Edit2, 
   Loader2, Filter, AlertCircle, CheckCircle, Calendar, RefreshCw, X, Save
@@ -106,6 +107,64 @@ export default function Movimientos() {
   // Cuenta/moneda seleccionada para el gasto operativo
   const cuentaFormGasto = todasCuentas.find(c => c.key === formGasto.metodo_pago);
   const esFormGastoBs = cuentaFormGasto?.moneda === 'BS';
+
+  // Cuentas/monedas seleccionadas para la transferencia
+  const cuentaTransOrigen = todasCuentas.find(c => c.key === formTransfer.cuenta_origen);
+  const cuentaTransDestino = todasCuentas.find(c => c.key === formTransfer.cuenta_destino);
+  const monedaTransOrigen = cuentaTransOrigen?.moneda || 'USD';
+  const monedaTransDestino = cuentaTransDestino?.moneda || 'USD';
+  const esCambioDivisa = monedaTransOrigen !== monedaTransDestino;
+
+  // Sincronización bidireccional en el formulario de transferencia
+  const syncDestinoDesdeTasa = (p, montoOrigen, tasa) => {
+    const destino = calcularDestino({
+      montoOrigen, tasa,
+      monedaOrigen: monedaTransOrigen,
+      monedaDestino: monedaTransDestino
+    });
+    return Number.isFinite(destino) ? destino.toFixed(2) : p.monto_destino;
+  };
+  const handleTransOrigenChange = (e) => {
+    const val = e.target.value;
+    setFormTransfer(p => {
+      const up = { ...p, monto_origen: val };
+      if (esCambioDivisa && val && p.tasa_cambio) {
+        up.monto_destino = syncDestinoDesdeTasa(p, val, p.tasa_cambio);
+      }
+      return up;
+    });
+  };
+  const handleTransTasaChange = (e) => {
+    const val = e.target.value;
+    setFormTransfer(p => {
+      const up = { ...p, tasa_cambio: val };
+      if (esCambioDivisa && p.monto_origen && val) {
+        up.monto_destino = syncDestinoDesdeTasa(p, p.monto_origen, val);
+      }
+      return up;
+    });
+  };
+  const handleTransDestinoChange = (e) => {
+    const val = e.target.value;
+    setFormTransfer(p => {
+      const up = { ...p, monto_destino: val };
+      if (esCambioDivisa && p.monto_origen && val) {
+        const tasa = derivarTasaReal({
+          montoOrigen: p.monto_origen, montoDestino: val,
+          monedaOrigen: monedaTransOrigen,
+          monedaDestino: monedaTransDestino
+        });
+        if (tasa !== null && Number.isFinite(tasa)) up.tasa_cambio = tasa.toFixed(2);
+      }
+      return up;
+    });
+  };
+
+  // Formato de monto con moneda
+  const fmtMontoMoneda = (moneda, monto) => moneda === 'BS'
+    ? `Bs ${Number(monto).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `$${Number(monto).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const monedaDeCuenta = (key) => todasCuentas.find(c => c.key === key)?.moneda || 'USD';
 
   const getCuentaLabel = (key) => {
     const found = todasCuentas.find(c => c.key === key);
@@ -224,15 +283,44 @@ export default function Movimientos() {
         if (!formTransfer.monto_origen) throw new Error("Ingresa el monto a transferir.");
         if (formTransfer.cuenta_origen === formTransfer.cuenta_destino) throw new Error("Las cuentas origen y destino deben ser distintas.");
         const montoSale = Number(formTransfer.monto_origen);
-        const montoLlega = Number(formTransfer.monto_destino || formTransfer.monto_origen);
+        const monedaOrigen = monedaTransOrigen;
+        const monedaDestino = monedaTransDestino;
+        const cambioDivisa = monedaOrigen !== monedaDestino;
+        const montoLlega = (() => {
+          const destinoManual = Number(formTransfer.monto_destino);
+          if (destinoManual && destinoManual > 0) return destinoManual;
+          if (cambioDivisa) {
+            return calcularDestino({
+              montoOrigen: montoSale,
+              tasa: Number(formTransfer.tasa_cambio) || tasaCambio,
+              monedaOrigen,
+              monedaDestino
+            });
+          }
+          return montoSale;
+        })();
         if (isNaN(montoSale) || montoSale <= 0 || isNaN(montoLlega) || montoLlega <= 0) throw new Error("Montos inválidos");
+
+        const tasaReal = cambioDivisa ? (Number(formTransfer.tasa_cambio) || tasaCambio) : null;
+        const tasaReferencia = tasaCambio;
+        const diferencialUsd = calcularDiferencial({
+          montoOrigen: montoSale,
+          montoDestino: montoLlega,
+          monedaOrigen,
+          monedaDestino,
+          tasaReferencia
+        });
 
         await addDoc(collection(db, 'transferencias_internas'), {
           cuenta_origen: formTransfer.cuenta_origen,
           cuenta_destino: formTransfer.cuenta_destino,
           monto_origen: montoSale,
           monto_destino: montoLlega,
-          tasa_cambio: formTransfer.tasa_cambio ? Number(formTransfer.tasa_cambio) : null,
+          tasa_cambio: tasaReal,
+          tasa_referencia: tasaReferencia,
+          moneda_origen: monedaOrigen,
+          moneda_destino: monedaDestino,
+          diferencial_usd: diferencialUsd,
           concepto: formTransfer.concepto || 'Transferencia entre cuentas propias',
           fecha: serverTimestamp()
         });
@@ -604,27 +692,51 @@ export default function Movimientos() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Monto que sale</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Monto que sale ({monedaTransOrigen})</label>
                 <input
                   type="number" step="0.01" min="0.01"
                   placeholder="0.00"
                   value={formTransfer.monto_origen}
-                  onChange={e => setFormTransfer(p => ({ ...p, monto_origen: e.target.value }))}
+                  onChange={handleTransOrigenChange}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-brand-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Monto que llega</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Monto que llega ({monedaTransDestino})</label>
                 <input
                   type="number" step="0.01" min="0.01"
                   placeholder={formTransfer.monto_origen || '0.00'}
                   value={formTransfer.monto_destino}
-                  onChange={e => setFormTransfer(p => ({ ...p, monto_destino: e.target.value }))}
+                  onChange={handleTransDestinoChange}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                  required
                 />
               </div>
+
+              {esCambioDivisa && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tasa real de la operación (Bs/$)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder={tasaCambio.toFixed(2)}
+                      value={formTransfer.tasa_cambio}
+                      onChange={handleTransTasaChange}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormTransfer(p => ({ ...p, tasa_cambio: tasaCambio.toString() }))}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                    >
+                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -813,10 +925,17 @@ export default function Movimientos() {
                           <span className="text-red-600">-${Number(item.monto).toFixed(2)}</span>
                         )}
                         {item.tipo_mov === 'transferencia' && (
-                          <span className="text-blue-600">
-                            ${Number(item.monto_origen).toFixed(2)}
-                            {item.monto_destino && item.monto_destino !== item.monto_origen && ` (${Number(item.monto_destino).toFixed(2)})`}
-                          </span>
+                          <div className="text-right">
+                            <span className="text-blue-600">
+                              {fmtMontoMoneda(item.moneda_origen || monedaDeCuenta(item.cuenta_origen), item.monto_origen)}
+                              {item.monto_destino && item.monto_destino !== item.monto_origen && ` → ${fmtMontoMoneda(item.moneda_destino || monedaDeCuenta(item.cuenta_destino), item.monto_destino)}`}
+                            </span>
+                            {Number(item.diferencial_usd) !== 0 && (
+                              <div className={`text-[10px] font-black ${Number(item.diferencial_usd) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {Number(item.diferencial_usd) > 0 ? 'Ganancia' : 'Pérdida'} camb.: {fmtMontoMoneda('USD', Math.abs(Number(item.diferencial_usd)))}
+                              </div>
+                            )}
+                          </div>
                         )}
                         {item.tipo_mov === 'reembolso' && (
                           <span className="text-emerald-600">+${Number(item.monto).toFixed(2)}</span>
