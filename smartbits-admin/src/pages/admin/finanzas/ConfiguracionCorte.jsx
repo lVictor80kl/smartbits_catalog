@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs } from 'fireb
 import { db } from '../../../firebase';
 import { ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, RefreshCw, Layers, DollarSign, Users, Landmark, Sparkles } from 'lucide-react';
 import { useCorteContable } from '../../../utils/useCorteContable';
+import { getCostoTotal } from '../../../utils/costos';
 
 const CUENTAS_BASE = [
   { key: 'efectivo', label: 'Efectivo', moneda: 'USD' },
@@ -82,13 +83,13 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
         laptopsSnap.docs.forEach(docSnap => {
           const l = docSnap.data();
           if (estadosActivos.includes(l.disponibilidad)) {
-            totalInv += Number(l.costo_total || l.costo_total_usd || 0);
+            totalInv += getCostoTotal(l);
           }
         });
         compSnap.docs.forEach(docSnap => {
           const c = docSnap.data();
           if (estadosActivos.includes(c.disponibilidad)) {
-            totalInv += Number(c.costo_total || c.costo_total_usd || 0);
+            totalInv += getCostoTotal(c);
           }
         });
         setInventarioSugerido(totalInv);

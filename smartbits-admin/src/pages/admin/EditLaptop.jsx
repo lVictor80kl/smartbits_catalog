@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
-import { getBancosConfig } from '../../utils/bancos';
+import { COMISIONES_POR_CUENTA } from '../../utils/bancos';
 import { useCuentasCaja } from '../../utils/useCuentasCaja';
 
 
@@ -54,7 +54,6 @@ export default function EditLaptop() {
     borrador: false,
   });
 
-  const [bancosList, setBancosList] = useState([]);
   const [pagosCompra, setPagosCompra] = useState([
     { metodoId: 'paypal', bancoNombre: 'PayPal', monto: '', comisionPct: 0 }
   ]);
@@ -64,9 +63,6 @@ export default function EditLaptop() {
   useEffect(() => {
     const fetchLaptop = async () => {
       try {
-        const bancos = await getBancosConfig();
-        setBancosList(bancos);
-
         if (!isEditMode) {
           setLoading(false);
           return;
@@ -166,12 +162,17 @@ export default function EditLaptop() {
   };
 
   // --- Lógica de Pagos Combinados y Comisiones ---
+  const normalizarLabel = (s) => (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const getComisionPorCuenta = (cuentaKey, cuentaLabel) => {
-    const banco = bancosList.find(b =>
-      (b.id && b.id === cuentaKey) ||
-      (b.nombre && b.nombre.toLowerCase() === (cuentaLabel || '').toLowerCase())
-    );
-    return banco ? (Number(banco.comision) || 0) : 0;
+    const key = String(cuentaKey || '').toLowerCase();
+    if (COMISIONES_POR_CUENTA[key] !== undefined) return COMISIONES_POR_CUENTA[key];
+    return COMISIONES_POR_CUENTA[normalizarLabel(cuentaLabel)] ?? 0;
   };
 
   const handleAddPago = () => {
@@ -418,7 +419,6 @@ export default function EditLaptop() {
         tasa_bcv: Number(formData.tasa_bcv) || 0,
         borrador: formData.borrador,
         costo_total: costoTotal,
-        costo_total_usd: costoTotalUsd,
         ganancia_estimada: gananciaEstimada,
       };
 

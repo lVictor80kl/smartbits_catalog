@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { doc, onSnapshot, collection, query, where, orderBy, limit, addDoc, updateDoc, increment, serverTimestamp, getDocs, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
+import { getCostoTotal } from '../../../utils/costos';
 import { 
   TrendingUp, TrendingDown, Users, Wallet, ArrowRightLeft, PlusCircle, 
   Settings, AlertTriangle, ShieldCheck, DollarSign, Landmark, RefreshCw,
@@ -145,12 +146,12 @@ export default function PanelPrincipal({ onNavigateTab }) {
   let totalInventarioActivo = 0;
   laptops.forEach(l => {
     if (estadosActivos.includes(l.disponibilidad)) {
-      totalInventarioActivo += Number(l.costo_total || l.costo_total_usd || 0);
+      totalInventarioActivo += getCostoTotal(l);
     }
   });
   componentes.forEach(c => {
     if (estadosActivos.includes(c.disponibilidad)) {
-      totalInventarioActivo += Number(c.costo_total || c.costo_total_usd || 0);
+      totalInventarioActivo += getCostoTotal(c);
     }
   });
 

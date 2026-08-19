@@ -2,6 +2,7 @@
 import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Package, Edit2, Save, X, RefreshCw, Layers, Check, TrendingDown } from 'lucide-react';
+import { getCostoTotal } from '../../../utils/costos';
 
 const ESTADOS_ACTIVOS = ['Disponible', 'Coming soon'];
 
@@ -43,8 +44,8 @@ export default function InventarioFinanciero() {
     const envio = Number(item.envio_usd ?? 0);
     const gastosFlete = adicionales + envio;
 
-    // Costo Total USD final
-    const costoTotalUSD = Number(item.costo_total_usd ?? item.costo_total ?? (costoMasComision + gastosFlete));
+    // Costo Total USD final (misma fuente en toda la app)
+    const costoTotalUSD = getCostoTotal(item);
 
     return {
       costoBase,
@@ -104,7 +105,6 @@ export default function InventarioFinanciero() {
         precio_venta: precio,
         costo_mas_comision,
         costo_total: costo_total_usd,
-        costo_total_usd,
       });
       setEditingId(null);
     } catch (e) {

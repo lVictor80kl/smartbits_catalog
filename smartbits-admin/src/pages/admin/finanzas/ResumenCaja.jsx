@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, updateDoc, addDoc, collection, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { Wallet, DollarSign, Plus, AlertTriangle, RefreshCw, Settings, X, Save, History, Landmark, Percent } from 'lucide-react';
-import { getBancosConfig, saveBancosConfig } from '../../../utils/bancos';
+import { Wallet, DollarSign, Plus, AlertTriangle, RefreshCw, Settings, X, Save, History, Landmark } from 'lucide-react';
 
 // Cuentas fijas del sistema (compatibilidad con esquema existente)
 const CUENTAS_FIJAS_USD = [
@@ -27,15 +26,11 @@ export default function ResumenCaja() {
   const [modalNueva, setModalNueva] = useState({ open: false, nombre: '', moneda: 'USD' });
   // Modal: Ajuste Manual
   const [modalAjuste, setModalAjuste] = useState({ open: false, cuentaKey: '', cuentaLabel: '', saldoActual: 0, nuevoSaldo: '', ajustador: '', motivo: '', saving: false });
-  // Modal: Comisiones de Bancos
-  const [modalBancos, setModalBancos] = useState({ open: false, list: [], saving: false, nuevoNombre: '', nuevaComision: '0' });
 
   // Cuentas dinamicas creadas por el usuario (guardadas como metadata en saldos._cuentas_dinamicas)
   const [cuentasDinamicas, setCuentasDinamicas] = useState([]);
 
   useEffect(() => {
-    getBancosConfig().then(list => setModalBancos(p => ({ ...p, list })));
-
     const unsubscribe = onSnapshot(doc(db, 'caja', 'saldos'), snap => {
       if (snap.exists()) {
         const data = snap.data();
@@ -175,13 +170,6 @@ export default function ResumenCaja() {
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg col-span-1 md:col-span-1">
           <div className="flex justify-between items-start">
             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total General Caja</p>
-            <button
-              onClick={() => setModalBancos(p => ({ ...p, open: true }))}
-              className="text-xs flex items-center gap-1 bg-white/10 hover:bg-white/20 text-white px-2.5 py-1 rounded-lg transition-colors"
-              title="Configurar comisiones bancarias"
-            >
-              <Percent className="w-3.5 h-3.5" /> Comisiones
-            </button>
           </div>
           <h2 className="text-3xl font-black mt-2">${totalGeneral.toLocaleString('en-US', { minimumFractionDigits: 2 })}</h2>
           <p className="text-slate-500 text-xs mt-1">USD + Bs convertido</p>
@@ -388,120 +376,6 @@ export default function ResumenCaja() {
                     Confirmar Ajuste
                   </button>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: Configuración de Comisiones Bancarias */}
-      {modalBancos.open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setModalBancos(p => ({ ...p, open: false }))} />
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Percent className="w-5 h-5 text-brand-600" /> Configuración de Comisiones Bancarias
-                </h3>
-                <button onClick={() => setModalBancos(p => ({ ...p, open: false }))} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <p className="text-xs text-gray-500 mb-4">
-                Estas comisiones porcentuales se usan al registrar la compra de inventario para calcular el <strong>Costo + Comisión</strong> automático.
-              </p>
-
-              <div className="space-y-3 max-h-60 overflow-y-auto pr-1 mb-4">
-                {modalBancos.list.map((banco, index) => (
-                  <div key={banco.id || index} className="flex items-center justify-between bg-gray-50 p-2.5 rounded-lg border border-gray-200">
-                    <span className="text-sm font-semibold text-gray-700">{banco.nombre}</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number" step="0.1" min="0"
-                        value={banco.comision}
-                        onChange={e => {
-                          const val = parseFloat(e.target.value) || 0;
-                          setModalBancos(p => {
-                            const newList = [...p.list];
-                            newList[index].comision = val;
-                            return { ...p, list: newList };
-                          });
-                        }}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded text-right text-sm font-bold focus:ring-2 focus:ring-brand-500"
-                      />
-                      <span className="text-sm font-bold text-gray-500">%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-5">
-                <p className="text-xs font-bold text-gray-600 uppercase mb-2">Agregar nuevo banco/método</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text" placeholder="Nombre banco (ej: BNC)"
-                    value={modalBancos.nuevoNombre}
-                    onChange={e => setModalBancos(p => ({ ...p, nuevoNombre: e.target.value }))}
-                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-brand-500"
-                  />
-                  <div className="relative w-24">
-                    <input
-                      type="number" step="0.1" min="0" placeholder="%"
-                      value={modalBancos.nuevaComision}
-                      onChange={e => setModalBancos(p => ({ ...p, nuevaComision: e.target.value }))}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm font-bold text-right pr-6 focus:ring-2 focus:ring-brand-500"
-                    />
-                    <span className="absolute right-2 top-1.5 text-sm text-gray-400 font-bold">%</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (!modalBancos.nuevoNombre.trim()) return;
-                      const newObj = {
-                        id: 'banco_' + Date.now(),
-                        nombre: modalBancos.nuevoNombre.trim(),
-                        comision: parseFloat(modalBancos.nuevaComision) || 0
-                      };
-                      setModalBancos(p => ({
-                        ...p,
-                        list: [...p.list, newObj],
-                        nuevoNombre: '',
-                        nuevaComision: '0'
-                      }));
-                    }}
-                    className="px-3 py-1.5 bg-slate-800 text-white rounded text-sm font-bold hover:bg-slate-900"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setModalBancos(p => ({ ...p, open: false }))}
-                  className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-lg"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={async () => {
-                    setModalBancos(p => ({ ...p, saving: true }));
-                    try {
-                      await saveBancosConfig(modalBancos.list);
-                      alert('Comisiones actualizadas correctamente.');
-                      setModalBancos(p => ({ ...p, open: false, saving: false }));
-                    } catch (e) {
-                      alert('Error al guardar: ' + e.message);
-                      setModalBancos(p => ({ ...p, saving: false }));
-                    }
-                  }}
-                  disabled={modalBancos.saving}
-                  className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50"
-                >
-                  {modalBancos.saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Guardar Comisiones
-                </button>
               </div>
             </div>
           </div>
