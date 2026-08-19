@@ -35,7 +35,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
   const [loadingData, setLoadingData] = useState(true);
 
   // Modales de acciones rápidas
-  const [modalGasto, setModalGasto] = useState({ open: false, categoria: 'publicidad', concepto: '', monto: '', metodo_pago: 'efectivo', saving: false });
+  const [modalGasto, setModalGasto] = useState({ open: false, categoria: 'publicidad', concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '', saving: false });
   const [modalRetiro, setModalRetiro] = useState({ open: false, socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo', saving: false });
   const [modalTransfer, setModalTransfer] = useState({ 
     open: false, cuenta_origen: 'binance', cuenta_destino: 'efectivo', 
@@ -132,6 +132,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // --- CÁLCULOS MATEMÁTICOS POST-CORTE ---
   const tasaCambio = Number(caja.tasa_cambio) || Number(corte?.tasa_cambio_corte) || 1;
 
+  // Cuenta/moneda seleccionada para el gasto operativo
+  const cuentaGasto = todasCuentas.find(c => c.key === modalGasto.metodo_pago);
+  const esGastoBs = cuentaGasto?.moneda === 'BS';
+
   // 1. Caja Total USD
   const todasUSD = todasCuentas.filter(c => c.moneda === 'USD');
   const todasBS = todasCuentas.filter(c => c.moneda === 'BS');
@@ -192,12 +196,20 @@ export default function PanelPrincipal({ onNavigateTab }) {
     const montoNum = Number(modalGasto.monto);
     if (isNaN(montoNum) || montoNum <= 0) return alert("Monto inválido");
 
+    const cuentaSeleccionada = todasCuentas.find(c => c.key === modalGasto.metodo_pago);
+    const esBs = cuentaSeleccionada?.moneda === 'BS';
+    const tasaUsada = esBs ? (Number(modalGasto.tasa) || tasaCambio) : 1;
+    const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
+
     setModalGasto(p => ({ ...p, saving: true }));
     try {
       await addDoc(collection(db, 'gastos_operativos'), {
         categoria: modalGasto.categoria,
         concepto: modalGasto.concepto,
-        monto: montoNum,
+        monto: montoUsd,
+        monto_original: montoNum,
+        moneda_original: esBs ? 'BS' : 'USD',
+        tasa_cambio: tasaUsada,
         metodo_pago: modalGasto.metodo_pago,
         fecha: serverTimestamp()
       });
@@ -209,7 +221,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
         });
       }
 
-      setModalGasto({ open: false, categoria: 'publicidad', concepto: '', monto: '', metodo_pago: 'efectivo', saving: false });
+      setModalGasto({ open: false, categoria: 'publicidad', concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '', saving: false });
       alert("✅ Gasto operativo registrado correctamente.");
     } catch (err) {
       console.error(err);
@@ -520,7 +532,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Acciones Rápidas del Día</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
-            onClick={() => setModalGasto(p => ({ ...p, open: true }))}
+            onClick={() => setModalGasto(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
             className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 font-bold text-sm border border-orange-200/80 transition-colors"
           >
             <TrendingDown className="w-5 h-5 text-orange-600" />
@@ -771,16 +783,42 @@ export default function PanelPrincipal({ onNavigateTab }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Monto (USD)</label>
-                <input
-                  type="number" step="0.01" min="0.01"
-                  placeholder="0.00"
-                  value={modalGasto.monto}
-                  onChange={e => setModalGasto(p => ({ ...p, monto: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
-                  required
-                />
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Monto ({esGastoBs ? 'Bs' : 'USD'})</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">{esGastoBs ? 'Bs' : '$'}</span>
+                  <input
+                    type="number" step="0.01" min="0.01"
+                    placeholder="0.00"
+                    value={modalGasto.monto}
+                    onChange={e => setModalGasto(p => ({ ...p, monto: e.target.value }))}
+                    className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                    required
+                  />
+                </div>
               </div>
+
+              {esGastoBs && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa de cambio (Bs/$)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder={tasaCambio.toFixed(2)}
+                      value={modalGasto.tasa}
+                      onChange={e => setModalGasto(p => ({ ...p, tasa: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setModalGasto(p => ({ ...p, tasa: tasaCambio.toString() }))}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                    >
+                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Descontar de la cuenta</label>

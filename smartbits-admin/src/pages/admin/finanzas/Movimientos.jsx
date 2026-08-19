@@ -27,13 +27,15 @@ export default function Movimientos() {
 
   // Cuentas dinámicas desde Firestore
   const [cuentasDinamicas, setCuentasDinamicas] = useState([]);
+  const [tasaCaja, setTasaCaja] = useState(1);
 
   // Formulario Gasto Operativo
   const [formGasto, setFormGasto] = useState({
     categoria: 'publicidad',
     concepto: '',
     monto: '',
-    metodo_pago: 'efectivo'
+    metodo_pago: 'efectivo',
+    tasa: ''
   });
 
   // Formulario Reembolso
@@ -84,6 +86,7 @@ export default function Movimientos() {
       if (snap.exists()) {
         const data = snap.data();
         setCuentasDinamicas(data._cuentas_dinamicas || []);
+        setTasaCaja(Number(data.tasa_cambio) || 1);
       }
     });
     return () => unsubCaja();
@@ -97,6 +100,12 @@ export default function Movimientos() {
       moneda: c.moneda
     }))
   ];
+
+  const tasaCambio = Number(tasaCaja) || Number(corte?.tasa_cambio_corte) || 1;
+
+  // Cuenta/moneda seleccionada para el gasto operativo
+  const cuentaFormGasto = todasCuentas.find(c => c.key === formGasto.metodo_pago);
+  const esFormGastoBs = cuentaFormGasto?.moneda === 'BS';
 
   const getCuentaLabel = (key) => {
     const found = todasCuentas.find(c => c.key === key);
@@ -162,10 +171,18 @@ export default function Movimientos() {
         const montoNum = Number(formGasto.monto);
         if (isNaN(montoNum) || montoNum <= 0) throw new Error("Monto inválido");
 
+        const cuentaSeleccionada = todasCuentas.find(c => c.key === formGasto.metodo_pago);
+        const esBs = cuentaSeleccionada?.moneda === 'BS';
+        const tasaUsada = esBs ? (Number(formGasto.tasa) || tasaCambio) : 1;
+        const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
+
         await addDoc(collection(db, 'gastos_operativos'), {
           categoria: formGasto.categoria,
           concepto: formGasto.concepto,
-          monto: montoNum,
+          monto: montoUsd,
+          monto_original: montoNum,
+          moneda_original: esBs ? 'BS' : 'USD',
+          tasa_cambio: tasaUsada,
           metodo_pago: formGasto.metodo_pago,
           fecha: serverTimestamp()
         });
@@ -176,7 +193,7 @@ export default function Movimientos() {
             updated_at: new Date()
           });
         }
-        setFormGasto({ categoria: 'publicidad', concepto: '', monto: '', metodo_pago: 'efectivo' });
+        setFormGasto({ categoria: 'publicidad', concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '' });
         alert("✅ Gasto operativo registrado.");
       } 
       else if (tipoOperacion === 'retiro') {
@@ -267,8 +284,9 @@ export default function Movimientos() {
     try {
       if (item.tipo_mov === 'gasto_op') {
         if (item.metodo_pago && item.monto) {
+          const montoReintegrar = Number(item.monto_original) || Number(item.monto);
           await updateDoc(doc(db, 'caja', 'saldos'), {
-            [item.metodo_pago]: increment(Number(item.monto)),
+            [item.metodo_pago]: increment(montoReintegrar),
             updated_at: new Date()
           });
         }
@@ -439,9 +457,9 @@ export default function Movimientos() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Monto (USD)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Monto ({esFormGastoBs ? 'Bs' : 'USD'})</label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">$</span>
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">{esFormGastoBs ? 'Bs' : '$'}</span>
                   <input
                     type="number" step="0.01" min="0.01"
                     placeholder="0.00"
@@ -452,6 +470,29 @@ export default function Movimientos() {
                   />
                 </div>
               </div>
+
+              {esFormGastoBs && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tasa de cambio (Bs/$)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder={tasaCambio.toFixed(2)}
+                      value={formGasto.tasa}
+                      onChange={e => setFormGasto(p => ({ ...p, tasa: e.target.value }))}
+                      className="w-full pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormGasto(p => ({ ...p, tasa: tasaCambio.toString() }))}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                    >
+                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Descontar de cuenta</label>
@@ -762,7 +803,11 @@ export default function Movimientos() {
 
                       <td className="px-4 py-3 text-right font-black">
                         {item.tipo_mov === 'gasto_op' && (
-                          <span className="text-orange-600">-${Number(item.monto).toFixed(2)}</span>
+                          <span className="text-orange-600">
+                          {item.moneda_original === 'BS'
+                            ? `-Bs ${Number(item.monto_original).toFixed(2)}${item.monto ? ` (≈$${Number(item.monto).toFixed(2)})` : ''}`
+                            : `-$${Number(item.monto).toFixed(2)}`}
+                        </span>
                         )}
                         {item.tipo_mov === 'retiro' && (
                           <span className="text-red-600">-${Number(item.monto).toFixed(2)}</span>
