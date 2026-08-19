@@ -37,7 +37,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
   // Modales de acciones rápidas
   const [modalGasto, setModalGasto] = useState({ open: false, categoria: 'publicidad', concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '', saving: false });
-  const [modalRetiro, setModalRetiro] = useState({ open: false, socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo', saving: false });
+  const [modalRetiro, setModalRetiro] = useState({ open: false, socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo', tasa: '', saving: false });
   const [modalTransfer, setModalTransfer] = useState({ 
     open: false, cuenta_origen: 'binance', cuenta_destino: 'efectivo', 
     monto_origen: '', monto_destino: '', tasa_cambio: '', concepto: '', saving: false 
@@ -141,6 +141,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // Cuenta/moneda seleccionada para la venta rápida
   const cuentaVenta = todasCuentas.find(c => c.key === modalVenta.metodo_pago);
   const esVentaBs = cuentaVenta?.moneda === 'BS';
+
+  // Cuenta/moneda seleccionada para el retiro de socio
+  const cuentaRetiro = todasCuentas.find(c => c.key === modalRetiro.cuenta_salida);
+  const esRetiroBs = cuentaRetiro?.moneda === 'BS';
 
   // Cuentas/monedas seleccionadas para la transferencia
   const cuentaTransOrigen = todasCuentas.find(c => c.key === modalTransfer.cuenta_origen);
@@ -367,12 +371,20 @@ export default function PanelPrincipal({ onNavigateTab }) {
     const montoNum = Number(modalRetiro.monto);
     if (isNaN(montoNum) || montoNum <= 0) return alert("Monto inválido");
 
+    const cuentaSeleccionada = todasCuentas.find(c => c.key === modalRetiro.cuenta_salida);
+    const esBs = cuentaSeleccionada?.moneda === 'BS';
+    const tasaUsada = esBs ? (Number(modalRetiro.tasa) || tasaCambio) : 1;
+    const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
+
     setModalRetiro(p => ({ ...p, saving: true }));
     try {
       await addDoc(collection(db, 'gastos_personales'), {
         socio: modalRetiro.socio,
         concepto: modalRetiro.concepto,
-        monto: montoNum,
+        monto: montoUsd,
+        monto_original: montoNum,
+        moneda_original: esBs ? 'BS' : 'USD',
+        tasa_cambio: esBs ? tasaUsada : null,
         metodo_pago: modalRetiro.cuenta_salida,
         cuenta_salida: modalRetiro.cuenta_salida,
         es_deuda: true,
@@ -386,7 +398,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
         });
       }
 
-      setModalRetiro({ open: false, socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo', saving: false });
+      setModalRetiro({ open: false, socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo', tasa: '', saving: false });
       alert("✅ Retiro registrado y descontado de caja.");
     } catch (err) {
       console.error(err);
@@ -719,7 +731,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
           </button>
 
           <button
-            onClick={() => setModalRetiro(p => ({ ...p, open: true }))}
+            onClick={() => setModalRetiro(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
             className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-800 font-bold text-sm border border-red-200/80 transition-colors"
           >
             <Users className="w-5 h-5 text-red-600" />
@@ -874,7 +886,11 @@ export default function PanelPrincipal({ onNavigateTab }) {
                         <p className="text-xs text-slate-400 capitalize">Cuenta salida: {m.metodo_pago || m.cuenta_salida} • {fechaStr}</p>
                       </div>
                     </div>
-                    <span className="text-sm font-black text-red-600">-${Number(m.monto).toFixed(2)}</span>
+                    <span className="text-sm font-black text-red-600">
+                        {m.moneda_original === 'BS'
+                          ? `-Bs ${Number(m.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${m.monto ? ` (≈$${Number(m.monto).toFixed(2)})` : ''}`
+                          : `-$${Number(m.monto).toFixed(2)}`}
+                      </span>
                   </div>
                 );
               }
@@ -1195,16 +1211,42 @@ export default function PanelPrincipal({ onNavigateTab }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Monto (USD)</label>
-                <input
-                  type="number" step="0.01" min="0.01"
-                  placeholder="0.00"
-                  value={modalRetiro.monto}
-                  onChange={e => setModalRetiro(p => ({ ...p, monto: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
-                  required
-                />
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Monto ({esRetiroBs ? 'Bs' : 'USD'})</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">{esRetiroBs ? 'Bs' : '$'}</span>
+                  <input
+                    type="number" step="0.01" min="0.01"
+                    placeholder="0.00"
+                    value={modalRetiro.monto}
+                    onChange={e => setModalRetiro(p => ({ ...p, monto: e.target.value }))}
+                    className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                    required
+                  />
+                </div>
               </div>
+
+              {esRetiroBs && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa de cambio (Bs/$)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder={tasaCambio.toFixed(2)}
+                      value={modalRetiro.tasa}
+                      onChange={e => setModalRetiro(p => ({ ...p, tasa: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setModalRetiro(p => ({ ...p, tasa: tasaCambio.toString() }))}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                    >
+                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Cuenta de salida</label>
