@@ -71,6 +71,7 @@ export default function Movimientos() {
   const [transferencias, setTransferencias] = useState([]);
   const [reembolsos, setReembolsos] = useState([]);
   const [comprasInventario, setComprasInventario] = useState([]);
+  const [ingresos, setIngresos] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Filtros de tabla
@@ -207,6 +208,12 @@ export default function Movimientos() {
     const qComp = query(collection(db, 'compras_inventario'), where('fecha', '>=', fechaCorte), orderBy('fecha', 'desc'));
     const unsubComp = onSnapshot(qComp, snap => {
       setComprasInventario(snap.docs.map(d => ({ id: d.id, coleccion: 'compras_inventario', tipo_mov: 'compra_inventario', ...d.data() })));
+    });
+
+    // 6. Ingresos por Ventas post-corte
+    const qIng = query(collection(db, 'historico_ingresos'), where('fecha', '>=', fechaCorte), orderBy('fecha', 'desc'));
+    const unsubIng = onSnapshot(qIng, snap => {
+      setIngresos(snap.docs.map(d => ({ id: d.id, coleccion: 'historico_ingresos', tipo_mov: 'venta', ...d.data() })));
       setLoadingData(false);
     });
 
@@ -216,6 +223,7 @@ export default function Movimientos() {
       unsubTrans();
       unsubReemb();
       unsubComp();
+      unsubIng();
     };
   }, [corte]);
 
@@ -416,6 +424,20 @@ export default function Movimientos() {
           });
         }
         await deleteDoc(doc(db, 'compras_inventario', item.id));
+      } else if (item.tipo_mov === 'venta') {
+        if (item.metodo_pago && (item.monto || item.monto_original)) {
+          const montoReintegrar = item.moneda_original === 'BS'
+            ? Number(item.monto_original || item.monto || 0)
+            : Number(item.monto || item.monto_original || 0);
+          await updateDoc(doc(db, 'caja', 'saldos'), {
+            [item.metodo_pago]: increment(-montoReintegrar),
+            updated_at: new Date()
+          });
+        }
+        if (item.id_venta_detalle) {
+          await deleteDoc(doc(db, 'ventas', item.id_venta_detalle));
+        }
+        await deleteDoc(doc(db, 'historico_ingresos', item.id));
       }
 
       setDeleteModal({ open: false, item: null, processing: false });
@@ -433,7 +455,8 @@ export default function Movimientos() {
     ...gastosPers,
     ...transferencias,
     ...reembolsos,
-    ...comprasInventario
+    ...comprasInventario,
+    ...ingresos
   ].filter(m => {
     if (filtroTipo === 'gasto_op' && m.tipo_mov !== 'gasto_op') return false;
     if (filtroTipo === 'compra_inventario' && m.tipo_mov !== 'compra_inventario') return false;
@@ -441,6 +464,7 @@ export default function Movimientos() {
     if (filtroTipo === 'retiro_victor' && (m.tipo_mov !== 'retiro' || m.socio !== 'victor')) return false;
     if (filtroTipo === 'transferencia' && m.tipo_mov !== 'transferencia') return false;
     if (filtroTipo === 'reembolso' && m.tipo_mov !== 'reembolso') return false;
+    if (filtroTipo === 'venta' && m.tipo_mov !== 'venta') return false;
 
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase();
@@ -832,6 +856,7 @@ export default function Movimientos() {
               <option value="gasto_op">Gastos Operativos</option>
               <option value="compra_inventario">Compras Inventario</option>
               <option value="reembolso">Reembolsos / Ingresos</option>
+              <option value="venta">Ventas</option>
               <option value="retiro_ysmael">Retiros Ysmael</option>
               <option value="retiro_victor">Retiros Víctor</option>
               <option value="transferencia">Transferencias Internas</option>
@@ -900,6 +925,11 @@ export default function Movimientos() {
                             Reembolso
                           </span>
                         )}
+                        {item.tipo_mov === 'venta' && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                            Venta
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-4 py-3 font-semibold text-slate-800">
@@ -939,6 +969,13 @@ export default function Movimientos() {
                         )}
                         {item.tipo_mov === 'reembolso' && (
                           <span className="text-emerald-600">+${Number(item.monto).toFixed(2)}</span>
+                        )}
+                        {item.tipo_mov === 'venta' && (
+                          <span className="text-emerald-600">
+                            {item.moneda_original === 'BS'
+                              ? `+Bs ${Number(item.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${item.monto ? ` (≈$${Number(item.monto).toFixed(2)})` : ''}`
+                              : `+$${Number(item.monto).toFixed(2)}`}
+                          </span>
                         )}
                         {item.tipo_mov === 'compra_inventario' && !item.es_ingreso && (
                           <span className="text-indigo-600">-${Number(item.monto).toFixed(2)}</span>

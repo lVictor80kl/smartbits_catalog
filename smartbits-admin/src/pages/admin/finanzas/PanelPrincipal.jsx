@@ -42,6 +42,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
     open: false, cuenta_origen: 'binance', cuenta_destino: 'efectivo', 
     monto_origen: '', monto_destino: '', tasa_cambio: '', concepto: '', saving: false 
   });
+  const [modalVenta, setModalVenta] = useState({ open: false, concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '', costo: '', saving: false });
   
   // Modal de ajuste de caja
   const [modalAjuste, setModalAjuste] = useState({ open: false, cuentaKey: '', cuentaLabel: '', saldoActual: 0, nuevoSaldo: '', ajustador: 'Ysmael', motivo: '', saving: false });
@@ -136,6 +137,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // Cuenta/moneda seleccionada para el gasto operativo
   const cuentaGasto = todasCuentas.find(c => c.key === modalGasto.metodo_pago);
   const esGastoBs = cuentaGasto?.moneda === 'BS';
+
+  // Cuenta/moneda seleccionada para la venta rápida
+  const cuentaVenta = todasCuentas.find(c => c.key === modalVenta.metodo_pago);
+  const esVentaBs = cuentaVenta?.moneda === 'BS';
 
   // Cuentas/monedas seleccionadas para la transferencia
   const cuentaTransOrigen = todasCuentas.find(c => c.key === modalTransfer.cuenta_origen);
@@ -289,6 +294,69 @@ export default function PanelPrincipal({ onNavigateTab }) {
       console.error(err);
       alert("Error: " + err.message);
       setModalGasto(p => ({ ...p, saving: false }));
+    }
+  };
+
+  // 1b. Venta Rápida (servicios, componentes sin estructura de costo)
+  const handleGuardarVenta = async (e) => {
+    e.preventDefault();
+    if (!modalVenta.monto || !modalVenta.concepto) return alert("Completa los campos de concepto y monto.");
+    const montoNum = Number(modalVenta.monto);
+    if (isNaN(montoNum) || montoNum <= 0) return alert("Monto inválido.");
+
+    const cuentaSeleccionada = todasCuentas.find(c => c.key === modalVenta.metodo_pago);
+    const esBs = cuentaSeleccionada?.moneda === 'BS';
+    const tasaUsada = esBs ? (Number(modalVenta.tasa) || tasaCambio) : 1;
+    const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
+    const costoUsd = Math.max(Number(modalVenta.costo) || 0, 0);
+    const ganancia = montoUsd - costoUsd;
+
+    setModalVenta(p => ({ ...p, saving: true }));
+    try {
+      // 1. Sumar el dinero real a la cuenta de caja
+      await updateDoc(doc(db, 'caja', 'saldos'), {
+        [modalVenta.metodo_pago]: increment(montoNum),
+        updated_at: new Date()
+      });
+
+      // 2. Registrar ingreso en historico_ingresos
+      let idVentaDetalle = null;
+      if (costoUsd > 0) {
+        const ventaDetalle = await addDoc(collection(db, 'ventas'), {
+          fecha: serverTimestamp(),
+          modelo: modalVenta.concepto,
+          cliente: 'Venta rápida',
+          metodos_pago: [{ metodo: modalVenta.metodo_pago, montoUSD: montoUsd }],
+          precio_venta_usd: montoUsd,
+          costo_total: costoUsd,
+          ganancia,
+          tasa_venta: esBs ? tasaUsada : null,
+          descripcion: modalVenta.concepto,
+          es_venta_rapida: true
+        });
+        idVentaDetalle = ventaDetalle.id;
+      }
+
+      await addDoc(collection(db, 'historico_ingresos'), {
+        fecha: serverTimestamp(),
+        concepto: modalVenta.concepto,
+        monto: montoUsd,
+        monto_original: montoNum,
+        moneda_original: esBs ? 'BS' : 'USD',
+        tasa_cambio: esBs ? tasaUsada : null,
+        ganancia,
+        costo_usd: costoUsd,
+        id_venta_detalle: idVentaDetalle,
+        metodo_pago: modalVenta.metodo_pago,
+        tipo: 'venta_rapida'
+      });
+
+      setModalVenta({ open: false, concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '', costo: '', saving: false });
+      alert("✅ Venta registrada en caja e historial.");
+    } catch (err) {
+      console.error(err);
+      alert("Error: " + err.message);
+      setModalVenta(p => ({ ...p, saving: false }));
     }
   };
 
@@ -633,13 +701,21 @@ export default function PanelPrincipal({ onNavigateTab }) {
       {/* ACCIONES RÁPIDAS */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Acciones Rápidas del Día</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <button
             onClick={() => setModalGasto(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
             className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 font-bold text-sm border border-orange-200/80 transition-colors"
           >
             <TrendingDown className="w-5 h-5 text-orange-600" />
             + Registrar Gasto Operativo
+          </button>
+
+          <button
+            onClick={() => setModalVenta(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
+            className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-sm border border-emerald-200/80 transition-colors"
+          >
+            <TrendingUp className="w-5 h-5 text-emerald-600" />
+            + Añadir Venta Rápida
           </button>
 
           <button
@@ -840,7 +916,12 @@ export default function PanelPrincipal({ onNavigateTab }) {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-800">{m.concepto || 'Venta de equipo'}</p>
-                        <p className="text-xs text-slate-400">Ingreso: ${Number(m.monto).toFixed(2)} • {fechaStr}</p>
+                        <p className="text-xs text-slate-400">
+                          {m.moneda_original === 'BS'
+                            ? `Bs ${Number(m.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (≈$${Number(m.monto).toFixed(2)})`
+                            : `Ingreso: $${Number(m.monto).toFixed(2)}`}
+                          {m.metodo_pago ? ` • Cuenta: ${m.metodo_pago}` : ''} • {fechaStr}
+                        </p>
                       </div>
                     </div>
                     <span className="text-sm font-black text-emerald-600">
@@ -958,6 +1039,113 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   className="flex-1 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-sm disabled:opacity-50"
                 >
                   {modalGasto.saving ? 'Guardando...' : 'Registrar Gasto'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RÁPIDO: VENTA RÁPIDA */}
+      {modalVenta.open && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-600" />
+              Añadir Venta Rápida
+            </h3>
+            <p className="text-xs text-slate-500">
+              Para servicios técnicos o ventas de componentes sin estructura de costo.
+            </p>
+            <form onSubmit={handleGuardarVenta} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Concepto</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Venta RAM 16GB, Servicio técnico..."
+                  value={modalVenta.concepto}
+                  onChange={e => setModalVenta(p => ({ ...p, concepto: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Cuenta donde entra el dinero</label>
+                <select
+                  value={modalVenta.metodo_pago}
+                  onChange={e => setModalVenta(p => ({ ...p, metodo_pago: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  {todasCuentas.map(c => (
+                    <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Monto ({esVentaBs ? 'Bs' : 'USD'})</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">{esVentaBs ? 'Bs' : '$'}</span>
+                  <input
+                    type="number" step="0.01" min="0.01"
+                    placeholder="0.00"
+                    value={modalVenta.monto}
+                    onChange={e => setModalVenta(p => ({ ...p, monto: e.target.value }))}
+                    className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              {esVentaBs && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa de cambio (Bs/$)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder={tasaCambio.toFixed(2)}
+                      value={modalVenta.tasa}
+                      onChange={e => setModalVenta(p => ({ ...p, tasa: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setModalVenta(p => ({ ...p, tasa: tasaCambio.toString() }))}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                    >
+                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Costo del servicio/producto (USD) <span className="text-slate-400">(opcional, 0 = margen completo)</span></label>
+                <input
+                  type="number" step="0.01" min="0"
+                  placeholder="0.00"
+                  value={modalVenta.costo}
+                  onChange={e => setModalVenta(p => ({ ...p, costo: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setModalVenta(p => ({ ...p, open: false }))}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalVenta.saving}
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm disabled:opacity-50"
+                >
+                  {modalVenta.saving ? 'Guardando...' : 'Registrar Venta'}
                 </button>
               </div>
             </form>
