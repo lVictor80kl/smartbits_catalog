@@ -2,7 +2,7 @@
 import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Package, Edit2, Save, X, RefreshCw, Layers, Check, TrendingDown } from 'lucide-react';
-import { getCostoTotal } from '../../../utils/costos';
+import { getCostoTotal, getGastosExtraItems, getGastosExtraTotal } from '../../../utils/costos';
 
 const ESTADOS_ACTIVOS = ['Disponible', 'Coming soon'];
 
@@ -42,7 +42,8 @@ export default function InventarioFinanciero() {
 
     const adicionales = Number(item.costos_adicionales ?? item.gastos_adicionales ?? 0);
     const envio = Number(item.envio_usd ?? 0);
-    const gastosFlete = adicionales + envio;
+    const gastosExtra = getGastosExtraTotal(item);
+    const gastosFlete = adicionales + envio + gastosExtra;
 
     // Costo Total USD final (misma fuente en toda la app)
     const costoTotalUSD = getCostoTotal(item);
@@ -53,6 +54,8 @@ export default function InventarioFinanciero() {
       costoMasComision,
       adicionales,
       envio,
+      gastosExtra,
+      gastosExtraItems: getGastosExtraItems(item),
       gastosFlete,
       costoTotalUSD
     };
@@ -93,7 +96,9 @@ export default function InventarioFinanciero() {
 
       const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
       const costo_mas_comision = costo_compra + comisiones;
-      const costo_total_usd = costo_mas_comision + costos_adicionales + envio_usd;
+      // Los gastos extra registrados vía modal no se tocan aquí, solo se suman
+      const gastos_extra_total_usd = getGastosExtraTotal(item);
+      const costo_total_usd = costo_mas_comision + costos_adicionales + envio_usd + gastos_extra_total_usd;
 
       await updateDoc(doc(db, item._col, item.id), {
         precio_ebay: costo_compra,
@@ -273,6 +278,14 @@ export default function InventarioFinanciero() {
                         ) : (
                           <div className="flex flex-col items-end">
                             <span className="text-gray-800 font-semibold">{fmt(gastosFlete)}</span>
+                            {c.gastosExtraItems.length > 0 && (
+                              <span
+                                className="text-[10px] text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 px-1.5 rounded-full"
+                                title={c.gastosExtraItems.map(g => `${g.descripcion}: $${Number(g.monto_usd).toFixed(2)}`).join(' • ')}
+                              >
+                                {c.gastosExtraItems.length} pago{c.gastosExtraItems.length !== 1 ? 's' : ''} extra/envío
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>

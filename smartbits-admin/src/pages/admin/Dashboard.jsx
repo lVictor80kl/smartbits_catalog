@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
+import { tieneEnvioPagado, tienePagoExtra } from '../../utils/costos';
 
 
 export default function Dashboard() {
@@ -15,6 +17,7 @@ export default function Dashboard() {
   const [priceSort, setPriceSort] = useState('asc');
   const [selectedIds, setSelectedIds] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
+  const [gastosModalLaptop, setGastosModalLaptop] = useState(null);
 
   // Model count: how many units per model name
   const modelCounts = laptops.reduce((acc, l) => {
@@ -404,6 +407,24 @@ export default function Dashboard() {
                                 Borrador
                               </span>
                             )}
+                            {tieneEnvioPagado(laptop) && (
+                              <span
+                                className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
+                                title="Envío pagado y registrado"
+                              >
+                                <Banknote className="w-3 h-3" />
+                                Envío Pagado
+                              </span>
+                            )}
+                            {tienePagoExtra(laptop) && (
+                              <span
+                                className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
+                                title="Pago extra establecido"
+                              >
+                                <Banknote className="w-3 h-3" />
+                                Pago Extra Establecido
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-gray-500">{laptop.marca}</div>
                         </div>
@@ -434,6 +455,13 @@ export default function Dashboard() {
                     
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setGastosModalLaptop(laptop)}
+                          className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors rounded"
+                          title="Registrar Gasto extra / Envío"
+                        >
+                          <Banknote className="w-4 h-4" />
+                        </button>
                         <Link
                           to={`/admin/delivery/${laptop.id}`}
                           className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors"
@@ -468,6 +496,14 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Modal de Gastos Adicionales / Envío */}
+      {gastosModalLaptop && (
+        <GastosAdicionalesModal
+          laptop={laptops.find(l => l.id === gastosModalLaptop.id) || gastosModalLaptop}
+          onClose={() => setGastosModalLaptop(null)}
+        />
+      )}
 
       {/* Modal de Confirmación Personalizado */}
       {showDeleteModal.show && (

@@ -40,19 +40,15 @@ export default function EditLaptop() {
     otros: '',
     fecha_compra: '',
     precio_ebay: '',
-    costo_banco: '',
     comision_banco: '2',
-    costos_adicionales: '',
-    envio_usd: '',
-    envio_bs: '',
-    envio_cuenta: '',
-    envio_estado: 'Estimado',
-    envio_pagado_monto_bs: 0,
-    envio_pagado_monto_usd: 0,
-    tasa_bcv: '',
+    observaciones_compra: '',
 
     borrador: false,
   });
+
+  // Datos de compra extra cargados desde la BD (no editables aquí):
+  // gastos extra registrados vía modal + legados del flujo antiguo
+  const [datosCompraExtra, setDatosCompraExtra] = useState({ gastos_extra: [], legadosUsd: 0 });
 
   const [pagosCompra, setPagosCompra] = useState([
     { metodoId: 'paypal', bancoNombre: 'PayPal', monto: '', comisionPct: 0 }
@@ -93,17 +89,16 @@ export default function EditLaptop() {
             otros: data.otros || '',
             fecha_compra: data.fecha_compra || '',
             precio_ebay: data.precio_ebay?.toString() || '',
-            costos_adicionales: data.costos_adicionales?.toString() || '',
-            envio_usd: data.envio_usd?.toString() || '',
-            envio_bs: data.envio_bs?.toString() || '',
-            envio_cuenta: data.envio_cuenta || '',
-            envio_estado: data.envio_estado || 'Estimado',
-            envio_pagado_monto_bs: data.envio_pagado_monto_bs || 0,
-            envio_pagado_monto_usd: data.envio_pagado_monto_usd || 0,
-            tasa_bcv: data.tasa_bcv?.toString() || '',
+            observaciones_compra: data.observaciones_compra || '',
             borrador: data.borrador ?? false,
           });
           setExistingImages(imgs);
+
+          // Gastos extra registrados vía modal + campos legados del flujo antiguo
+          setDatosCompraExtra({
+            gastos_extra: Array.isArray(data.gastos_extra) ? data.gastos_extra : [],
+            legadosUsd: (Number(data.costos_adicionales) || 0) + (Number(data.envio_usd) || 0),
+          });
 
           if (data.pagos_compra && Array.isArray(data.pagos_compra) && data.pagos_compra.length > 0) {
             setPagosCompra(data.pagos_compra.map(p => ({
@@ -133,31 +128,6 @@ export default function EditLaptop() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    if (name === 'envio_bs') {
-      const bsVal = parseFloat(value) || 0;
-      const tasaVal = parseFloat(formData.tasa_bcv) || 0;
-      const calcUsd = (bsVal > 0 && tasaVal > 0) ? (bsVal / tasaVal).toFixed(2) : formData.envio_usd;
-      setFormData(prev => ({
-        ...prev,
-        envio_bs: value,
-        envio_usd: calcUsd
-      }));
-      return;
-    }
-
-    if (name === 'tasa_bcv') {
-      const tasaVal = parseFloat(value) || 0;
-      const bsVal = parseFloat(formData.envio_bs) || 0;
-      const calcUsd = (bsVal > 0 && tasaVal > 0) ? (bsVal / tasaVal).toFixed(2) : formData.envio_usd;
-      setFormData(prev => ({
-        ...prev,
-        tasa_bcv: value,
-        envio_usd: calcUsd
-      }));
-      return;
-    }
-
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -248,10 +218,9 @@ export default function EditLaptop() {
   }, 0);
 
   const costoMasComision = precioEbay + totalComisiones;
-  const costosAdicionales = Number(formData.costos_adicionales) || 0;
-  const envioUsd = Number(formData.envio_usd) || 0;
+  const gastosExtraTotalUsd = datosCompraExtra.gastos_extra.reduce((acc, g) => acc + (Number(g.monto_usd) || 0), 0);
 
-  const costoTotal = costoMasComision + costosAdicionales + envioUsd;
+  const costoTotal = costoMasComision + gastosExtraTotalUsd + datosCompraExtra.legadosUsd;
   const costoTotalUsd = costoTotal;
   const precioPublicado = Number(formData.precio) || 0;
   const gananciaEstimada = precioPublicado - costoTotal;
@@ -277,12 +246,10 @@ export default function EditLaptop() {
       setUploadProgress(isEditMode ? 'Actualizando base de datos...' : 'Guardando en base de datos...');
 
       // --- LOGICA DE CAJA ---
-      let nuevoMontoPagadoBs = isEditMode ? (formData.envio_pagado_monto_bs || 0) : 0;
-      let nuevoMontoPagadoUsd = isEditMode ? (formData.envio_pagado_monto_usd || 0) : 0;
       let cajaUpdates = {};
       let movimientosToCreate = [];
 
-      // 1. Pago de Compra de Equipo (Solo al CREAR, Opción A)
+      // Pago de Compra de Equipo (Solo al CREAR)
       if (!isEditMode) {
         pagosCompra.forEach(p => {
           const montoNum = parseFloat(p.monto);
@@ -304,77 +271,8 @@ export default function EditLaptop() {
         });
       }
 
-      // 2. Pago de Envío
-      if (formData.envio_estado === 'Pagado' && formData.envio_cuenta) {
-        const cuentaObj = todasCuentas.find(c => c.key === formData.envio_cuenta);
-        const esBs = cuentaObj?.moneda === 'BS';
-        const montoEnvioActualBs = Number(formData.envio_bs) || 0;
-        const montoEnvioActualUsd = Number(formData.envio_usd) || 0;
-
-        if (!isEditMode) {
-            const montoADescontar = esBs ? montoEnvioActualBs : montoEnvioActualUsd;
-            if (montoADescontar > 0) {
-                cajaUpdates[formData.envio_cuenta] = increment(-montoADescontar);
-                nuevoMontoPagadoBs = esBs ? montoADescontar : 0;
-                nuevoMontoPagadoUsd = !esBs ? montoADescontar : 0;
-                
-                movimientosToCreate.push({
-                  coleccion: 'compras_inventario',
-                  datos: {
-                    categoria: 'envio',
-                    concepto: `Envío equipo: ${formData.marca} ${formData.modelo}`,
-                    monto: esBs ? (montoADescontar / (Number(formData.tasa_bcv)||1)) : montoADescontar,
-                    monto_original: montoADescontar,
-                    moneda_original: esBs ? 'BS' : 'USD',
-                    metodo_pago: formData.envio_cuenta,
-                    fecha: serverTimestamp()
-                  }
-                });
-            }
-        } else {
-            const montoAnteriorBs = Number(formData.envio_pagado_monto_bs) || 0;
-            const montoAnteriorUsd = Number(formData.envio_pagado_monto_usd) || 0;
-            
-            const montoADescontarBs = montoEnvioActualBs - montoAnteriorBs;
-            const montoADescontarUsd = montoEnvioActualUsd - montoAnteriorUsd;
-
-            if (esBs && montoADescontarBs !== 0) {
-                cajaUpdates[formData.envio_cuenta] = increment(-montoADescontarBs);
-                nuevoMontoPagadoBs = montoEnvioActualBs;
-                
-                movimientosToCreate.push({
-                  coleccion: 'compras_inventario',
-                  datos: {
-                    categoria: 'envio',
-                    concepto: `Ajuste envío equipo: ${formData.marca} ${formData.modelo}`,
-                    monto: Math.abs(montoADescontarBs / (Number(formData.tasa_bcv)||1)),
-                    monto_original: Math.abs(montoADescontarBs),
-                    moneda_original: 'BS',
-                    es_ingreso: montoADescontarBs < 0, 
-                    metodo_pago: formData.envio_cuenta,
-                    fecha: serverTimestamp()
-                  }
-                });
-            } else if (!esBs && montoADescontarUsd !== 0) {
-                cajaUpdates[formData.envio_cuenta] = increment(-montoADescontarUsd);
-                nuevoMontoPagadoUsd = montoEnvioActualUsd;
-
-                movimientosToCreate.push({
-                  coleccion: 'compras_inventario',
-                  datos: {
-                    categoria: 'envio',
-                    concepto: `Ajuste envío equipo: ${formData.marca} ${formData.modelo}`,
-                    monto: Math.abs(montoADescontarUsd),
-                    monto_original: Math.abs(montoADescontarUsd),
-                    moneda_original: 'USD',
-                    es_ingreso: montoADescontarUsd < 0,
-                    metodo_pago: formData.envio_cuenta,
-                    fecha: serverTimestamp()
-                  }
-                });
-            }
-        }
-      }
+      // Nota: los gastos extra / envíos se registran desde el botón
+      // "Registrar Gasto extra / Envío" en el inventario (GastosAdicionalesModal).
 
       const laptopDataPayload = {
         modelo: formData.modelo,
@@ -397,6 +295,7 @@ export default function EditLaptop() {
         },
         otros: formData.otros,
         fecha_compra: formData.fecha_compra || null,
+        observaciones_compra: formData.observaciones_compra,
         precio_ebay: precioEbay,
         pagos_compra: pagosCompra.map(p => {
           const cuentaObj = todasCuentas.find(c => c.key === p.metodoId);
@@ -409,14 +308,6 @@ export default function EditLaptop() {
         }),
         total_comisiones: totalComisiones,
         costo_mas_comision: costoMasComision,
-        costos_adicionales: costosAdicionales,
-        envio_usd: envioUsd,
-        envio_bs: Number(formData.envio_bs) || 0,
-        envio_cuenta: formData.envio_cuenta,
-        envio_estado: formData.envio_estado,
-        envio_pagado_monto_bs: nuevoMontoPagadoBs,
-        envio_pagado_monto_usd: nuevoMontoPagadoUsd,
-        tasa_bcv: Number(formData.tasa_bcv) || 0,
         borrador: formData.borrador,
         costo_total: costoTotal,
         ganancia_estimada: gananciaEstimada,
@@ -850,107 +741,37 @@ export default function EditLaptop() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">RAM / Cargador / Otros (USD)</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
-                  <input
-                    type="number" step="0.01" name="costos_adicionales" min="0"
-                    value={formData.costos_adicionales} onChange={handleChange}
-                    placeholder="0.00"
-                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tasa BCV (o tasa de pago)</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">Bs</span>
-                  <input
-                    type="number" step="0.01" name="tasa_bcv" min="0"
-                    value={formData.tasa_bcv} onChange={handleChange}
-                    placeholder="Ej. 36.50"
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Envío en Bs.</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">Bs</span>
-                  <input
-                    type="number" step="0.01" name="envio_bs" min="0"
-                    value={formData.envio_bs} onChange={handleChange}
-                    placeholder="0.00"
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-              </div>
+            {/* Observaciones de la compra */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Observaciones de Compra
+                <span className="text-xs font-normal text-gray-400 ml-2">(interno — ej. "Falta RAM, cargador, etc.")</span>
+              </label>
+              <textarea
+                name="observaciones_compra"
+                value={formData.observaciones_compra}
+                onChange={handleChange}
+                placeholder='Ej. "Falta RAM, no trae cargador, rayón en tapa..."'
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
+              />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Envío (USD final)</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
-                  <input
-                    type="number" step="0.01" name="envio_usd" min="0"
-                    value={formData.envio_usd} onChange={handleChange}
-                    placeholder="0.00"
-                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-semibold"
-                  />
-                </div>
+            {gastosExtraTotalUsd > 0 && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-3 flex items-center justify-between text-xs">
+                <span className="font-semibold text-emerald-700">
+                  Gastos extra/envío registrados ({datosCompraExtra.gastos_extra.length} pago{datosCompraExtra.gastos_extra.length !== 1 ? 's' : ''})
+                </span>
+                <span className="font-black text-emerald-800">+${gastosExtraTotalUsd.toFixed(2)} USD</span>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estado del Envío</label>
-                <select
-                  name="envio_estado" value={formData.envio_estado} onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white"
-                >
-                  <option value="Estimado">Estimado (No pagado aún)</option>
-                  <option value="Pagado">Pagado (Descontar de caja)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta de Pago</label>
-                <select
-                  name="envio_cuenta" value={formData.envio_cuenta} onChange={handleChange}
-                  disabled={formData.envio_estado !== 'Pagado'}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white disabled:opacity-50"
-                  required={formData.envio_estado === 'Pagado'}
-                >
-                  <option value="">Seleccionar cuenta...</option>
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Precio Publicado Venta (USD) *</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
-                  <input
-                    type="number" step="0.01" name="precio" required min="0"
-                    value={formData.precio} onChange={handleChange}
-                    placeholder="Ej. 450.00"
-                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-bold text-brand-700"
-                  />
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Resumen de Costos */}
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
                 <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Costo Total USD</p>
                 <p className="text-2xl font-black text-blue-800">${costoTotalUsd.toFixed(2)}</p>
-                <p className="text-[10px] text-blue-500 mt-1">Costo + Comisión + Adicionales + Envíos</p>
+                <p className="text-[10px] text-blue-500 mt-1">Costo + Comisión + Gastos extra/envío</p>
               </div>
 
               <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">

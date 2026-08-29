@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
 import { calcularDiferencial, derivarTasaReal, calcularDestino } from '../../../utils/diferencialCambiario';
+import { getCostoBaseConComision, getLegadosExtrasUsd } from '../../../utils/costos';
 import { 
   TrendingDown, Users, ArrowRightLeft, PlusCircle, Search, Trash2, Edit2, 
   Loader2, Filter, AlertCircle, CheckCircle, Calendar, RefreshCw, X, Save
@@ -440,6 +441,30 @@ export default function Movimientos() {
           });
         }
         await deleteDoc(doc(db, 'compras_inventario', item.id));
+
+        // Sincronizar laptop: quitar el gasto extra vinculado y recalcular costo total
+        if (item.laptop_id) {
+          try {
+            const lapRef = doc(db, 'laptops', item.laptop_id);
+            const lapSnap = await getDoc(lapRef);
+            if (lapSnap.exists()) {
+              const lapData = lapSnap.data();
+              const restantes = (Array.isArray(lapData.gastos_extra) ? lapData.gastos_extra : [])
+                .filter(g => g.movimiento_id !== item.id);
+              const totalExtraNuevo = restantes.reduce((acc, g) => acc + (Number(g.monto_usd) || 0), 0);
+              const nuevoCostoTotal = getCostoBaseConComision(lapData) + totalExtraNuevo + getLegadosExtrasUsd(lapData);
+              await updateDoc(lapRef, {
+                gastos_extra: restantes,
+                gastos_extra_total_usd: totalExtraNuevo,
+                costo_total: Math.round(nuevoCostoTotal * 100) / 100,
+                ganancia_estimada: Math.round(((Number(lapData.precio) || 0) - nuevoCostoTotal) * 100) / 100,
+                updated_at_laptop: serverTimestamp(),
+              });
+            }
+          } catch (syncErr) {
+            console.error('Error sincronizando laptop tras borrado:', syncErr);
+          }
+        }
       } else if (item.tipo_mov === 'venta') {
         if (item.metodo_pago && (item.monto || item.monto_original)) {
           const montoReintegrar = item.moneda_original === 'BS'
@@ -942,7 +967,17 @@ export default function Movimientos() {
                             Gasto Op ({item.categoria})
                           </span>
                         )}
-                        {item.tipo_mov === 'compra_inventario' && (
+                        {item.tipo_mov === 'compra_inventario' && item.categoria === 'envio' && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-100 text-cyan-700">
+                            Envío Equipo
+                          </span>
+                        )}
+                        {item.tipo_mov === 'compra_inventario' && item.categoria === 'gasto_extra' && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                            Gasto Extra
+                          </span>
+                        )}
+                        {item.tipo_mov === 'compra_inventario' && item.categoria !== 'envio' && item.categoria !== 'gasto_extra' && (
                           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
                             Compra Inv
                           </span>
