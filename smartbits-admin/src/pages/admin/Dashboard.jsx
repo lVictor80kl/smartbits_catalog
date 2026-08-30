@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote, Filter, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote, Filter, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, X, Copy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
 import { tieneEnvioPagado, tienePagoExtra, getCostoTotal } from '../../utils/costos';
@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [laptops, setLaptops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [duplicatingId, setDuplicatingId] = useState(null);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
   const [filterDisp, setFilterDisp] = useState([]);
   const [filterMarca, setFilterMarca] = useState([]);
@@ -72,6 +73,48 @@ export default function Dashboard() {
     } finally {
       setDeletingId(null);
       setShowDeleteModal({ show: false, ids: [], names: '' });
+    }
+  };
+
+  const handleDuplicateLaptops = async (targetIds) => {
+    if (!targetIds || targetIds.length === 0) return;
+    const isBulk = targetIds.length > 1;
+    setDuplicatingId(isBulk ? 'bulk' : targetIds[0]);
+
+    try {
+      const itemsToDuplicate = laptops.filter(l => targetIds.includes(l.id));
+      for (const laptop of itemsToDuplicate) {
+        // Extraer especificaciones técnicas y multimedia omitiendo costos/gastos contables
+        const newLaptopData = {
+          modelo: laptop.modelo || '',
+          marca: laptop.marca || '',
+          cpu: laptop.cpu || '',
+          ram: laptop.ram || '',
+          almacenamiento: laptop.almacenamiento || '',
+          gpu: laptop.gpu || '',
+          pantalla: laptop.pantalla || '',
+          touch: laptop.touch || 'No',
+          windows: laptop.windows || '',
+          bateria: laptop.bateria || 'Excelente',
+          precio: laptop.precio || 0,
+          disponibilidad: laptop.disponibilidad || 'Disponible',
+          imagen: laptop.imagen || '',
+          imagenes: Array.isArray(laptop.imagenes) ? [...laptop.imagenes] : (laptop.imagen ? [laptop.imagen] : []),
+          estadoPantalla: laptop.estadoPantalla ?? 10,
+          estadoCarcasa: laptop.estadoCarcasa ?? 9,
+          otros: laptop.otros || '',
+          borrador: Boolean(laptop.borrador),
+          createdAt: new Date().toISOString()
+        };
+
+        await addDoc(collection(db, 'laptops'), newLaptopData);
+      }
+
+      setSelectedIds(prev => prev.filter(id => !targetIds.includes(id)));
+    } catch (err) {
+      alert('Error al duplicar: ' + err.message);
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -385,13 +428,29 @@ export default function Dashboard() {
               </div>
 
               {selectedIds.length > 0 && (
-                <button
-                  onClick={handleBulkDeleteClick}
-                  className="ml-auto bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 border border-red-200"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Eliminar Seleccionados ({selectedIds.length})
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => handleDuplicateLaptops(selectedIds)}
+                    disabled={duplicatingId !== null}
+                    className="bg-purple-50 text-purple-700 hover:bg-purple-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 border border-purple-200 disabled:opacity-50"
+                    title="Duplicar equipos seleccionados sin datos contables"
+                  >
+                    {duplicatingId === 'bulk' || (selectedIds.length === 1 && duplicatingId === selectedIds[0]) ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                    Duplicar ({selectedIds.length})
+                  </button>
+                  <button
+                    onClick={handleBulkDeleteClick}
+                    disabled={deletingId !== null}
+                    className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 border border-red-200 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar Seleccionados ({selectedIds.length})
+                  </button>
+                </div>
               )}
             </div>
 
@@ -676,6 +735,18 @@ export default function Dashboard() {
 
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleDuplicateLaptops([laptop.id])}
+                          disabled={duplicatingId === laptop.id || duplicatingId === 'bulk'}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors rounded disabled:opacity-50"
+                          title="Duplicar este equipo (sin contabilidad)"
+                        >
+                          {duplicatingId === laptop.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
                         <button
                           onClick={() => setGastosModalLaptop(laptop)}
                           className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors rounded"
