@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { Package, Edit2, Save, X, RefreshCw, Layers, Check, TrendingDown } from 'lucide-react';
+import { Package, Edit2, Save, X, RefreshCw, Layers, Check, TrendingDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { getCostoTotal, getGastosExtraItems, getGastosExtraTotal } from '../../../utils/costos';
 
 const ESTADOS_ACTIVOS = ['Disponible', 'Coming soon'];
@@ -11,6 +11,7 @@ export default function InventarioFinanciero() {
   const [componentes, setComponentes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('laptops');
+  const [estadoSortOrder, setEstadoSortOrder] = useState('disponible'); // 'disponible' | 'coming_soon'
 
   useEffect(() => {
     let loaded = 0;
@@ -65,7 +66,11 @@ export default function InventarioFinanciero() {
   const costoInvComponentes = componentesActivos.reduce((acc, c) => acc + getItemCostos(c).costoTotalUSD, 0);
   const costoInvTotal = costoInvLaptops + costoInvComponentes;
 
-  const items = activeTab === 'laptops' ? laptopsActivas : componentesActivos;
+  const rawItems = activeTab === 'laptops' ? laptopsActivas : componentesActivos;
+  const items = [...rawItems].sort((a, b) => {
+    const prio = (val) => val === 'Disponible' ? (estadoSortOrder === 'disponible' ? 1 : 2) : (estadoSortOrder === 'disponible' ? 2 : 1);
+    return prio(a.disponibilidad) - prio(b.disponibilidad);
+  });
 
   const fmt = (v) => `$${Number(v || 0).toFixed(2)}`;
 
@@ -138,7 +143,20 @@ export default function InventarioFinanciero() {
               <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-5 py-4">Equipo</th>
-                  <th className="px-5 py-4">Estado</th>
+                  <th
+                    onClick={() => setEstadoSortOrder(prev => prev === 'disponible' ? 'coming_soon' : 'disponible')}
+                    className="px-5 py-4 cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                    title="Haz clic para cambiar el orden por Estado (Disponible / Coming soon)"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Estado</span>
+                      {estadoSortOrder === 'disponible' ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-brand-600" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-brand-600" />
+                      )}
+                    </div>
+                  </th>
                   <th className="px-5 py-4 text-right">Costo + Comisión</th>
                   <th className="px-5 py-4 text-right">Gastos/Flete</th>
                   <th className="px-5 py-4 text-right font-semibold text-slate-700">Costo Total (USD)</th>
