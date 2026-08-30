@@ -4,7 +4,7 @@ import { db } from '../../firebase';
 import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
-import { tieneEnvioPagado, tienePagoExtra } from '../../utils/costos';
+import { tieneEnvioPagado, tienePagoExtra, getCostoTotal } from '../../utils/costos';
 
 
 export default function Dashboard() {
@@ -80,7 +80,7 @@ export default function Dashboard() {
   };
 
   const toggleSelect = (id) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
@@ -123,13 +123,12 @@ export default function Dashboard() {
           <div style="color: #888;">${laptop.pantalla || ''}${laptop.touch?.toLowerCase() === 'sí' ? ' (Táctil)' : ''}</div>
         </td>
         <td style="padding: 8px 10px; text-align: center; font-size: 11px;">
-          <span style="padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 10px; ${
-            laptop.disponibilidad === 'Disponible'
-              ? 'background: #dcfce7; color: #15803d;'
-              : laptop.disponibilidad === 'Coming soon'
-                ? 'background: #fef3c7; color: #b45309;'
-                : 'background: #fee2e2; color: #b91c1c;'
-          }">${laptop.disponibilidad || '—'}</span>
+          <span style="padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 10px; ${laptop.disponibilidad === 'Disponible'
+        ? 'background: #dcfce7; color: #15803d;'
+        : laptop.disponibilidad === 'Coming soon'
+          ? 'background: #fef3c7; color: #b45309;'
+          : 'background: #fee2e2; color: #b91c1c;'
+      }">${laptop.disponibilidad || '—'}</span>
         </td>
         <td style="padding: 8px 10px; text-align: right; font-weight: 700; font-size: 14px; color: #111;">$${laptop.precio}</td>
       </tr>
@@ -214,8 +213,8 @@ export default function Dashboard() {
     .filter(laptop => {
       const matchDisp = filterDisp === 'Todas' || laptop.disponibilidad === filterDisp;
       const matchMarca = filterMarca === 'Todas' || laptop.marca === filterMarca;
-      const matchSearch = laptop.modelo.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (laptop.marca || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchSearch = laptop.modelo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (laptop.marca || '').toLowerCase().includes(searchTerm.toLowerCase());
       return matchDisp && matchMarca && matchSearch;
     })
     .sort((a, b) => {
@@ -247,8 +246,8 @@ export default function Dashboard() {
             <Download className="w-4 h-4" />
             Exportar PDF
           </button>
-          <Link 
-            to="/admin/migrate" 
+          <Link
+            to="/admin/migrate"
             className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
           >
             <CloudLightning className="w-4 h-4 text-amber-500" />
@@ -279,13 +278,13 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        
+
         {/* Filtros */}
         {!loading && laptops.length > 0 && (
           <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex flex-wrap items-end gap-4">
             <div className="flex flex-col flex-1 min-w-[200px]">
               <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Buscar por nombre</label>
-              <input 
+              <input
                 type="text"
                 placeholder="Ej: Latitude, Thinkpad..."
                 value={searchTerm}
@@ -296,8 +295,8 @@ export default function Dashboard() {
 
             <div className="flex flex-col">
               <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Marca</label>
-              <select 
-                value={filterMarca} 
+              <select
+                value={filterMarca}
                 onChange={(e) => setFilterMarca(e.target.value)}
                 className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
@@ -307,8 +306,8 @@ export default function Dashboard() {
 
             <div className="flex flex-col">
               <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Disponibilidad</label>
-              <select 
-                value={filterDisp} 
+              <select
+                value={filterDisp}
                 onChange={(e) => setFilterDisp(e.target.value)}
                 className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               >
@@ -318,11 +317,11 @@ export default function Dashboard() {
                 <option value="No disponible">No disponible</option>
               </select>
             </div>
-            
+
             <div className="flex flex-col">
               <label className="text-xs font-semibold text-gray-500 uppercase mb-1">Precio</label>
-              <select 
-                value={priceSort} 
+              <select
+                value={priceSort}
                 onChange={(e) => setPriceSort(e.target.value)}
                 className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               >
@@ -331,7 +330,7 @@ export default function Dashboard() {
                 <option value="desc">Mayor a menor</option>
               </select>
             </div>
-            
+
             {selectedIds.length > 0 && (
               <button
                 onClick={handleBulkDeleteClick}
@@ -361,8 +360,8 @@ export default function Dashboard() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
                   <th className="px-6 py-4 w-10">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       checked={filteredLaptops.length > 0 && selectedIds.length === filteredLaptops.length}
                       onChange={toggleSelectAll}
@@ -370,7 +369,7 @@ export default function Dashboard() {
                   </th>
                   <th className="px-6 py-4 font-semibold">Equipo</th>
                   <th className="px-6 py-4 font-semibold">Specs Rápidas</th>
-                  <th className="px-6 py-4 font-semibold text-center">Precio / Est. Visual</th>
+                  <th className="px-6 py-4 font-semibold text-center">Precio</th>
                   <th className="px-6 py-4 font-semibold">Disponibilidad</th>
                   <th className="px-6 py-4 font-semibold text-right">Acciones</th>
                 </tr>
@@ -379,8 +378,8 @@ export default function Dashboard() {
                 {filteredLaptops.map(laptop => (
                   <tr key={laptop.id} className={`hover:bg-gray-50/50 transition-colors ${selectedIds.includes(laptop.id) ? 'bg-blue-50/30' : ''}`}>
                     <td className="px-6 py-4">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         checked={selectedIds.includes(laptop.id)}
                         onChange={() => toggleSelect(laptop.id)}
@@ -389,70 +388,72 @@ export default function Dashboard() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center p-1 shrink-0">
-                          <img 
-                            src={laptop.imagen || '/default-laptop.png'} 
-                            alt={laptop.modelo} 
+                          <img
+                            src={laptop.imagen || '/default-laptop.png'}
+                            alt={laptop.modelo}
                             onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
-                            className="max-h-full max-w-full object-contain" 
+                            className="max-h-full max-w-full object-contain"
                           />
                         </div>
                         <div>
                           <div className="font-medium text-gray-900 line-clamp-1 flex items-center gap-2">
                             {laptop.modelo}
-                            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full shrink-0">
-                              ×{modelCounts[laptop.modelo?.trim().toLowerCase()] ?? 1}
-                            </span>
                             {laptop.borrador && (
                               <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">
                                 Borrador
                               </span>
                             )}
-                            {tieneEnvioPagado(laptop) && (
-                              <span
-                                className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
-                                title="Envío pagado y registrado"
-                              >
-                                <Banknote className="w-3 h-3" />
-                                Envío Pagado
-                              </span>
-                            )}
-                            {tienePagoExtra(laptop) && (
-                              <span
-                                className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
-                                title="Pago extra establecido"
-                              >
-                                <Banknote className="w-3 h-3" />
-                                Pago Extra Establecido
-                              </span>
-                            )}
+
+                            <div className="flex flex-col items-start gap-1 my-1">
+                              {tieneEnvioPagado(laptop) && (
+
+                                <span
+                                  className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-200 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
+                                  title="Envío pagado y registrado"
+                                >
+                                  <Banknote className="w-3 h-3" />
+                                  Envío
+                                </span>
+                              )}
+                              {tienePagoExtra(laptop) && (
+                                <span
+                                  className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
+                                  title="Pago extra"
+                                >
+                                  <Banknote className="w-3 h-3" />
+                                  Extra
+                                </span>
+
+                              )}
+                            </div>
+
                           </div>
-                          <div className="text-xs text-gray-500">{laptop.marca}</div>
+
                         </div>
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4 text-xs">
                       <div className="text-gray-900 font-medium line-clamp-1 truncate max-w-[150px]" title={laptop.cpu}>{laptop.cpu}</div>
                       <div className="text-gray-500">{laptop.ram} • {laptop.almacenamiento}</div>
                     </td>
-                    
+
                     <td className="px-6 py-4">
                       <div className="font-bold text-gray-900">${laptop.precio}</div>
-                      <div className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded inline-block mt-1">
-                        P: {laptop.estado?.pantalla ?? laptop.estadoPantalla}/10 | C: {laptop.estado?.carcasa ?? laptop.estadoCarcasa}/10
+                      <div className="text-xs text-gray-400 font-medium mt-0.5" title="Costo total actual">
+                        ${Number(getCostoTotal(laptop) || 0).toFixed(2)}
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        laptop.disponibilidad === 'Disponible' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-orange-100 text-orange-700'
-                      }`}>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${laptop.disponibilidad === 'Disponible'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-orange-100 text-orange-700'
+                        }`}>
                         {laptop.disponibilidad}
                       </span>
                     </td>
-                    
+
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
@@ -476,13 +477,13 @@ export default function Dashboard() {
                         >
                           <Edit className="w-4 h-4" />
                         </Link>
-                        <button 
+                        <button
                           onClick={() => handleDeleteClick(laptop.id, laptop.modelo)}
                           disabled={deletingId === laptop.id || deletingId === 'bulk'}
                           className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
                           title="Eliminar"
                         >
-                          {deletingId === laptop.id 
+                          {deletingId === laptop.id
                             ? <Loader2 className="w-4 h-4 animate-spin" />
                             : <Trash2 className="w-4 h-4" />
                           }
@@ -512,13 +513,13 @@ export default function Dashboard() {
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6 text-red-600">
               <Trash2 className="w-8 h-8" />
             </div>
-            
+
             <h3 className="text-xl font-bold text-center text-gray-900 mb-2">
               {showDeleteModal.ids.length === 1 ? '¿Eliminar equipo?' : '¿Eliminar selección?'}
             </h3>
-            
+
             <p className="text-gray-500 text-center text-sm mb-6 leading-relaxed">
-              Estás a punto de eliminar {showDeleteModal.ids.length === 1 ? 'un equipo' : `${showDeleteModal.ids.length} equipos`}. 
+              Estás a punto de eliminar {showDeleteModal.ids.length === 1 ? 'un equipo' : `${showDeleteModal.ids.length} equipos`}.
               Esta acción es irreversible y los datos no se podrán recuperar.
             </p>
 
