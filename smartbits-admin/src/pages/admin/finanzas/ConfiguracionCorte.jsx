@@ -168,8 +168,8 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       laptopsSnap.docs.forEach(docSnap => {
         const item = docSnap.data();
         const costoBase = Number(item.precio_ebay ?? item.costo_compra ?? 0);
-        const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
-        const costoMasComision = Number(item.costo_mas_comision ?? (costoBase + comisiones));
+        const comisiones = costoBase > 0 ? Number(item.total_comisiones ?? item.comision_banco ?? 0) : 0;
+        const costoMasComision = costoBase > 0 ? Number(item.costo_mas_comision ?? (costoBase + comisiones)) : 0;
         const gastosExtraTotal = getGastosExtraTotal(item);
 
         const nuevoCostoTotal = Math.round((costoMasComision + gastosExtraTotal) * 100) / 100;
@@ -179,6 +179,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
           costos_adicionales: 0,
           gastos_adicionales: 0,
           envio_usd: 0,
+          costo_mas_comision: costoMasComision,
           costo_total: nuevoCostoTotal,
           ganancia_estimada: Math.round((precioVenta - nuevoCostoTotal) * 100) / 100,
           actualizadoEn: serverTimestamp()
@@ -189,8 +190,8 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       compSnap.docs.forEach(docSnap => {
         const item = docSnap.data();
         const costoBase = Number(item.costo_compra ?? item.precio_ebay ?? 0);
-        const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
-        const costoMasComision = Number(item.costo_mas_comision ?? (costoBase + comisiones));
+        const comisiones = costoBase > 0 ? Number(item.total_comisiones ?? item.comision_banco ?? 0) : 0;
+        const costoMasComision = costoBase > 0 ? Number(item.costo_mas_comision ?? (costoBase + comisiones)) : 0;
         const gastosExtraTotal = getGastosExtraTotal(item);
 
         const nuevoCostoTotal = Math.round((costoMasComision + gastosExtraTotal) * 100) / 100;
@@ -200,6 +201,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
           costos_adicionales: 0,
           gastos_adicionales: 0,
           envio_usd: 0,
+          costo_mas_comision: costoMasComision,
           costo_total: nuevoCostoTotal,
           ganancia_estimada: Math.round((precioVenta - nuevoCostoTotal) * 100) / 100,
           actualizadoEn: serverTimestamp()

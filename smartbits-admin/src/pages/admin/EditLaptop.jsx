@@ -40,7 +40,7 @@ export default function EditLaptop() {
     otros: '',
     fecha_compra: '',
     precio_ebay: '',
-    comision_banco: '2',
+    comision_banco: '0',
     observaciones_compra: '',
 
     borrador: false,

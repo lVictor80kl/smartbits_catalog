@@ -32,10 +32,10 @@ export default function InventarioFinanciero() {
   // Función helper para obtener los desgloses de costo real de un item
   const getItemCostos = (item) => {
     const costoBase = Number(item.precio_ebay ?? item.costo_compra ?? 0);
-    const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
+    const comisiones = costoBase > 0 ? Number(item.total_comisiones ?? item.comision_banco ?? 0) : 0;
 
-    // Costo + Comisión acumulado
-    const costoMasComision = Number(item.costo_mas_comision ?? (costoBase + comisiones));
+    // Costo + Comisión acumulado (0 si no hay costo base asignado)
+    const costoMasComision = costoBase > 0 ? Number(item.costo_mas_comision ?? (costoBase + comisiones)) : 0;
 
     const adicionales = Number(item.costos_adicionales ?? item.gastos_adicionales ?? 0);
     const envio = Number(item.envio_usd ?? 0);

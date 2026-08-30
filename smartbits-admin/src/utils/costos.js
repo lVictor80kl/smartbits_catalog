@@ -16,9 +16,10 @@ export function getLegadosExtrasUsd(item) {
 }
 
 export function getCostoBaseConComision(item) {
+  const base = Number(item?.precio_ebay ?? item?.costo_compra ?? 0);
+  if (base === 0) return 0;
   const guardado = Number(item?.costo_mas_comision ?? 0);
   if (guardado > 0) return guardado;
-  const base = Number(item?.precio_ebay ?? item?.costo_compra ?? 0);
   const comisiones = Number(item?.total_comisiones ?? item?.comision_banco ?? 0);
   return base + comisiones;
 }
