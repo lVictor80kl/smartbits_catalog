@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote, Filter, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
 import { tieneEnvioPagado, tienePagoExtra, getCostoTotal } from '../../utils/costos';
@@ -11,8 +11,12 @@ export default function Dashboard() {
   const [laptops, setLaptops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
-  const [filterDisp, setFilterDisp] = useState('Todas');
-  const [filterMarca, setFilterMarca] = useState('Todas');
+  const [showFiltersPanel, setShowFiltersPanel] = useState(false);
+  const [filterDisp, setFilterDisp] = useState([]);
+  const [filterMarca, setFilterMarca] = useState([]);
+  const [filterRam, setFilterRam] = useState([]);
+  const [filterStorage, setFilterStorage] = useState([]);
+  const [filterCpu, setFilterCpu] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [priceSort, setPriceSort] = useState('asc');
   const [selectedIds, setSelectedIds] = useState([]);
@@ -103,9 +107,12 @@ export default function Dashboard() {
 
     // Build active filter description
     const filterParts = [];
-    if (filterMarca !== 'Todas') filterParts.push(`Marca: ${filterMarca}`);
-    if (filterDisp !== 'Todas') filterParts.push(`Disponibilidad: ${filterDisp}`);
-    if (searchTerm) filterParts.push(`Búsqueda: "${searchTerm}"`);
+    if (filterMarca.length > 0) filterParts.push(`Marcas: ${filterMarca.join(', ')}`);
+    if (filterDisp.length > 0) filterParts.push(`Disponibilidad: ${filterDisp.join(', ')}`);
+    if (filterRam.length > 0) filterParts.push(`RAM: ${filterRam.join(', ')}`);
+    if (filterStorage.length > 0) filterParts.push(`Almacenamiento: ${filterStorage.join(', ')}`);
+    if (filterCpu.trim()) filterParts.push(`CPU: "${filterCpu}"`);
+    if (searchTerm.trim()) filterParts.push(`Búsqueda: "${searchTerm}"`);
     if (priceSort === 'asc') filterParts.push('Precio: Menor a mayor');
     if (priceSort === 'desc') filterParts.push('Precio: Mayor a menor');
     const filterText = filterParts.length > 0 ? filterParts.join(' | ') : 'Sin filtros aplicados';
@@ -203,19 +210,61 @@ export default function Dashboard() {
     };
   };
 
-  const marcas = ['Todas', ...new Set(laptops.map(l => {
+  const toggleArrayFilter = (setter, currentArray, value) => {
+    if (currentArray.includes(value)) {
+      setter(currentArray.filter(item => item !== value));
+    } else {
+      setter([...currentArray, value]);
+    }
+  };
+
+  const marcasDisponibles = Array.from(new Set(laptops.map(l => {
     const m = l.marca;
     if (m && m.toLowerCase() === 'hp') return 'HP';
     return m;
-  }).filter(Boolean))];
+  }).filter(Boolean))).sort();
+
+  const disponibilidadesDisponibles = ['Disponible', 'Coming soon', 'No disponible'];
+
+  const ramsDisponibles = Array.from(new Set(laptops.map(l => l.ram?.trim()).filter(Boolean))).sort((a, b) => {
+    const numA = parseInt(a) || 0;
+    const numB = parseInt(b) || 0;
+    return numA - numB;
+  });
+
+  const storagesDisponibles = Array.from(new Set(laptops.map(l => l.almacenamiento?.trim()).filter(Boolean))).sort();
+
+  const activeFiltersCount =
+    (filterDisp.length > 0 ? 1 : 0) +
+    (filterMarca.length > 0 ? 1 : 0) +
+    (filterRam.length > 0 ? 1 : 0) +
+    (filterStorage.length > 0 ? 1 : 0) +
+    (filterCpu.trim() !== '' ? 1 : 0) +
+    (searchTerm.trim() !== '' ? 1 : 0);
+
+  const clearAllFilters = () => {
+    setFilterDisp([]);
+    setFilterMarca([]);
+    setFilterRam([]);
+    setFilterStorage([]);
+    setFilterCpu('');
+    setSearchTerm('');
+    setPriceSort('asc');
+  };
 
   const filteredLaptops = laptops
     .filter(laptop => {
-      const matchDisp = filterDisp === 'Todas' || laptop.disponibilidad === filterDisp;
-      const matchMarca = filterMarca === 'Todas' || laptop.marca === filterMarca;
-      const matchSearch = laptop.modelo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (laptop.marca || '').toLowerCase().includes(searchTerm.toLowerCase());
-      return matchDisp && matchMarca && matchSearch;
+      const matchDisp = filterDisp.length === 0 || filterDisp.includes(laptop.disponibilidad);
+      const matchMarca = filterMarca.length === 0 || filterMarca.includes(laptop.marca);
+      const matchRam = filterRam.length === 0 || filterRam.includes(laptop.ram?.trim());
+      const matchStorage = filterStorage.length === 0 || filterStorage.includes(laptop.almacenamiento?.trim());
+      const matchCpu = !filterCpu.trim() || (laptop.cpu || '').toLowerCase().includes(filterCpu.toLowerCase().trim());
+      const matchSearch = !searchTerm.trim() ||
+        laptop.modelo.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+        (laptop.marca || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+        (laptop.cpu || '').toLowerCase().includes(searchTerm.toLowerCase().trim());
+
+      return matchDisp && matchMarca && matchRam && matchStorage && matchCpu && matchSearch;
     })
     .sort((a, b) => {
       const dispOrder = { 'Disponible': 0, 'Coming soon': 1, 'No disponible': 2 };
@@ -275,64 +324,241 @@ export default function Dashboard() {
 
         {/* Filtros */}
         {!loading && laptops.length > 0 && (
-          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex flex-wrap items-end gap-4">
-            <div className="flex flex-col flex-1 min-w-[200px]">
-              <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Buscar por nombre</label>
-              <input
-                type="text"
-                placeholder="Ej: Latitude, Thinkpad..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-              />
+          <div className="bg-gray-50 border-b border-gray-200">
+            {/* Main Bar */}
+            <div className="px-6 py-4 flex flex-wrap items-center gap-3">
+              <div className="flex-1 min-w-[220px]">
+                <input
+                  type="text"
+                  placeholder="Buscar modelo, marca o CPU..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Price Sort */}
+                <select
+                  value={priceSort}
+                  onChange={(e) => setPriceSort(e.target.value)}
+                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  <option value="asc">Precio: Menor a mayor</option>
+                  <option value="desc">Precio: Mayor a menor</option>
+                </select>
+
+                {/* Filter Toggle Button */}
+                <button
+                  onClick={() => setShowFiltersPanel(!showFiltersPanel)}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 border shadow-sm ${
+                    showFiltersPanel || activeFiltersCount > 0
+                      ? 'bg-blue-50 border-blue-300 text-blue-700'
+                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Filtros
+                  {activeFiltersCount > 0 && (
+                    <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-bold ml-0.5">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                  {showFiltersPanel ? (
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  )}
+                </button>
+
+                {/* Clear Filters Button */}
+                {activeFiltersCount > 0 && (
+                  <button
+                    onClick={clearAllFilters}
+                    className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                    title="Limpiar todos los filtros"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Limpiar
+                  </button>
+                )}
+              </div>
+
+              {selectedIds.length > 0 && (
+                <button
+                  onClick={handleBulkDeleteClick}
+                  className="ml-auto bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 border border-red-200"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Eliminar Seleccionados ({selectedIds.length})
+                </button>
+              )}
             </div>
 
-            <div className="flex flex-col">
-              <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Marca</label>
-              <select
-                value={filterMarca}
-                onChange={(e) => setFilterMarca(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-              >
-                {marcas.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
+            {/* Collapsible Panel */}
+            {showFiltersPanel && (
+              <div className="px-6 pb-5 pt-2 border-t border-gray-200 bg-white/70 space-y-4 text-xs">
+                {/* Row 1: Disponibilidad */}
+                <div>
+                  <label className="block font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    Disponibilidad
+                  </label>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <button
+                      onClick={() => setFilterDisp([])}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                        filterDisp.length === 0
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      Todas
+                    </button>
+                    {disponibilidadesDisponibles.map(disp => {
+                      const isSelected = filterDisp.includes(disp);
+                      return (
+                        <button
+                          key={disp}
+                          onClick={() => toggleArrayFilter(setFilterDisp, filterDisp, disp)}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border flex items-center gap-1 ${
+                            isSelected
+                              ? 'bg-blue-100 text-blue-800 border-blue-300 font-bold shadow-xs'
+                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+                          }`}
+                        >
+                          {disp}
+                          {isSelected && <X className="w-3 h-3 text-blue-600" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-            <div className="flex flex-col">
-              <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Disponibilidad</label>
-              <select
-                value={filterDisp}
-                onChange={(e) => setFilterDisp(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              >
-                <option value="Todas">Todas</option>
-                <option value="Disponible">Disponible</option>
-                <option value="Coming soon">Coming soon</option>
-                <option value="No disponible">No disponible</option>
-              </select>
-            </div>
+                {/* Row 2: Marca */}
+                {marcasDisponibles.length > 0 && (
+                  <div>
+                    <label className="block font-bold text-gray-700 uppercase tracking-wider mb-2">
+                      Marca
+                    </label>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <button
+                        onClick={() => setFilterMarca([])}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                          filterMarca.length === 0
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        Todas
+                      </button>
+                      {marcasDisponibles.map(marca => {
+                        const isSelected = filterMarca.includes(marca);
+                        return (
+                          <button
+                            key={marca}
+                            onClick={() => toggleArrayFilter(setFilterMarca, filterMarca, marca)}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border flex items-center gap-1 ${
+                              isSelected
+                                ? 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold shadow-xs'
+                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+                            }`}
+                          >
+                            {marca}
+                            {isSelected && <X className="w-3 h-3 text-indigo-600" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-            <div className="flex flex-col">
-              <label className="text-xs font-semibold text-gray-500 uppercase mb-1">Precio</label>
-              <select
-                value={priceSort}
-                onChange={(e) => setPriceSort(e.target.value)}
-                className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              >
-                <option value="default">Orden original</option>
-                <option value="asc">Menor a mayor</option>
-                <option value="desc">Mayor a menor</option>
-              </select>
-            </div>
+                {/* Row 3: Specifications Grid (RAM, Storage, CPU) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+                  {/* RAM */}
+                  <div>
+                    <label className="block font-bold text-gray-700 uppercase tracking-wider mb-2">
+                      Memoria RAM
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <button
+                        onClick={() => setFilterRam([])}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
+                          filterRam.length === 0
+                            ? 'bg-gray-800 text-white border-gray-800'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        Todas
+                      </button>
+                      {ramsDisponibles.map(ram => {
+                        const isSelected = filterRam.includes(ram);
+                        return (
+                          <button
+                            key={ram}
+                            onClick={() => toggleArrayFilter(setFilterRam, filterRam, ram)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
+                              isSelected
+                                ? 'bg-purple-100 text-purple-800 border-purple-300 font-bold'
+                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                            }`}
+                          >
+                            {ram}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-            {selectedIds.length > 0 && (
-              <button
-                onClick={handleBulkDeleteClick}
-                className="ml-auto bg-red-50 text-red-600 hover:bg-red-100 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 border border-red-200"
-              >
-                <Trash2 className="w-4 h-4" />
-                Eliminar Seleccionados ({selectedIds.length})
-              </button>
+                  {/* Storage */}
+                  <div>
+                    <label className="block font-bold text-gray-700 uppercase tracking-wider mb-2">
+                      Disco / Almacenamiento
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <button
+                        onClick={() => setFilterStorage([])}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
+                          filterStorage.length === 0
+                            ? 'bg-gray-800 text-white border-gray-800'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        Todos
+                      </button>
+                      {storagesDisponibles.map(st => {
+                        const isSelected = filterStorage.includes(st);
+                        return (
+                          <button
+                            key={st}
+                            onClick={() => toggleArrayFilter(setFilterStorage, filterStorage, st)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
+                              isSelected
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
+                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                            }`}
+                          >
+                            {st}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* CPU */}
+                  <div>
+                    <label className="block font-bold text-gray-700 uppercase tracking-wider mb-2">
+                      Procesador (CPU)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Core i5, Ryzen 7..."
+                      value={filterCpu}
+                      onChange={(e) => setFilterCpu(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-xs"
+                    />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
