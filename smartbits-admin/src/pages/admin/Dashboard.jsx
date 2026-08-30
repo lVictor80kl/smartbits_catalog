@@ -246,13 +246,7 @@ export default function Dashboard() {
             <Download className="w-4 h-4" />
             Exportar PDF
           </button>
-          <Link
-            to="/admin/migrate"
-            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
-          >
-            <CloudLightning className="w-4 h-4 text-amber-500" />
-            Migrar Imágenes
-          </Link>
+
           <Link
             to="/admin/components/new"
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
