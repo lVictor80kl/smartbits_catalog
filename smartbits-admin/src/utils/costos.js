@@ -6,8 +6,10 @@ export function getGastosExtraTotal(item) {
   return getGastosExtraItems(item).reduce((acc, g) => acc + (Number(g.monto_usd) || 0), 0);
 }
 
-// Campos legacy (flujo antiguo: adicionales y envío estimados en el formulario)
+// Campos legacy: sólo se retornan si NO hay gastos_extra registrados en el arreglo nuevo
 export function getLegadosExtrasUsd(item) {
+  const tieneGastosExtraNuevos = getGastosExtraItems(item).length > 0;
+  if (tieneGastosExtraNuevos) return 0;
   const adicionales = Number(item?.costos_adicionales ?? item?.gastos_adicionales ?? 0);
   const envio = Number(item?.envio_usd ?? 0);
   return adicionales + envio;
@@ -26,8 +28,6 @@ export function calcularCostoTotalItem(item) {
 }
 
 export function getCostoTotal(item) {
-  const guardado = Number(item.costo_total ?? item.costo_total_usd ?? 0);
-  if (guardado > 0) return guardado;
   return calcularCostoTotalItem(item);
 }
 

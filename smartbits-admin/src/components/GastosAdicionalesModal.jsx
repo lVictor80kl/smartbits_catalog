@@ -47,10 +47,13 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
 
   const recalcYActualizarBatch = (batch, nuevosGastos) => {
     const totalExtraNuevo = nuevosGastos.reduce((acc, g) => acc + (Number(g.monto_usd) || 0), 0);
-    const nuevoCostoTotal = Math.round((costoBaseConComision + totalExtraNuevo + legadosUsd) * 100) / 100;
+    const nuevoCostoTotal = Math.round((costoBaseConComision + totalExtraNuevo) * 100) / 100;
     batch.update(doc(db, 'laptops', laptop.id), {
       gastos_extra: nuevosGastos,
       gastos_extra_total_usd: totalExtraNuevo,
+      costos_adicionales: 0,
+      gastos_adicionales: 0,
+      envio_usd: 0,
       costo_total: nuevoCostoTotal,
       ganancia_estimada: Math.round((precioVenta - nuevoCostoTotal) * 100) / 100,
       actualizadoEn: serverTimestamp(),
@@ -186,7 +189,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
             </div>
             <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
               <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Costo Total USD</p>
-              <p className="font-black text-blue-800">{fmtUsd(costoBaseConComision + totalExtraUsd + legadosUsd)}</p>
+              <p className="font-black text-blue-800">{fmtUsd(costoBaseConComision + totalExtraUsd)}</p>
             </div>
           </div>
 

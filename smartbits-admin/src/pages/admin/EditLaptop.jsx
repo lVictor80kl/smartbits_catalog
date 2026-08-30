@@ -95,9 +95,10 @@ export default function EditLaptop() {
           setExistingImages(imgs);
 
           // Gastos extra registrados vía modal + campos legados del flujo antiguo
+          const tieneGastosExtra = Array.isArray(data.gastos_extra) && data.gastos_extra.length > 0;
           setDatosCompraExtra({
             gastos_extra: Array.isArray(data.gastos_extra) ? data.gastos_extra : [],
-            legadosUsd: (Number(data.costos_adicionales) || 0) + (Number(data.envio_usd) || 0),
+            legadosUsd: tieneGastosExtra ? 0 : ((Number(data.costos_adicionales) || 0) + (Number(data.envio_usd) || 0)),
           });
 
           if (data.pagos_compra && Array.isArray(data.pagos_compra) && data.pagos_compra.length > 0) {

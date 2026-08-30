@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Package, Edit2, Save, X, RefreshCw, Layers, Check, TrendingDown } from 'lucide-react';
@@ -10,9 +10,6 @@ export default function InventarioFinanciero() {
   const [laptops, setLaptops] = useState([]);
   const [componentes, setComponentes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({});
-  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('laptops');
 
   useEffect(() => {
@@ -70,55 +67,6 @@ export default function InventarioFinanciero() {
 
   const items = activeTab === 'laptops' ? laptopsActivas : componentesActivos;
 
-  const startEdit = (item) => {
-    const c = getItemCostos(item);
-    setEditingId(item.id);
-    setEditData({
-      costo_compra: c.costoBase,
-      costos_adicionales: c.adicionales,
-      envio_usd: c.envio,
-      precio_venta: item.precio ?? item.precio_venta ?? 0,
-    });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditData({});
-  };
-
-  const handleSave = async (item) => {
-    setSaving(true);
-    try {
-      const costo_compra = Number(editData.costo_compra) || 0;
-      const costos_adicionales = Number(editData.costos_adicionales) || 0;
-      const envio_usd = Number(editData.envio_usd) || 0;
-      const precio = Number(editData.precio_venta) || 0;
-
-      const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
-      const costo_mas_comision = costo_compra + comisiones;
-      // Los gastos extra registrados vía modal no se tocan aquí, solo se suman
-      const gastos_extra_total_usd = getGastosExtraTotal(item);
-      const costo_total_usd = costo_mas_comision + costos_adicionales + envio_usd + gastos_extra_total_usd;
-
-      await updateDoc(doc(db, item._col, item.id), {
-        precio_ebay: costo_compra,
-        costo_compra,
-        costos_adicionales,
-        gastos_adicionales: costos_adicionales,
-        envio_usd,
-        precio,
-        precio_venta: precio,
-        costo_mas_comision,
-        costo_total: costo_total_usd,
-      });
-      setEditingId(null);
-    } catch (e) {
-      console.error(e);
-      alert('Error al guardar: ' + e.message);
-    }
-    setSaving(false);
-  };
-
   const fmt = (v) => `$${Number(v || 0).toFixed(2)}`;
 
   if (loading) return (
@@ -166,7 +114,7 @@ export default function InventarioFinanciero() {
             return (
               <button
                 key={t.key}
-                onClick={() => { setActiveTab(t.key); cancelEdit(); }}
+                onClick={() => setActiveTab(t.key)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === t.key
                   ? 'bg-brand-600 text-white shadow-sm'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
@@ -196,36 +144,21 @@ export default function InventarioFinanciero() {
                   <th className="px-5 py-4 text-right font-semibold text-slate-700">Costo Total (USD)</th>
                   <th className="px-5 py-4 text-right">Precio Venta</th>
                   <th className="px-5 py-4 text-right">Margen</th>
-                  <th className="px-5 py-4 text-center">Editar</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map(item => {
-                  const isEditing = editingId === item.id;
                   const c = getItemCostos(item);
-
-                  const costoBaseEdit = isEditing ? (Number(editData.costo_compra) || 0) : c.costoBase;
-                  const costoMasComision = isEditing ? (costoBaseEdit + c.comisiones) : c.costoMasComision;
-
-                  const gastosFlete = isEditing
-                    ? (Number(editData.costos_adicionales) || 0) + (Number(editData.envio_usd) || 0)
-                    : c.gastosFlete;
-
-                  const costoTotal = isEditing
-                    ? (costoMasComision + gastosFlete)
-                    : c.costoTotalUSD;
-
-                  const precioVenta = isEditing
-                    ? (Number(editData.precio_venta) || 0)
-                    : (Number(item.precio) || Number(item.precio_venta) || 0);
-
+                  const costoMasComision = c.costoMasComision;
+                  const gastosFlete = c.gastosFlete;
+                  const costoTotal = c.costoTotalUSD;
+                  const precioVenta = Number(item.precio) || Number(item.precio_venta) || 0;
                   const margen = precioVenta > 0 ? precioVenta - costoTotal : null;
 
                   return (
-                    <tr key={item.id} className={`border-b border-gray-50 transition-colors ${isEditing ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}`}>
+                    <tr key={item.id} className="border-b border-gray-50 transition-colors hover:bg-gray-50/50">
                       <td className="px-5 py-4">
                         <div className="font-semibold text-gray-900">{item.modelo || item.nombre}</div>
-
                       </td>
                       <td className="px-5 py-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.disponibilidad === 'Disponible'
@@ -238,56 +171,24 @@ export default function InventarioFinanciero() {
 
                       {/* Costo + Comisión */}
                       <td className="px-5 py-4 text-right">
-                        {isEditing ? (
-                          <div className="flex flex-col items-end">
-                            <input
-                              type="number" step="0.01" min="0"
-                              value={editData.costo_compra}
-                              onChange={e => setEditData(p => ({ ...p, costo_compra: e.target.value }))}
-                              className="w-28 px-2 py-1.5 border border-blue-300 rounded-lg text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              title="Precio de compra eBay"
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-end">
-                            <span className="font-bold text-gray-900">{fmt(costoMasComision)}</span>
-
-                          </div>
-                        )}
+                        <div className="flex flex-col items-end">
+                          <span className="font-bold text-gray-900">{fmt(costoMasComision)}</span>
+                        </div>
                       </td>
 
                       {/* Gastos / Flete (RAM + Cargador + Envío) */}
                       <td className="px-5 py-4 text-right">
-                        {isEditing ? (
-                          <div className="flex flex-col gap-1 items-end">
-                            <input
-                              type="number" step="0.01" min="0" placeholder="RAM/Carg"
-                              value={editData.costos_adicionales}
-                              onChange={e => setEditData(p => ({ ...p, costos_adicionales: e.target.value }))}
-                              className="w-24 px-2 py-1 border border-blue-300 rounded text-right text-xs"
-                              title="Adicionales (RAM/Cargador)"
-                            />
-                            <input
-                              type="number" step="0.01" min="0" placeholder="Envío"
-                              value={editData.envio_usd}
-                              onChange={e => setEditData(p => ({ ...p, envio_usd: e.target.value }))}
-                              className="w-24 px-2 py-1 border border-blue-300 rounded text-right text-xs"
-                              title="Envío USD"
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-end">
-                            <span className="text-gray-800 font-semibold">{fmt(gastosFlete)}</span>
-                            {c.gastosExtraItems.length > 0 && (
-                              <span
-                                className="text-[10px] text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 px-1.5 rounded-full"
-                                title={c.gastosExtraItems.map(g => `${g.descripcion}: $${Number(g.monto_usd).toFixed(2)}`).join(' • ')}
-                              >
-                                {c.gastosExtraItems.length} pago{c.gastosExtraItems.length !== 1 ? 's' : ''} extra/envío
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex flex-col items-end">
+                          <span className="text-gray-800 font-semibold">{fmt(gastosFlete)}</span>
+                          {c.gastosExtraItems.length > 0 && (
+                            <span
+                              className="text-[10px] text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 px-1.5 rounded-full"
+                              title={c.gastosExtraItems.map(g => `${g.descripcion}: $${Number(g.monto_usd).toFixed(2)}`).join(' • ')}
+                            >
+                              {c.gastosExtraItems.length} pago{c.gastosExtraItems.length !== 1 ? 's' : ''} extra/envío
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Costo Total */}
@@ -297,16 +198,7 @@ export default function InventarioFinanciero() {
 
                       {/* Precio Venta */}
                       <td className="px-5 py-4 text-right">
-                        {isEditing ? (
-                          <input
-                            type="number" step="0.01" min="0"
-                            value={editData.precio_venta}
-                            onChange={e => setEditData(p => ({ ...p, precio_venta: e.target.value }))}
-                            className="w-28 px-2 py-1.5 border border-blue-300 rounded-lg text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                          />
-                        ) : (
-                          <span className="font-medium text-brand-700">{precioVenta > 0 ? fmt(precioVenta) : '—'}</span>
-                        )}
+                        <span className="font-medium text-brand-700">{precioVenta > 0 ? fmt(precioVenta) : '—'}</span>
                       </td>
 
                       {/* Margen */}
@@ -316,37 +208,6 @@ export default function InventarioFinanciero() {
                             {margen >= 0 ? '+' : ''}{fmt(margen)}
                           </span>
                         ) : <span className="text-gray-300">—</span>}
-                      </td>
-
-                      {/* Acciones */}
-                      <td className="px-5 py-4 text-center">
-                        {isEditing ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => handleSave(item)}
-                              disabled={saving}
-                              className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                              title="Guardar"
-                            >
-                              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                            </button>
-                            <button
-                              onClick={cancelEdit}
-                              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="Cancelar"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => startEdit(item)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Editar costos"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
                       </td>
                     </tr>
                   );
@@ -360,7 +221,7 @@ export default function InventarioFinanciero() {
                   <td className="px-5 py-4 text-right font-black text-slate-900 text-base">
                     {fmt(items.reduce((acc, i) => acc + getItemCostos(i).costoTotalUSD, 0))}
                   </td>
-                  <td colSpan={3} />
+                  <td colSpan={2} />
                 </tr>
               </tfoot>
             </table>

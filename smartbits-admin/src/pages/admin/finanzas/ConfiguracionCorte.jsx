@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, RefreshCw, Layers, DollarSign, Users, Landmark, Sparkles } from 'lucide-react';
+import { ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, RefreshCw, Layers, DollarSign, Users, Landmark, Sparkles, Trash2 } from 'lucide-react';
 import { useCorteContable } from '../../../utils/useCorteContable';
-import { getCostoTotal } from '../../../utils/costos';
+import { getCostoTotal, getGastosExtraTotal } from '../../../utils/costos';
 
 const CUENTAS_BASE = [
   { key: 'efectivo', label: 'Efectivo', moneda: 'USD' },
@@ -116,6 +116,106 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       });
     }
   }, [corte]);
+
+  const [cleaning, setCleaning] = useState(false);
+
+  const cargarInventarioActual = async () => {
+    try {
+      const [laptopsSnap, compSnap] = await Promise.all([
+        getDocs(collection(db, 'laptops')),
+        getDocs(collection(db, 'componentes'))
+      ]);
+      let totalInv = 0;
+      const estadosActivos = ['Disponible', 'Coming soon'];
+      laptopsSnap.docs.forEach(docSnap => {
+        const l = docSnap.data();
+        if (estadosActivos.includes(l.disponibilidad)) {
+          totalInv += getCostoTotal(l);
+        }
+      });
+      compSnap.docs.forEach(docSnap => {
+        const c = docSnap.data();
+        if (estadosActivos.includes(c.disponibilidad)) {
+          totalInv += getCostoTotal(c);
+        }
+      });
+      setInventarioSugerido(totalInv);
+      setInventarioManual(totalInv);
+    } catch (err) {
+      console.error("Error al calcular inventario:", err);
+    }
+  };
+
+  const handleLimpiarGastosLegacy = async () => {
+    const confirmar = window.confirm(
+      "⚠️ ¿Deseas depurar los gastos y envíos antiguos (legacy) de todos los equipos del inventario?\n\n" +
+      "1. Se resetearán los campos antiguos (costos_adicionales, gastos_adicionales y envio_usd) a 0.\n" +
+      "2. El Costo Total de cada equipo se recalculará basándose en el Costo Base + Comisiones + Gastos Extra reales registrados.\n" +
+      "3. El valor del Inventario Activo para el Punto Cero quedará totalmente cuadrado."
+    );
+    if (!confirmar) return;
+
+    setCleaning(true);
+    try {
+      const [laptopsSnap, compSnap] = await Promise.all([
+        getDocs(collection(db, 'laptops')),
+        getDocs(collection(db, 'componentes'))
+      ]);
+
+      const batch = writeBatch(db);
+      let count = 0;
+
+      laptopsSnap.docs.forEach(docSnap => {
+        const item = docSnap.data();
+        const costoBase = Number(item.precio_ebay ?? item.costo_compra ?? 0);
+        const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
+        const costoMasComision = Number(item.costo_mas_comision ?? (costoBase + comisiones));
+        const gastosExtraTotal = getGastosExtraTotal(item);
+
+        const nuevoCostoTotal = Math.round((costoMasComision + gastosExtraTotal) * 100) / 100;
+        const precioVenta = Number(item.precio ?? item.precio_venta ?? 0);
+
+        batch.update(docSnap.ref, {
+          costos_adicionales: 0,
+          gastos_adicionales: 0,
+          envio_usd: 0,
+          costo_total: nuevoCostoTotal,
+          ganancia_estimada: Math.round((precioVenta - nuevoCostoTotal) * 100) / 100,
+          actualizadoEn: serverTimestamp()
+        });
+        count++;
+      });
+
+      compSnap.docs.forEach(docSnap => {
+        const item = docSnap.data();
+        const costoBase = Number(item.costo_compra ?? item.precio_ebay ?? 0);
+        const comisiones = Number(item.total_comisiones ?? item.comision_banco ?? 0);
+        const costoMasComision = Number(item.costo_mas_comision ?? (costoBase + comisiones));
+        const gastosExtraTotal = getGastosExtraTotal(item);
+
+        const nuevoCostoTotal = Math.round((costoMasComision + gastosExtraTotal) * 100) / 100;
+        const precioVenta = Number(item.precio ?? item.precio_venta ?? 0);
+
+        batch.update(docSnap.ref, {
+          costos_adicionales: 0,
+          gastos_adicionales: 0,
+          envio_usd: 0,
+          costo_total: nuevoCostoTotal,
+          ganancia_estimada: Math.round((precioVenta - nuevoCostoTotal) * 100) / 100,
+          actualizadoEn: serverTimestamp()
+        });
+        count++;
+      });
+
+      await batch.commit();
+      alert(`✅ Se depuraron y recálcularon los costos de ${count} registros en el catálogo con éxito.`);
+      await cargarInventarioActual();
+    } catch (err) {
+      console.error(err);
+      alert("Error al depurar gastos legados: " + err.message);
+    }
+    setCleaning(false);
+  };
 
   const handleEjecutarCorte = async () => {
     if (isNaN(Number(capitalYsmael)) || isNaN(Number(capitalVictor))) {
@@ -356,6 +456,27 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Depuración / Reset de gastos legacy del catálogo */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Trash2 className="w-4 h-4 text-amber-600" /> Depuración de Gastos/Envíos Legados
+              </h4>
+              <p className="text-xs text-amber-800 mt-1">
+                Limpia los valores de envíos y gastos antiguos duplicados en Firestore para recalcular el inventario exacto antes del reset.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleLimpiarGastosLegacy}
+              disabled={cleaning}
+              className="flex-shrink-0 flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs transition-colors shadow-sm disabled:opacity-50"
+            >
+              {cleaning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              {cleaning ? 'Depurando...' : 'Depurar Gastos Legacy'}
+            </button>
           </div>
 
           <div className="flex justify-between pt-4">
