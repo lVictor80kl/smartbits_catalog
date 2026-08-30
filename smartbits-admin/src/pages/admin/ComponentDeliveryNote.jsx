@@ -3,6 +3,7 @@ import { ArrowLeft, Download, Loader2, Plus, X, Check, Clock, Ban } from 'lucide
 import { Link, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { useCuentasCaja } from '../../utils/useCuentasCaja';
 
 export default function ComponentDeliveryNote() {
   const { id } = useParams();
@@ -45,9 +46,11 @@ export default function ComponentDeliveryNote() {
     direccion: '',
   });
 
+  const { todasCuentas, tasaCambio } = useCuentasCaja();
+
   // Payment methods (dynamic)
   const [pagos, setPagos] = useState([
-    { metodo: 'Efectivo', monto: '' }
+    { metodo: 'Efectivo', cuentaKey: 'efectivo', monto: '' }
   ]);
 
   const [unidades, setUnidades] = useState(1);
@@ -108,8 +111,21 @@ export default function ComponentDeliveryNote() {
     }
   };
 
+  const METODOS_OPCIONES = [
+    { label: 'Efectivo', defaultCuenta: 'efectivo' },
+    { label: 'Zelle', defaultCuenta: 'zelle' },
+    { label: 'Pago Móvil', defaultCuenta: 'venezuela' },
+    { label: 'Transferencia', defaultCuenta: 'venezuela' },
+    { label: 'USDT', defaultCuenta: 'binance' },
+    { label: 'Binance Pay', defaultCuenta: 'binance' },
+    { label: 'Zinli', defaultCuenta: 'zinli' },
+    { label: 'PayPal', defaultCuenta: 'paypal' },
+    { label: 'Bancamiga', defaultCuenta: 'bancamiga' },
+    { label: 'Otro', defaultCuenta: 'bolivares_bs' }
+  ];
+
   const addPago = () => {
-    setPagos(prev => [...prev, { metodo: 'Zelle', monto: '' }]);
+    setPagos(prev => [...prev, { metodo: 'Zelle', cuentaKey: 'zelle', monto: '' }]);
   };
 
   const removePago = (index) => {
@@ -120,11 +136,31 @@ export default function ComponentDeliveryNote() {
     setPagos(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p));
   };
 
+  const updatePagoMetodo = (index, nuevoMetodo) => {
+    const esBs = METODOS_BS.includes(nuevoMetodo);
+    const cuentasValidas = todasCuentas.filter(c => esBs ? c.moneda === 'BS' : c.moneda !== 'BS');
+    const defaultCuenta = cuentasValidas[0]?.key || (esBs ? 'venezuela' : 'efectivo');
+    setPagos(prev => prev.map((p, i) => i === index ? { ...p, metodo: nuevoMetodo, cuentaKey: defaultCuenta } : p));
+  };
+
   const subtotal = component ? component.precio * unidades : 0;
 
   const [tasa, setTasa] = useState('');
 
-  const METODOS_BS = ['Pago Móvil', 'Transferencia', 'Otro'];
+  // Auto-populate default rate from Finanzas
+  useEffect(() => {
+    if (tasaCambio && !tasa) {
+      setTasa(String(tasaCambio));
+    }
+  }, [tasaCambio]);
+
+  const METODOS_BS = ['Pago Móvil', 'Transferencia'];
+  const isPagoBs = (pago) => {
+    if (METODOS_BS.includes(pago.metodo)) return true;
+    const c = todasCuentas.find(acc => acc.key === pago.cuentaKey);
+    return c?.moneda === 'BS';
+  };
+
   const isBs = (metodo) => METODOS_BS.includes(metodo);
 
   const tasaNum = Number(tasa) || 0;
@@ -136,7 +172,7 @@ export default function ComponentDeliveryNote() {
 
   const getMontoUSD = (pago) => {
     const monto = Number(pago.monto) || 0;
-    if (isBs(pago.metodo) && tasaNum > 0) return monto / tasaNum;
+    if (isPagoBs(pago) && tasaNum > 0) return monto / tasaNum;
     return monto;
   };
 
@@ -330,48 +366,64 @@ export default function ComponentDeliveryNote() {
 
         <h2 className="font-semibold text-gray-900 text-lg">Métodos de Pago</h2>
         <div className="space-y-3">
-          {pagos.map((pago, index) => (
-            <div key={index} className="flex items-center gap-3">
-              <select
-                value={pago.metodo}
-                onChange={(e) => updatePago(index, 'metodo', e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-              >
-                <option value="Zelle">Zelle</option>
-                <option value="USDT">USDT</option>
-                <option value="Efectivo">Efectivo</option>
-                <option value="Pago Móvil">Pago Móvil</option>
-                <option value="Transferencia">Transferencia</option>
-                <option value="Binance Pay">Binance Pay</option>
-                <option value="Zinli">Zinli</option>
-                <option value="PayPal">PayPal</option>
-                <option value="Otro">Otro</option>
-              </select>
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">$</span>
-                <input
-                  type="number" min="0" step="0.01"
-                  value={pago.monto}
-                  onChange={(e) => updatePago(index, 'monto', e.target.value)}
-                  placeholder="0.00"
-                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-                />
+          {pagos.map((pago, index) => {
+            const esEnBs = isPagoBs(pago);
+            const cuentasFiltradas = todasCuentas.filter(c => esEnBs ? c.moneda === 'BS' : c.moneda !== 'BS');
+            return (
+              <div key={index} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="flex items-center gap-2 flex-1">
+                  {/* Método (Nombre para PDF) */}
+                  <select
+                    value={pago.metodo}
+                    onChange={(e) => updatePagoMetodo(index, e.target.value)}
+                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none font-medium"
+                  >
+                    {METODOS_OPCIONES.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}
+                  </select>
+
+                  {/* Cuenta de Finanzas (Filtrada por moneda) */}
+                  <select
+                    value={pago.cuentaKey || (cuentasFiltradas[0]?.key || 'efectivo')}
+                    onChange={(e) => updatePago(index, 'cuentaKey', e.target.value)}
+                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-purple-500 outline-none text-gray-700 font-medium"
+                    title="Cuenta de Finanzas a la que ingresa el dinero"
+                  >
+                    {cuentasFiltradas.map(acc => (
+                      <option key={acc.key} value={acc.key}>
+                        {acc.label} ({acc.moneda})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 flex-1">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">{esEnBs ? 'Bs' : '$'}</span>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={pago.monto}
+                      onChange={(e) => updatePago(index, 'monto', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none font-semibold"
+                    />
+                  </div>
+                  {esEnBs && tasaNum > 0 && (
+                    <span className="text-xs text-gray-500 font-medium whitespace-nowrap bg-white px-2 py-1.5 border border-gray-200 rounded-md">
+                      ≈ ${formatMonto(Number(pago.monto) / tasaNum)}
+                    </span>
+                  )}
+                  {pagos.length > 1 && (
+                    <button onClick={() => removePago(index)} className="p-1.5 text-red-400 hover:text-red-600 transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
-              {isBs(pago.metodo) && tasaNum > 0 && (
-                <span className="text-xs text-gray-500 whitespace-nowrap">
-                  ≈ ${formatMonto(Number(pago.monto) / tasaNum)}
-                </span>
-              )}
-              {pagos.length > 1 && (
-                <button onClick={() => removePago(index)} className="p-1.5 text-red-400 hover:text-red-600 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
           <button
             onClick={addPago}
-            className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors"
+            className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors mt-2"
           >
             <Plus className="w-4 h-4" /> Agregar método de pago
           </button>
@@ -394,20 +446,36 @@ export default function ComponentDeliveryNote() {
           </div>
         </div>
 
-        {/* Tasa de cambio */}
-        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <label className="block text-sm font-medium text-amber-800 mb-1">Tasa de cambio (Bs por $)</label>
+        <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-purple-800">Tasa de cambio (Bs por $)</label>
+            {tasaCambio > 0 && (
+              <span className="text-xs text-purple-700 bg-purple-100 px-2 py-0.5 rounded font-semibold">
+                Tasa predeterminada Finanzas: {formatMonto(tasaCambio)} Bs/$
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-amber-700 font-medium">1 $ =</span>
+            <span className="text-sm text-purple-700 font-medium">1 $ =</span>
             <input
               type="number" min="0" step="0.01"
               value={tasa}
               onChange={(e) => setTasa(e.target.value)}
               placeholder="Ej: 95.50"
-              className="w-40 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none bg-white"
+              className="w-40 px-3 py-2 border border-purple-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 outline-none bg-white"
             />
-            <span className="text-sm text-amber-700 font-medium">Bs</span>
+            <span className="text-sm text-purple-700 font-medium">Bs</span>
+            {tasaCambio > 0 && Number(tasa) !== tasaCambio && (
+              <button
+                type="button"
+                onClick={() => setTasa(String(tasaCambio))}
+                className="text-xs text-purple-800 underline hover:text-purple-900 font-medium ml-2"
+              >
+                Usar tasa de Finanzas
+              </button>
+            )}
           </div>
+          <p className="text-xs text-purple-600 mt-1">Se usa para calcular el equivalente en USD de los pagos en Bs.</p>
         </div>
 
         <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
@@ -509,60 +577,79 @@ export default function ComponentDeliveryNote() {
           </table>
 
           {/* Product table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '6px' }}>
-            <thead>
-              <tr style={{ background: '#faf5ff', borderBottom: '2px solid #a855f7' }}>
-                <th style={{ padding: '8px 10px', textAlign: 'left', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Cantidad</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Concepto/Referencia</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Precio</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Sub-Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '10px' }}>{unidades}</td>
-                <td style={{ padding: '10px', fontWeight: '600' }}>{component.nombre}</td>
-                <td style={{ padding: '10px', textAlign: 'right' }}>$ {formatMonto(precioUnitDisplay)}</td>
-                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>$ {formatMonto(precioDisplay)}</td>
-              </tr>
-            </tbody>
-          </table>
+          {(() => {
+            const hasBsPayment = pagos.some(p => (Number(p.monto) || 0) > 0 && isPagoBs(p));
+            const isPdfInBs = hasBsPayment && tasaNum > 0;
+            const precioUnitPdf = isPdfInBs ? precioUnitUSD * tasaNum : precioUnitUSD;
+            const precioTotalPdf = isPdfInBs ? precioDisplay * tasaNum : precioDisplay;
+            const currencySymbol = isPdfInBs ? 'Bs' : '$';
 
-          {/* Descripción */}
-          <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px', fontSize: '12px', lineHeight: '1.8' }}>
-            <span style={{ color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Descripción:</span>
-            <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap' }}>{descripcion}</div>
-          </div>
+            return (
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '6px' }}>
+                  <thead>
+                    <tr style={{ background: '#faf5ff', borderBottom: '2px solid #a855f7' }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Cantidad</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Concepto/Referencia</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Precio</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Sub-Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '10px' }}>{unidades}</td>
+                      <td style={{ padding: '10px', fontWeight: '600' }}>{component.nombre}</td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>{currencySymbol} {formatMonto(precioUnitPdf)}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>{currencySymbol} {formatMonto(precioTotalPdf)}</td>
+                    </tr>
+                  </tbody>
+                </table>
 
-          {/* Observaciones */}
-          {observaciones && (
-            <div style={{ marginBottom: '16px' }}>
-              <span style={{ color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Observaciones:</span>
-              <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap', fontSize: '11px' }}>{observaciones}</div>
-            </div>
-          )}
+                {/* Descripción */}
+                <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px', fontSize: '12px', lineHeight: '1.8' }}>
+                  <span style={{ color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Descripción:</span>
+                  <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap' }}>{descripcion}</div>
+                </div>
 
-          {/* Payment + Total */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '20px' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #a855f7' }}>
-                <th style={{ padding: '8px 10px', textAlign: 'left', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Método de Pago</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagos.map((p, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '7px 10px' }}>{p.metodo}</td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right' }}>{isBs(p.metodo) ? `Bs ${formatMonto(Number(p.monto) || 0)}${tasaNum > 0 ? ` (≈ $${formatMonto((Number(p.monto) || 0) / tasaNum)})` : ''}` : `$ ${formatMonto(Number(p.monto) || 0)}`}</td>
-                </tr>
-              ))}
-              <tr style={{ borderTop: '2px solid #222' }}>
-                <td style={{ padding: '10px', fontWeight: '800', fontSize: '14px' }}>Total:</td>
-                <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>$ {formatMonto(precioDisplay)}</td>
-              </tr>
-            </tbody>
-          </table>
+                {/* Observaciones */}
+                {observaciones && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <span style={{ color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Observaciones:</span>
+                    <div style={{ marginTop: '4px', color: '#444', whiteSpace: 'pre-wrap', fontSize: '11px' }}>{observaciones}</div>
+                  </div>
+                )}
+
+                {/* Payment + Total */}
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '20px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #a855f7' }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Método de Pago</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', color: '#9333ea', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase' }}>Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagos.filter(p => (Number(p.monto) || 0) > 0).map((p, i) => {
+                      const esEnBs = isPagoBs(p);
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '7px 10px', fontWeight: '500' }}>{p.metodo}</td>
+                          <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: '600' }}>
+                            {esEnBs ? `Bs ${formatMonto(p.monto)}` : `$ ${formatMonto(p.monto)}`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr style={{ borderTop: '2px solid #222' }}>
+                      <td style={{ padding: '10px', fontWeight: '800', fontSize: '14px' }}>Total:</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>
+                        {currencySymbol} {formatMonto(precioTotalPdf)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            );
+          })()}
 
           {/* Garantía */}
           <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '14px 16px', fontSize: '11px', lineHeight: '1.7', color: '#15803d' }}>
