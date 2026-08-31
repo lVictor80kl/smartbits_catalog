@@ -1,12 +1,21 @@
 import { Cpu, MemoryStick, Database, ChevronRight, ChevronLeft } from 'lucide-react';
-// 1. IMPORTA TU FUNCIÓN DE UTILIDADES AQUÍ (Ajusta la ruta según tus carpetas)
 import { getCloudinaryUrl } from "../utils/imageOptimizer.js";
-import { useState, useEffect, useCallback } from 'react';
-
+import { useState } from 'react';
 
 export default function LaptopCard({ laptop, onClick }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const isAvailable = laptop.disponibilidad === "Disponible";
+  const isOferta = Boolean(laptop.en_oferta && laptop.precio_oferta);
+
+  const precioOriginal = Number(laptop.precio) || 0;
+  const precioOferta = Number(laptop.precio_oferta) || 0;
+  const descuentoUsd = Math.max(0, precioOriginal - precioOferta);
+  const descuentoPct = precioOriginal > 0 && precioOferta > 0 && precioOferta < precioOriginal
+    ? Math.round(((precioOriginal - precioOferta) / precioOriginal) * 100)
+    : 0;
+
+  const badgeText = (laptop.etiqueta_oferta || '').trim() || (descuentoPct > 0 ? `-${descuentoPct}% OFF` : 'OFERTA');
+
   const imageCount = laptop.imagenes?.length || (laptop.imagen ? 1 : 0);
   const hasGallery = imageCount > 1;
 
@@ -27,12 +36,21 @@ export default function LaptopCard({ laptop, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="group bg-white dark:bg-brand-900 rounded-[2rem] border border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 transition-all duration-500 cursor-pointer overflow-hidden flex flex-col h-full hover:shadow-[0_20px_40px_-15px_rgba(30,41,59,0.1)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.4)] transform hover:-translate-y-2 relative"
+      className={`group bg-white dark:bg-brand-900 rounded-[2rem] border transition-all duration-500 cursor-pointer overflow-hidden flex flex-col h-full transform hover:-translate-y-2 relative ${
+        isOferta
+          ? 'border-orange-400/90 dark:border-orange-500/90 ring-2 ring-orange-500/40 dark:ring-orange-500/50 shadow-[0_10px_30px_-5px_rgba(249,115,22,0.25)] hover:shadow-[0_20px_45px_-10px_rgba(249,115,22,0.4)] bg-gradient-to-b from-orange-50/40 via-white to-orange-50/20 dark:from-orange-950/20 dark:via-brand-900 dark:to-brand-950'
+          : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 hover:shadow-[0_20px_40px_-15px_rgba(30,41,59,0.1)] dark:hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.4)]'
+      }`}
     >
       {/* Image Area con Carrusel */}
       <div className="aspect-[4/3] p-6 bg-brand-50/50 dark:bg-brand-800/50 overflow-hidden relative border-b border-brand-50 dark:border-brand-800/50 group/slider">
-        {/* Badge disponibilidad */}
-        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+        {/* Badges superiores (Oferta + Disponibilidad) */}
+        <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-1.5">
+          {isOferta && (
+            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 text-white shadow-md animate-pulse">
+              🔥 {badgeText}
+            </span>
+          )}
           <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border backdrop-blur-sm ${isAvailable ? 'bg-white/90 dark:bg-brand-950/80 text-brand-600 dark:text-brand-300 border-brand-100 dark:border-brand-700' : 'bg-white/90 dark:bg-brand-950/80 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-900'}`}>
             {laptop.disponibilidad}
           </span>
@@ -93,16 +111,35 @@ export default function LaptopCard({ laptop, onClick }) {
 
         {/* Footer Card */}
         <div className="mt-auto flex items-center justify-between">
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-black text-brand-900 dark:text-white tracking-tighter">${laptop.precio}</span>
-            <span className="text-[10px] font-bold text-brand-400 dark:text-brand-500 uppercase">USD</span>
-          </div>
+          {isOferta ? (
+            <div className="flex flex-col">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-orange-600 dark:text-orange-400 tracking-tighter">${precioOferta}</span>
+                <span className="text-[10px] font-bold text-orange-500 uppercase">USD</span>
+                <span className="text-xs font-semibold text-slate-400 line-through ml-1">${precioOriginal}</span>
+              </div>
+              {descuentoUsd > 0 && (
+                <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-400">
+                  ¡Ahorras ${descuentoUsd.toFixed(0)} USD!
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-black text-brand-900 dark:text-white tracking-tighter">${laptop.precio}</span>
+              <span className="text-[10px] font-bold text-brand-400 dark:text-brand-500 uppercase">USD</span>
+            </div>
+          )}
 
           <button
             onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className="bg-brand-900 hover:bg-brand-800 dark:bg-brand-600 dark:hover:bg-brand-500 text-white rounded-full px-4 py-1 text-[12px] font-bold transition-all hover:scale-105 ring-2 ring-brand-300 dark:ring-brand-400 hover:ring-brand-500"
+            className={`rounded-full px-4 py-1.5 text-[12px] font-bold transition-all hover:scale-105 ${
+              isOferta
+                ? 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white shadow-md shadow-orange-500/20'
+                : 'bg-brand-900 hover:bg-brand-800 dark:bg-brand-600 dark:hover:bg-brand-500 text-white ring-2 ring-brand-300 dark:ring-brand-400 hover:ring-brand-500'
+            }`}
           >
-            Ver más
+            {isOferta ? 'Ver oferta →' : 'Ver más'}
           </button>
         </div>
       </div>

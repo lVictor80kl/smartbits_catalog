@@ -44,6 +44,9 @@ export default function EditLaptop() {
     observaciones_compra: '',
 
     borrador: false,
+    en_oferta: false,
+    precio_oferta: '',
+    etiqueta_oferta: '',
   });
 
   // Datos de compra extra cargados desde la BD (no editables aquí):
@@ -91,6 +94,9 @@ export default function EditLaptop() {
             precio_ebay: data.precio_ebay?.toString() || '',
             observaciones_compra: data.observaciones_compra || '',
             borrador: data.borrador ?? false,
+            en_oferta: Boolean(data.en_oferta),
+            precio_oferta: data.precio_oferta?.toString() || '',
+            etiqueta_oferta: data.etiqueta_oferta || '',
           });
           setExistingImages(imgs);
 
@@ -310,6 +316,9 @@ export default function EditLaptop() {
         total_comisiones: totalComisiones,
         costo_mas_comision: costoMasComision,
         borrador: formData.borrador,
+        en_oferta: Boolean(formData.en_oferta),
+        precio_oferta: formData.en_oferta ? (Number(formData.precio_oferta) || 0) : null,
+        etiqueta_oferta: formData.en_oferta ? (formData.etiqueta_oferta || '') : '',
         costo_total: costoTotal,
         ganancia_estimada: gananciaEstimada,
       };
@@ -522,7 +531,7 @@ export default function EditLaptop() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Precio ($USD)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Precio Normal ($USD)</label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <span className="text-gray-500 sm:text-sm">$</span>
@@ -535,6 +544,83 @@ export default function EditLaptop() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* SECCIÓN DE OFERTA PROMOCIONAL */}
+              <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 p-6 rounded-xl border-2 border-orange-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🔥</span>
+                    <div>
+                      <h3 className="font-bold text-orange-950 text-sm">Oferta Promocional</h3>
+                      <p className="text-xs text-orange-700">Destaca este equipo en oferta al inicio del catálogo público.</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="en_oferta"
+                      checked={formData.en_oferta}
+                      onChange={(e) => setFormData(p => ({ ...p, en_oferta: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                  </label>
+                </div>
+
+                {formData.en_oferta && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-orange-200/60">
+                    <div>
+                      <label className="block text-xs font-bold text-orange-900 mb-1">Precio de Oferta ($USD)</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-orange-600 font-bold">$</span>
+                        <input
+                          type="number" step="0.01" min="0"
+                          name="precio_oferta"
+                          placeholder="Ej: 750"
+                          value={formData.precio_oferta}
+                          onChange={handleChange}
+                          className="w-full pl-7 pr-3 py-2 border border-orange-300 rounded-lg text-sm font-black text-orange-950 bg-white focus:ring-2 focus:ring-orange-500"
+                          required={formData.en_oferta}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-orange-900 mb-1">
+                        Texto Personalizado del Badge
+                      </label>
+                      <input
+                        type="text"
+                        name="etiqueta_oferta"
+                        placeholder="Ej: OFERTA RELÁMPAGO, 15% OFF, SUPER PRECIO..."
+                        value={formData.etiqueta_oferta}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-orange-300 rounded-lg text-sm font-semibold text-orange-950 bg-white focus:ring-2 focus:ring-orange-500"
+                      />
+                      <p className="text-[11px] text-orange-700 mt-1">
+                        Si lo dejas en blanco, se calculará automáticamente el porcentaje (ej: <span className="font-bold text-orange-900">-15% OFF</span>).
+                      </p>
+                    </div>
+
+                    {/* Previsualización del Ahorro y Badge */}
+                    {Number(formData.precio) > 0 && Number(formData.precio_oferta) > 0 && (
+                      <div className="sm:col-span-2 bg-white/80 p-3 rounded-lg border border-orange-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-orange-900">Vista Previa Badge:</span>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-sm">
+                            {formData.etiqueta_oferta.trim() || `-${Math.round(((Number(formData.precio) - Number(formData.precio_oferta)) / Number(formData.precio)) * 100)}% OFF`}
+                          </span>
+                        </div>
+                        {Number(formData.precio) > Number(formData.precio_oferta) && (
+                          <span className="font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md">
+                            ¡Cliente ahorra ${(Number(formData.precio) - Number(formData.precio_oferta)).toFixed(2)} USD!
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">

@@ -96,7 +96,10 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
     ? `${laptop.pantalla} (Táctil)`
     : laptop.pantalla;
 
-  const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} listado a $${laptop.precio}. ¿Pueden brindarme mayor información?`;
+  const isOfertaModal = Boolean(laptop.en_oferta && laptop.precio_oferta);
+  const precioFinalModal = isOfertaModal ? Number(laptop.precio_oferta) : Number(laptop.precio);
+
+  const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} listado a $${precioFinalModal} USD${isOfertaModal ? ' (En Oferta)' : ''}. ¿Pueden brindarme mayor información?`;
   const whatsappUrl = `https://wa.me/584128444445?text=${encodeURIComponent(whatsappMessage)}`;
 
   const handleZoomClick = (e) => {
@@ -209,11 +212,31 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                 <p className="text-[10px] lg:text-xs font-black text-brand-400 dark:text-brand-500 uppercase tracking-[0.3em] mb-4">{laptop.marca}</p>
                 <h3 className="text-3xl sm:text-4xl lg:text-5xl font-black text-brand-800 dark:text-white leading-[1.05] mb-8 tracking-tighter">{laptop.modelo}</h3>
 
-                <div className="flex flex-wrap items-center gap-8">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl sm:text-5xl lg:text-6xl font-black text-brand-900 dark:text-white tracking-tighter">${laptop.precio}</span>
-                    <span className="text-sm font-bold text-brand-400 dark:text-brand-500">USD</span>
-                  </div>
+                <div className="flex flex-wrap items-center gap-6">
+                  {isOfertaModal ? (
+                    <div className="flex flex-col">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl sm:text-5xl lg:text-6xl font-black text-orange-600 dark:text-orange-400 tracking-tighter">${laptop.precio_oferta}</span>
+                        <span className="text-sm font-bold text-orange-500">USD</span>
+                        <span className="text-lg sm:text-xl font-bold text-slate-400 line-through ml-2">${laptop.precio} USD</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 text-white shadow-sm">
+                          🔥 {(laptop.etiqueta_oferta || '').trim() || `-${Math.round(((Number(laptop.precio) - Number(laptop.precio_oferta)) / Number(laptop.precio)) * 100)}% OFF`}
+                        </span>
+                        {Number(laptop.precio) > Number(laptop.precio_oferta) && (
+                          <span className="text-xs font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-3 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                            ¡Ahorras ${(Number(laptop.precio) - Number(laptop.precio_oferta)).toFixed(0)} USD!
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl sm:text-5xl lg:text-6xl font-black text-brand-900 dark:text-white tracking-tighter">${laptop.precio}</span>
+                      <span className="text-sm font-bold text-brand-400 dark:text-brand-500">USD</span>
+                    </div>
+                  )}
                   <span className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest ${badgeClass}`}>
                     {laptop.disponibilidad}
                   </span>

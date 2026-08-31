@@ -38,6 +38,9 @@ service cloud.firestore {
     match /gastos_operativos/{document=**} {
       allow read, write: if isAdmin();
     }
+    match /aportes_socios/{document=**} {
+      allow read, write: if isAdmin();
+    }
     match /historico_ingresos/{document=**} {
       allow read, write: if isAdmin();
     }

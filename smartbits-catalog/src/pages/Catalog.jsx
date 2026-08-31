@@ -20,7 +20,7 @@ export default function Catalog() {
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'laptops'), orderBy('creadoEn', 'desc'));
+    const q = collection(db, 'laptops');
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const laptopData = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -81,7 +81,16 @@ export default function Catalog() {
       const weightA = getDispWeight(a.disponibilidad);
       const weightB = getDispWeight(b.disponibilidad);
       if (weightA !== weightB) return weightA - weightB;
-      return Number(a.precio) - Number(b.precio);
+
+      // Prioridad máxima a laptops en oferta
+      const isOfertaA = Boolean(a.en_oferta && a.precio_oferta);
+      const isOfertaB = Boolean(b.en_oferta && b.precio_oferta);
+      if (isOfertaA && !isOfertaB) return -1;
+      if (!isOfertaA && isOfertaB) return 1;
+
+      const precioA = isOfertaA ? Number(a.precio_oferta) : Number(a.precio);
+      const precioB = isOfertaB ? Number(b.precio_oferta) : Number(b.precio);
+      return precioA - precioB;
     });
   }, [laptops, searchTerm, selectedBrand, selectedRam, selectedStorage, selectedCpu, maxPrice, selectedAvailability]);
 

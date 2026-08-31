@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote, Filter, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, X, Copy } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
   const [gastosModalLaptop, setGastosModalLaptop] = useState(null);
+  const [modalOferta, setModalOferta] = useState({ open: false, laptop: null, en_oferta: false, precio_oferta: '', etiqueta_oferta: '', saving: false });
 
   // Model count: how many units per model name
   const modelCounts = laptops.reduce((acc, l) => {
@@ -104,6 +105,9 @@ export default function Dashboard() {
           estadoCarcasa: laptop.estadoCarcasa ?? 9,
           otros: laptop.otros || '',
           borrador: Boolean(laptop.borrador),
+          en_oferta: Boolean(laptop.en_oferta),
+          precio_oferta: laptop.precio_oferta || null,
+          etiqueta_oferta: laptop.etiqueta_oferta || '',
           createdAt: new Date().toISOString()
         };
 
@@ -115,6 +119,31 @@ export default function Dashboard() {
       alert('Error al duplicar: ' + err.message);
     } finally {
       setDuplicatingId(null);
+    }
+  };
+
+  const handleGuardarOferta = async (e) => {
+    e.preventDefault();
+    if (!modalOferta.laptop) return;
+    const isOfertaActive = Boolean(modalOferta.en_oferta);
+    const precioOfertaNum = Number(modalOferta.precio_oferta);
+    if (isOfertaActive && (isNaN(precioOfertaNum) || precioOfertaNum <= 0)) {
+      return alert("Ingresa un precio de oferta válido.");
+    }
+    setModalOferta(p => ({ ...p, saving: true }));
+    try {
+      const laptopRef = doc(db, 'laptops', modalOferta.laptop.id);
+      await updateDoc(laptopRef, {
+        en_oferta: isOfertaActive,
+        precio_oferta: isOfertaActive ? precioOfertaNum : null,
+        etiqueta_oferta: isOfertaActive ? (modalOferta.etiqueta_oferta || '') : '',
+        updatedAt: new Date().toISOString()
+      });
+      setModalOferta({ open: false, laptop: null, en_oferta: false, precio_oferta: '', etiqueta_oferta: '', saving: false });
+    } catch (err) {
+      console.error(err);
+      alert("Error al actualizar oferta: " + err.message);
+      setModalOferta(p => ({ ...p, saving: false }));
     }
   };
 
@@ -394,11 +423,10 @@ export default function Dashboard() {
                 {/* Filter Toggle Button */}
                 <button
                   onClick={() => setShowFiltersPanel(!showFiltersPanel)}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 border shadow-sm ${
-                    showFiltersPanel || activeFiltersCount > 0
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 border shadow-sm ${showFiltersPanel || activeFiltersCount > 0
                       ? 'bg-blue-50 border-blue-300 text-blue-700'
                       : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
-                  }`}
+                    }`}
                 >
                   <SlidersHorizontal className="w-4 h-4" />
                   Filtros
@@ -465,11 +493,10 @@ export default function Dashboard() {
                   <div className="flex flex-wrap gap-2 items-center">
                     <button
                       onClick={() => setFilterDisp([])}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                        filterDisp.length === 0
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${filterDisp.length === 0
                           ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                           : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
-                      }`}
+                        }`}
                     >
                       Todas
                     </button>
@@ -479,11 +506,10 @@ export default function Dashboard() {
                         <button
                           key={disp}
                           onClick={() => toggleArrayFilter(setFilterDisp, filterDisp, disp)}
-                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border flex items-center gap-1 ${
-                            isSelected
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border flex items-center gap-1 ${isSelected
                               ? 'bg-blue-100 text-blue-800 border-blue-300 font-bold shadow-xs'
                               : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
-                          }`}
+                            }`}
                         >
                           {disp}
                           {isSelected && <X className="w-3 h-3 text-blue-600" />}
@@ -502,11 +528,10 @@ export default function Dashboard() {
                     <div className="flex flex-wrap gap-2 items-center">
                       <button
                         onClick={() => setFilterMarca([])}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                          filterMarca.length === 0
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${filterMarca.length === 0
                             ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                             : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
-                        }`}
+                          }`}
                       >
                         Todas
                       </button>
@@ -516,11 +541,10 @@ export default function Dashboard() {
                           <button
                             key={marca}
                             onClick={() => toggleArrayFilter(setFilterMarca, filterMarca, marca)}
-                            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border flex items-center gap-1 ${
-                              isSelected
+                            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border flex items-center gap-1 ${isSelected
                                 ? 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold shadow-xs'
                                 : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
-                            }`}
+                              }`}
                           >
                             {marca}
                             {isSelected && <X className="w-3 h-3 text-indigo-600" />}
@@ -541,11 +565,10 @@ export default function Dashboard() {
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <button
                         onClick={() => setFilterRam([])}
-                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
-                          filterRam.length === 0
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${filterRam.length === 0
                             ? 'bg-gray-800 text-white border-gray-800'
                             : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
-                        }`}
+                          }`}
                       >
                         Todas
                       </button>
@@ -555,11 +578,10 @@ export default function Dashboard() {
                           <button
                             key={ram}
                             onClick={() => toggleArrayFilter(setFilterRam, filterRam, ram)}
-                            className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
-                              isSelected
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${isSelected
                                 ? 'bg-purple-100 text-purple-800 border-purple-300 font-bold'
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
-                            }`}
+                              }`}
                           >
                             {ram}
                           </button>
@@ -576,11 +598,10 @@ export default function Dashboard() {
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <button
                         onClick={() => setFilterStorage([])}
-                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
-                          filterStorage.length === 0
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${filterStorage.length === 0
                             ? 'bg-gray-800 text-white border-gray-800'
                             : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
-                        }`}
+                          }`}
                       >
                         Todos
                       </button>
@@ -590,11 +611,10 @@ export default function Dashboard() {
                           <button
                             key={st}
                             onClick={() => toggleArrayFilter(setFilterStorage, filterStorage, st)}
-                            className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
-                              isSelected
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${isSelected
                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
                                 : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
-                            }`}
+                              }`}
                           >
                             {st}
                           </button>
@@ -682,6 +702,11 @@ export default function Dashboard() {
                                 Borrador
                               </span>
                             )}
+                            {laptop.en_oferta && (
+                              <span className="text-[10px] font-black text-white bg-gradient-to-r from-red-600 to-orange-500 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 shadow-xs">
+                                🔥 OFERTA ${laptop.precio_oferta} ({laptop.etiqueta_oferta || `-${Math.round(((Number(laptop.precio) - Number(laptop.precio_oferta)) / Number(laptop.precio)) * 100)}%`})
+                              </span>
+                            )}
 
                             <div className="flex flex-col items-start gap-1 my-1">
                               {tieneEnvioPagado(laptop) && (
@@ -718,9 +743,20 @@ export default function Dashboard() {
                     </td>
 
                     <td className="px-6 py-4">
-                      <div className="font-bold text-gray-900">${laptop.precio}</div>
+                      {laptop.en_oferta ? (
+                        <div>
+                          <div className="font-black text-orange-600 text-sm flex items-center gap-1">
+                            🔥 ${laptop.precio_oferta}
+                          </div>
+                          <div className="text-xs text-gray-400 line-through font-medium">
+                            ${laptop.precio}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="font-bold text-gray-900">${laptop.precio}</div>
+                      )}
                       <div className="text-xs text-gray-400 font-medium mt-0.5" title="Costo total actual">
-                        ${Number(getCostoTotal(laptop) || 0).toFixed(2)}
+                        Costo: ${Number(getCostoTotal(laptop) || 0).toFixed(2)}
                       </div>
                     </td>
 
@@ -735,6 +771,23 @@ export default function Dashboard() {
 
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setModalOferta({
+                            open: true,
+                            laptop,
+                            en_oferta: Boolean(laptop.en_oferta),
+                            precio_oferta: laptop.precio_oferta ? laptop.precio_oferta.toString() : (laptop.precio ? Math.round(Number(laptop.precio) * 0.85).toString() : ''),
+                            etiqueta_oferta: laptop.etiqueta_oferta || '',
+                            saving: false
+                          })}
+                          className={`p-1.5 rounded transition-colors ${laptop.en_oferta
+                              ? 'text-orange-600 bg-orange-50 hover:bg-orange-100 font-bold'
+                              : 'text-gray-400 hover:text-orange-600 hover:bg-orange-50'
+                            }`}
+                          title={laptop.en_oferta ? 'Editar Oferta Promocional' : 'Poner en Oferta Promocional'}
+                        >
+                          <span className="text-sm">🔥</span>
+                        </button>
                         <button
                           onClick={() => handleDuplicateLaptops([laptop.id])}
                           disabled={duplicatingId === laptop.id || duplicatingId === 'bulk'}
@@ -835,6 +888,102 @@ export default function Dashboard() {
                 {showDeleteModal.ids.length === 1 ? 'Sí, eliminar' : 'Sí, eliminar todos'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL RÁPIDO: REGISTRAR/EDITAR OFERTA */}
+      {modalOferta.open && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <span>🔥</span> Oferta Promocional
+              </h3>
+              <button
+                type="button"
+                onClick={() => setModalOferta({ open: false, laptop: null, en_oferta: false, precio_oferta: '', etiqueta_oferta: '', saving: false })}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Equipo: <span className="font-bold text-gray-800">{modalOferta.laptop?.modelo}</span> (Precio regular: ${modalOferta.laptop?.precio} USD)
+            </p>
+
+            <form onSubmit={handleGuardarOferta} className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-orange-50 rounded-xl border border-orange-200">
+                <span className="text-xs font-bold text-orange-950">Activar Oferta en Catálogo</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={modalOferta.en_oferta}
+                    onChange={(e) => setModalOferta(p => ({ ...p, en_oferta: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                </label>
+              </div>
+
+              {modalOferta.en_oferta && (
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Precio Promocional ($USD)</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-orange-600 font-bold">$</span>
+                      <input
+                        type="number" step="0.01" min="0"
+                        placeholder="0.00"
+                        value={modalOferta.precio_oferta}
+                        onChange={e => setModalOferta(p => ({ ...p, precio_oferta: e.target.value }))}
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-900 focus:ring-2 focus:ring-orange-500"
+                        required={modalOferta.en_oferta}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Texto del Badge (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: OFERTA IMPERDIBLE, 15% OFF, PRECIO ESPECIAL..."
+                      value={modalOferta.etiqueta_oferta}
+                      onChange={e => setModalOferta(p => ({ ...p, etiqueta_oferta: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">Si lo dejas en blanco se mostrará el porcentaje calculado (ej. -15% OFF).</p>
+                  </div>
+
+                  {Number(modalOferta.laptop?.precio) > 0 && Number(modalOferta.precio_oferta) > 0 && (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-700">Badge a mostrar:</span>
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-red-600 to-orange-500 text-white">
+                        {modalOferta.etiqueta_oferta.trim() || `-${Math.round(((Number(modalOferta.laptop?.precio) - Number(modalOferta.precio_oferta)) / Number(modalOferta.laptop?.precio)) * 100)}% OFF`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setModalOferta({ open: false, laptop: null, en_oferta: false, precio_oferta: '', etiqueta_oferta: '', saving: false })}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalOferta.saving}
+                  className="flex-1 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {modalOferta.saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {modalOferta.saving ? 'Guardando...' : 'Guardar Oferta'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
