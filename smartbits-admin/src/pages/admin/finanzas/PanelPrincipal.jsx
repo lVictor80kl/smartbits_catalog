@@ -33,11 +33,13 @@ export default function PanelPrincipal({ onNavigateTab }) {
   const [gastosPers, setGastosPers] = useState([]);
   const [ingresos, setIngresos] = useState([]);
   const [transferencias, setTransferencias] = useState([]);
+  const [aportesSocios, setAportesSocios] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Modales de acciones rápidas
   const [modalGasto, setModalGasto] = useState({ open: false, categoria: 'publicidad', concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '', saving: false });
   const [modalRetiro, setModalRetiro] = useState({ open: false, socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo', tasa: '', saving: false });
+  const [modalAporte, setModalAporte] = useState({ open: false, socio: 'ysmael', concepto: '', monto: '', cuenta_destino: 'efectivo', tasa: '', saving: false });
   const [modalTransfer, setModalTransfer] = useState({ 
     open: false, cuenta_origen: 'binance', cuenta_destino: 'efectivo', 
     monto_origen: '', monto_destino: '', tasa_cambio: '', concepto: '', saving: false 
@@ -115,11 +117,18 @@ export default function PanelPrincipal({ onNavigateTab }) {
       setLoadingData(false);
     });
 
+    // Aportes de Socios post-corte
+    const qAportes = query(collection(db, 'aportes_socios'), where('fecha', '>=', fechaCorte), orderBy('fecha', 'desc'));
+    const unsubAportes = onSnapshot(qAportes, snap => {
+      setAportesSocios(snap.docs.map(d => ({ id: d.id, tipo_mov: 'aporte_capital', ...d.data() })));
+    }, err => console.error("Error aportes:", err));
+
     return () => {
       unsubOp();
       unsubPers();
       unsubIng();
       unsubTrans();
+      unsubAportes();
     };
   }, [corte]);
 
@@ -145,6 +154,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // Cuenta/moneda seleccionada para el retiro de socio
   const cuentaRetiro = todasCuentas.find(c => c.key === modalRetiro.cuenta_salida);
   const esRetiroBs = cuentaRetiro?.moneda === 'BS';
+
+  // Cuenta/moneda seleccionada para el aporte de socio
+  const cuentaAporte = todasCuentas.find(c => c.key === modalAporte.cuenta_destino);
+  const esAporteBs = cuentaAporte?.moneda === 'BS';
 
   // Cuentas/monedas seleccionadas para la transferencia
   const cuentaTransOrigen = todasCuentas.find(c => c.key === modalTransfer.cuenta_origen);
@@ -239,11 +252,14 @@ export default function PanelPrincipal({ onNavigateTab }) {
   const retirosYsmael = gastosPers.filter(g => g.socio === 'ysmael').reduce((acc, g) => acc + (Number(g.monto) || 0), 0);
   const retirosVictor = gastosPers.filter(g => g.socio === 'victor').reduce((acc, g) => acc + (Number(g.monto) || 0), 0);
 
+  const aportesYsmael = aportesSocios.filter(a => a.socio === 'ysmael').reduce((acc, a) => acc + (Number(a.monto) || 0), 0);
+  const aportesVictor = aportesSocios.filter(a => a.socio === 'victor').reduce((acc, a) => acc + (Number(a.monto) || 0), 0);
+
   const capInicialYsmael = Number(corte?.capital_inicial_ysmael) || 0;
   const capInicialVictor = Number(corte?.capital_inicial_victor) || 0;
 
-  const capitalActualYsmael = capInicialYsmael + mitadUtilidad - retirosYsmael;
-  const capitalActualVictor = capInicialVictor + mitadUtilidad - retirosVictor;
+  const capitalActualYsmael = capInicialYsmael + aportesYsmael + mitadUtilidad - retirosYsmael;
+  const capitalActualVictor = capInicialVictor + aportesVictor + mitadUtilidad - retirosVictor;
   const capitalTotalSocios = capitalActualYsmael + capitalActualVictor;
 
   // 4. Últimos Movimientos Combinados
@@ -251,7 +267,8 @@ export default function PanelPrincipal({ onNavigateTab }) {
     ...gastosOp,
     ...gastosPers,
     ...ingresos,
-    ...transferencias
+    ...transferencias,
+    ...aportesSocios
   ].sort((a, b) => {
     const fA = a.fecha?.toDate ? a.fecha.toDate().getTime() : 0;
     const fB = b.fecha?.toDate ? b.fecha.toDate().getTime() : 0;
@@ -404,6 +421,47 @@ export default function PanelPrincipal({ onNavigateTab }) {
       console.error(err);
       alert("Error: " + err.message);
       setModalRetiro(p => ({ ...p, saving: false }));
+    }
+  };
+
+  // 2b. Aporte de Capital
+  const handleGuardarAporte = async (e) => {
+    e.preventDefault();
+    if (!modalAporte.monto || !modalAporte.concepto) return alert("Completa todos los campos");
+    const montoNum = Number(modalAporte.monto);
+    if (isNaN(montoNum) || montoNum <= 0) return alert("Monto inválido");
+
+    const cuentaSeleccionada = todasCuentas.find(c => c.key === modalAporte.cuenta_destino);
+    const esBs = cuentaSeleccionada?.moneda === 'BS';
+    const tasaUsada = esBs ? (Number(modalAporte.tasa) || tasaCambio) : 1;
+    const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
+
+    setModalAporte(p => ({ ...p, saving: true }));
+    try {
+      await addDoc(collection(db, 'aportes_socios'), {
+        socio: modalAporte.socio,
+        concepto: modalAporte.concepto,
+        monto: montoUsd,
+        monto_original: montoNum,
+        moneda_original: esBs ? 'BS' : 'USD',
+        tasa_cambio: esBs ? tasaUsada : null,
+        cuenta_destino: modalAporte.cuenta_destino,
+        fecha: serverTimestamp()
+      });
+
+      if (modalAporte.cuenta_destino) {
+        await updateDoc(doc(db, 'caja', 'saldos'), {
+          [modalAporte.cuenta_destino]: increment(montoNum),
+          updated_at: new Date()
+        });
+      }
+
+      setModalAporte({ open: false, socio: 'ysmael', concepto: '', monto: '', cuenta_destino: 'efectivo', tasa: '', saving: false });
+      alert("✅ Aporte de capital registrado correctamente.");
+    } catch (err) {
+      console.error(err);
+      alert("Error: " + err.message);
+      setModalAporte(p => ({ ...p, saving: false }));
     }
   };
 
@@ -653,6 +711,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
               <span className="font-semibold text-slate-800">{fmt(capInicialYsmael)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
+              <span>(+) Aportes de capital</span>
+              <span className="font-semibold text-blue-600">+{fmt(aportesYsmael)}</span>
+            </div>
+            <div className="flex justify-between text-slate-600">
               <span>+ 50% Utilidad operativa</span>
               <span className="font-semibold text-emerald-600">+{fmt(mitadUtilidadOperativa)}</span>
             </div>
@@ -693,6 +755,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
               <span className="font-semibold text-slate-800">{fmt(capInicialVictor)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
+              <span>(+) Aportes de capital</span>
+              <span className="font-semibold text-blue-600">+{fmt(aportesVictor)}</span>
+            </div>
+            <div className="flex justify-between text-slate-600">
               <span>+ 50% Utilidad operativa</span>
               <span className="font-semibold text-emerald-600">+{fmt(mitadUtilidadOperativa)}</span>
             </div>
@@ -713,37 +779,45 @@ export default function PanelPrincipal({ onNavigateTab }) {
       {/* ACCIONES RÁPIDAS */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Acciones Rápidas del Día</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <button
             onClick={() => setModalGasto(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
-            className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 font-bold text-sm border border-orange-200/80 transition-colors"
+            className="flex items-center justify-center gap-2 p-3.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-800 font-bold text-xs border border-orange-200/80 transition-colors"
           >
-            <TrendingDown className="w-5 h-5 text-orange-600" />
-            + Registrar Gasto Operativo
+            <TrendingDown className="w-4 h-4 text-orange-600 flex-shrink-0" />
+            + Gasto Operativo
           </button>
 
           <button
             onClick={() => setModalVenta(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
-            className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-sm border border-emerald-200/80 transition-colors"
+            className="flex items-center justify-center gap-2 p-3.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-200/80 transition-colors"
           >
-            <TrendingUp className="w-5 h-5 text-emerald-600" />
-            + Añadir Venta Rápida
+            <TrendingUp className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            + Venta Rápida
           </button>
 
           <button
             onClick={() => setModalRetiro(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
-            className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-800 font-bold text-sm border border-red-200/80 transition-colors"
+            className="flex items-center justify-center gap-2 p-3.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-800 font-bold text-xs border border-red-200/80 transition-colors"
           >
-            <Users className="w-5 h-5 text-red-600" />
-            + Registrar Retiro de Socio
+            <Users className="w-4 h-4 text-red-600 flex-shrink-0" />
+            + Retiro de Socio
+          </button>
+
+          <button
+            onClick={() => setModalAporte(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
+            className="flex items-center justify-center gap-2 p-3.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs border border-blue-200/80 transition-colors"
+          >
+            <PlusCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            + Añadir Capital
           </button>
 
           <button
             onClick={() => setModalTransfer(p => ({ ...p, open: true, tasa_cambio: tasaCambio.toString() }))}
-            className="flex items-center justify-center gap-2.5 p-3.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-sm border border-blue-200/80 transition-colors"
+            className="flex items-center justify-center gap-2 p-3.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold text-xs border border-indigo-200/80 transition-colors"
           >
-            <ArrowRightLeft className="w-5 h-5 text-blue-600" />
-            ↔ Transferencia / Cambio Divisa
+            <ArrowRightLeft className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+            ↔ Transferencia
           </button>
         </div>
       </div>
@@ -891,6 +965,29 @@ export default function PanelPrincipal({ onNavigateTab }) {
                           ? `-Bs ${Number(m.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${m.monto ? ` (≈$${Number(m.monto).toFixed(2)})` : ''}`
                           : `-$${Number(m.monto).toFixed(2)}`}
                       </span>
+                  </div>
+                );
+              }
+
+              if (m.tipo_mov === 'aporte_capital') {
+                return (
+                  <div key={m.id || idx} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <PlusCircle className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">
+                          Aporte Capital (<span className="capitalize font-black text-slate-900">{m.socio}</span>): {m.concepto}
+                        </p>
+                        <p className="text-xs text-slate-400 capitalize">Cuenta destino: {m.cuenta_destino || 'Efectivo'} • {fechaStr}</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-black text-blue-600">
+                      {m.moneda_original === 'BS'
+                        ? `+Bs ${Number(m.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${m.monto ? ` (≈$${Number(m.monto).toFixed(2)})` : ''}`
+                        : `+$${Number(m.monto).toFixed(2)}`}
+                    </span>
                   </div>
                 );
               }
@@ -1275,6 +1372,122 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm disabled:opacity-50"
                 >
                   {modalRetiro.saving ? 'Guardando...' : 'Registrar Retiro'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RÁPIDO: APORTE / INYECCIÓN DE CAPITAL DE SOCIO */}
+      {modalAporte.open && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <PlusCircle className="w-5 h-5 text-blue-600" />
+              Añadir Capital a Socio
+            </h3>
+            <p className="text-xs text-slate-500">
+              Registra fondos personales ingresados a la empresa por un socio. Aumenta la caja y el capital neto del socio sin afectar las utilidades.
+            </p>
+            <form onSubmit={handleGuardarAporte} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Socio que aporta</label>
+                <div className="flex gap-2">
+                  {['ysmael', 'victor'].map(s => (
+                    <label key={s} className={`flex-1 py-2 text-center rounded-xl border-2 cursor-pointer font-bold capitalize text-sm ${
+                      modalAporte.socio === s ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500'
+                    }`}>
+                      <input
+                        type="radio"
+                        value={s}
+                        checked={modalAporte.socio === s}
+                        onChange={() => setModalAporte(p => ({ ...p, socio: s }))}
+                        className="hidden"
+                      />
+                      {s}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Concepto / Observación</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Inyección de capital externo / Aporte personal..."
+                  value={modalAporte.concepto}
+                  onChange={e => setModalAporte(p => ({ ...p, concepto: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Monto ({esAporteBs ? 'Bs' : 'USD'})</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">{esAporteBs ? 'Bs' : '$'}</span>
+                  <input
+                    type="number" step="0.01" min="0.01"
+                    placeholder="0.00"
+                    value={modalAporte.monto}
+                    onChange={e => setModalAporte(p => ({ ...p, monto: e.target.value }))}
+                    className="w-full pl-9 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              {esAporteBs && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa de cambio (Bs/$)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder={tasaCambio.toFixed(2)}
+                      value={modalAporte.tasa}
+                      onChange={e => setModalAporte(p => ({ ...p, tasa: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setModalAporte(p => ({ ...p, tasa: tasaCambio.toString() }))}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                    >
+                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Cuenta donde entra el dinero</label>
+                <select
+                  value={modalAporte.cuenta_destino}
+                  onChange={e => setModalAporte(p => ({ ...p, cuenta_destino: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  {todasCuentas.map(c => (
+                    <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setModalAporte(p => ({ ...p, open: false }))}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalAporte.saving}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm disabled:opacity-50"
+                >
+                  {modalAporte.saving ? 'Guardando...' : 'Registrar Aporte'}
                 </button>
               </div>
             </form>

@@ -59,6 +59,7 @@ export default function ReportesCierre() {
             mes: `${MES_LABELS[selectedMonth]} ${selectedYear}`,
             ventasTotales: 0, cogs: 0, gananciaBruta: 0, gastosOp: 0, diferenciales: 0, gananciaNeta: 0,
             gananciaNetaPorSocio: 0, retirosYsmael: 0, retirosVictor: 0, retirosTotal: 0,
+            aportesYsmael: 0, aportesVictor: 0, aportesTotal: 0,
             cantidadVentas: 0, preCorte: true
           });
           setLoading(false);
@@ -116,6 +117,18 @@ export default function ReportesCierre() {
       const snapTransf = await getDocs(qTransf);
       const diferenciales = snapTransf.docs.reduce((acc, d) => acc + (Number(d.data().diferencial_usd) || 0), 0);
 
+      // 4c. Aportes de capital del mes
+      const qAportes = query(
+        collection(db, 'aportes_socios'),
+        where('fecha', '>=', inicio),
+        where('fecha', '<=', fin)
+      );
+      const snapAportes = await getDocs(qAportes);
+      const aportes = snapAportes.docs.map(d => d.data());
+      const aportesYsmael = aportes.filter(a => a.socio === 'ysmael').reduce((a,b) => a + (Number(b.monto)||0), 0);
+      const aportesVictor = aportes.filter(a => a.socio === 'victor').reduce((a,b) => a + (Number(a.monto)||0), 0);
+      const aportesTotal = aportesYsmael + aportesVictor;
+
       // 5. Cálculo de ganancias
       const gananciaBruta = ventasTotales - cogs;
       const gananciaNeta = gananciaBruta - gastosOp + diferenciales;
@@ -126,6 +139,7 @@ export default function ReportesCierre() {
         ventasTotales, cogs, gananciaBruta, gastosOp, diferenciales, gananciaNeta,
         gananciaNetaPorSocio,
         retirosYsmael, retirosVictor, retirosTotal,
+        aportesYsmael, aportesVictor, aportesTotal,
         cantidadVentas: ventas.length,
         preCorte: false
       });
@@ -188,8 +202,9 @@ export default function ReportesCierre() {
         <table>
           <tr><th>Concepto</th><th>Ysmael</th><th>Víctor</th></tr>
           <tr><td>Participación (50/50)</td><td>${fmt(metricas.gananciaNetaPorSocio)}</td><td>${fmt(metricas.gananciaNetaPorSocio)}</td></tr>
+          <tr><td>Aportes de Capital</td><td style="color:#2563eb">+${fmt(metricas.aportesYsmael)}</td><td style="color:#2563eb">+${fmt(metricas.aportesVictor)}</td></tr>
           <tr><td>Retiros del mes</td><td style="color:#dc2626">-${fmt(metricas.retirosYsmael)}</td><td style="color:#dc2626">-${fmt(metricas.retirosVictor)}</td></tr>
-          <tr style="font-weight:bold;background:#f8fafc"><td>Capital Neto del mes</td><td>${fmt(metricas.gananciaNetaPorSocio - metricas.retirosYsmael)}</td><td>${fmt(metricas.gananciaNetaPorSocio - metricas.retirosVictor)}</td></tr>
+          <tr style="font-weight:bold;background:#f8fafc"><td>Capital Neto del mes</td><td>${fmt((metricas.aportesYsmael||0) + metricas.gananciaNetaPorSocio - metricas.retirosYsmael)}</td><td>${fmt((metricas.aportesVictor||0) + metricas.gananciaNetaPorSocio - metricas.retirosVictor)}</td></tr>
         </table>
         <div class="footer">Smartbits &bull; Compra inteligente, compra en Smartbits.</div>
       </body>
@@ -208,8 +223,8 @@ export default function ReportesCierre() {
       const capitalAcumYsmael = Number(config.capital_acum_ysmael) || 0;
       const capitalAcumVictor = Number(config.capital_acum_victor) || 0;
 
-      const nuevoCapYsmael = capitalAcumYsmael + metricas.gananciaNetaPorSocio - metricas.retirosYsmael;
-      const nuevoCapVictor = capitalAcumVictor + metricas.gananciaNetaPorSocio - metricas.retirosVictor;
+      const nuevoCapYsmael = capitalAcumYsmael + (metricas.aportesYsmael || 0) + metricas.gananciaNetaPorSocio - metricas.retirosYsmael;
+      const nuevoCapVictor = capitalAcumVictor + (metricas.aportesVictor || 0) + metricas.gananciaNetaPorSocio - metricas.retirosVictor;
 
       const periodoKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
       await addDoc(collection(db, 'cierres_mensuales'), {
@@ -221,10 +236,13 @@ export default function ReportesCierre() {
         gastos_operativos: metricas.gastosOp,
         diferencial_cambiario: metricas.diferenciales,
         ganancia_neta: metricas.gananciaNeta,
+        aportes_ysmael: metricas.aportesYsmael || 0,
+        aportes_victor: metricas.aportesVictor || 0,
+        aportes_total: metricas.aportesTotal || 0,
         retiros_ysmael: metricas.retirosYsmael,
         retiros_victor: metricas.retirosVictor,
-        capital_neto_ysmael: metricas.gananciaNetaPorSocio - metricas.retirosYsmael,
-        capital_neto_victor: metricas.gananciaNetaPorSocio - metricas.retirosVictor,
+        capital_neto_ysmael: (metricas.aportesYsmael || 0) + metricas.gananciaNetaPorSocio - metricas.retirosYsmael,
+        capital_neto_victor: (metricas.aportesVictor || 0) + metricas.gananciaNetaPorSocio - metricas.retirosVictor,
         fecha_cierre: serverTimestamp()
       });
 
@@ -380,10 +398,10 @@ export default function ReportesCierre() {
                   {/* Distribución por socio */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {[
-                      { nombre: 'Ysmael', retiros: metricas.retirosYsmael },
-                      { nombre: 'Víctor', retiros: metricas.retirosVictor }
+                      { nombre: 'Ysmael', aportes: metricas.aportesYsmael, retiros: metricas.retirosYsmael },
+                      { nombre: 'Víctor', aportes: metricas.aportesVictor, retiros: metricas.retirosVictor }
                     ].map(socio => {
-                      const neto = metricas.gananciaNetaPorSocio - socio.retiros;
+                      const neto = (socio.aportes || 0) + metricas.gananciaNetaPorSocio - socio.retiros;
                       return (
                         <div key={socio.nombre} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                           <h4 className="text-lg font-black text-slate-800 mb-4">{socio.nombre}</h4>
@@ -391,6 +409,10 @@ export default function ReportesCierre() {
                             <div className="flex justify-between text-sm">
                               <span className="text-slate-500">Participación 50% (ganancia neta)</span>
                               <span className="font-bold text-emerald-700">{fmt(metricas.gananciaNetaPorSocio)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-slate-500">Aportes de capital del mes</span>
+                              <span className="font-bold text-blue-600">+{fmt(socio.aportes)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                               <span className="text-slate-500">Retiros propios del mes</span>

@@ -57,6 +57,15 @@ export default function Movimientos() {
     tasa: ''
   });
 
+  // Formulario Aporte Capital
+  const [formAporte, setFormAporte] = useState({
+    socio: 'ysmael',
+    concepto: '',
+    monto: '',
+    cuenta_destino: 'efectivo',
+    tasa: ''
+  });
+
   // Formulario Transferencia Interna
   const [formTransfer, setFormTransfer] = useState({
     cuenta_origen: 'binance',
@@ -71,6 +80,7 @@ export default function Movimientos() {
   const [gastosOp, setGastosOp] = useState([]);
   const [gastosPers, setGastosPers] = useState([]);
   const [transferencias, setTransferencias] = useState([]);
+  const [aportesSocios, setAportesSocios] = useState([]);
   const [reembolsos, setReembolsos] = useState([]);
   const [comprasInventario, setComprasInventario] = useState([]);
   const [ingresos, setIngresos] = useState([]);
@@ -114,6 +124,10 @@ export default function Movimientos() {
   // Cuenta/moneda seleccionada para el retiro de socio
   const cuentaFormRetiro = todasCuentas.find(c => c.key === formRetiro.cuenta_salida);
   const esFormRetiroBs = cuentaFormRetiro?.moneda === 'BS';
+
+  // Cuenta/moneda seleccionada para el aporte de capital
+  const cuentaFormAporte = todasCuentas.find(c => c.key === formAporte.cuenta_destino);
+  const esFormAporteBs = cuentaFormAporte?.moneda === 'BS';
 
   // Cuentas/monedas seleccionadas para la transferencia
   const cuentaTransOrigen = todasCuentas.find(c => c.key === formTransfer.cuenta_origen);
@@ -216,7 +230,13 @@ export default function Movimientos() {
       setComprasInventario(snap.docs.map(d => ({ id: d.id, coleccion: 'compras_inventario', tipo_mov: 'compra_inventario', ...d.data() })));
     });
 
-    // 6. Ingresos por Ventas post-corte
+    // 6. Aportes de Capital de Socios
+    const qAportes = query(collection(db, 'aportes_socios'), where('fecha', '>=', fechaCorte), orderBy('fecha', 'desc'));
+    const unsubAportes = onSnapshot(qAportes, snap => {
+      setAportesSocios(snap.docs.map(d => ({ id: d.id, coleccion: 'aportes_socios', tipo_mov: 'aporte_capital', ...d.data() })));
+    });
+
+    // 7. Ingresos por Ventas post-corte
     const qIng = query(collection(db, 'historico_ingresos'), where('fecha', '>=', fechaCorte), orderBy('fecha', 'desc'));
     const unsubIng = onSnapshot(qIng, snap => {
       setIngresos(snap.docs.map(d => ({ id: d.id, coleccion: 'historico_ingresos', tipo_mov: 'venta', ...d.data() })));
@@ -229,6 +249,7 @@ export default function Movimientos() {
       unsubTrans();
       unsubReemb();
       unsubComp();
+      unsubAportes();
       unsubIng();
     };
   }, [corte]);
@@ -300,6 +321,36 @@ export default function Movimientos() {
         }
         setFormRetiro({ socio: 'ysmael', concepto: '', monto: '', cuenta_salida: 'efectivo', tasa: '' });
         alert("✅ Retiro de socio registrado.");
+      }
+      else if (tipoOperacion === 'aporte_capital') {
+        if (!formAporte.monto || !formAporte.concepto) throw new Error("Completa todos los campos requeridos.");
+        const montoNum = Number(formAporte.monto);
+        if (isNaN(montoNum) || montoNum <= 0) throw new Error("Monto inválido");
+
+        const cuentaSeleccionada = todasCuentas.find(c => c.key === formAporte.cuenta_destino);
+        const esBs = cuentaSeleccionada?.moneda === 'BS';
+        const tasaUsada = esBs ? (Number(formAporte.tasa) || tasaCambio) : 1;
+        const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
+
+        await addDoc(collection(db, 'aportes_socios'), {
+          socio: formAporte.socio,
+          concepto: formAporte.concepto,
+          monto: montoUsd,
+          monto_original: montoNum,
+          moneda_original: esBs ? 'BS' : 'USD',
+          tasa_cambio: esBs ? tasaUsada : null,
+          cuenta_destino: formAporte.cuenta_destino,
+          fecha: serverTimestamp()
+        });
+
+        if (formAporte.cuenta_destino) {
+          await updateDoc(doc(db, 'caja', 'saldos'), {
+            [formAporte.cuenta_destino]: increment(montoNum),
+            updated_at: new Date()
+          });
+        }
+        setFormAporte({ socio: 'ysmael', concepto: '', monto: '', cuenta_destino: 'efectivo', tasa: '' });
+        alert("✅ Aporte de capital registrado.");
       }
       else if (tipoOperacion === 'transferencia') {
         if (!formTransfer.monto_origen) throw new Error("Ingresa el monto a transferir.");
@@ -413,6 +464,18 @@ export default function Movimientos() {
           });
         }
         await deleteDoc(doc(db, 'gastos_personales', item.id));
+      } else if (item.tipo_mov === 'aporte_capital') {
+        const cuenta = item.cuenta_destino || item.metodo_pago;
+        if (cuenta && (item.monto || item.monto_original)) {
+          const montoReversar = item.moneda_original === 'BS'
+            ? Number(item.monto_original || item.monto || 0)
+            : Number(item.monto || item.monto_original || 0);
+          await updateDoc(doc(db, 'caja', 'saldos'), {
+            [cuenta]: increment(-montoReversar),
+            updated_at: new Date()
+          });
+        }
+        await deleteDoc(doc(db, 'aportes_socios', item.id));
       } else if (item.tipo_mov === 'transferencia') {
         if (item.cuenta_origen && item.cuenta_destino) {
           await updateDoc(doc(db, 'caja', 'saldos'), {
@@ -490,19 +553,21 @@ export default function Movimientos() {
     }
   };
 
-  // --- LISTADO COMBINADO Y FILTRADO ---
+  // --- MOVIMIENTOS COMBINADOS Y FILTRADOS ---
   const todosMovimientos = [
     ...gastosOp,
     ...gastosPers,
     ...transferencias,
     ...reembolsos,
     ...comprasInventario,
+    ...aportesSocios,
     ...ingresos
   ].filter(m => {
     if (filtroTipo === 'gasto_op' && m.tipo_mov !== 'gasto_op') return false;
     if (filtroTipo === 'compra_inventario' && m.tipo_mov !== 'compra_inventario') return false;
     if (filtroTipo === 'retiro_ysmael' && (m.tipo_mov !== 'retiro' || m.socio !== 'ysmael')) return false;
     if (filtroTipo === 'retiro_victor' && (m.tipo_mov !== 'retiro' || m.socio !== 'victor')) return false;
+    if (filtroTipo === 'aporte_capital' && m.tipo_mov !== 'aporte_capital') return false;
     if (filtroTipo === 'transferencia' && m.tipo_mov !== 'transferencia') return false;
     if (filtroTipo === 'reembolso' && m.tipo_mov !== 'reembolso') return false;
     if (filtroTipo === 'venta' && m.tipo_mov !== 'venta') return false;
@@ -558,9 +623,18 @@ export default function Movimientos() {
             </button>
             <button
               type="button"
+              onClick={() => setTipoOperacion('aporte_capital')}
+              className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                tipoOperacion === 'aporte_capital' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <PlusCircle className="w-3.5 h-3.5" /> Aporte Capital
+            </button>
+            <button
+              type="button"
               onClick={() => setTipoOperacion('transferencia')}
               className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
-                tipoOperacion === 'transferencia' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                tipoOperacion === 'transferencia' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <ArrowRightLeft className="w-3.5 h-3.5" /> Transferencia
@@ -750,6 +824,93 @@ export default function Movimientos() {
             </div>
           )}
 
+          {/* CAMPOS: APORTE CAPITAL */}
+          {tipoOperacion === 'aporte_capital' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Socio que aporta</label>
+                <div className="flex gap-2">
+                  {['ysmael', 'victor'].map(s => (
+                    <label key={s} className={`flex-1 py-1.5 text-center rounded-lg border-2 cursor-pointer font-bold capitalize text-xs transition-colors ${
+                      formAporte.socio === s ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500'
+                    }`}>
+                      <input
+                        type="radio" value={s}
+                        checked={formAporte.socio === s}
+                        onChange={() => setFormAporte(p => ({ ...p, socio: s }))}
+                        className="hidden"
+                      />
+                      {s}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Concepto / Observación</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Inyección capital externo, fondo personal..."
+                  value={formAporte.concepto}
+                  onChange={e => setFormAporte(p => ({ ...p, concepto: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Monto ({esFormAporteBs ? 'Bs' : 'USD'})</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">{esFormAporteBs ? 'Bs' : '$'}</span>
+                  <input
+                    type="number" step="0.01" min="0.01"
+                    placeholder="0.00"
+                    value={formAporte.monto}
+                    onChange={e => setFormAporte(p => ({ ...p, monto: e.target.value }))}
+                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              {esFormAporteBs && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tasa de cambio (Bs/$)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number" step="0.01" min="0.01"
+                      placeholder={tasaCambio.toFixed(2)}
+                      value={formAporte.tasa}
+                      onChange={e => setFormAporte(p => ({ ...p, tasa: e.target.value }))}
+                      className="w-full pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormAporte(p => ({ ...p, tasa: tasaCambio.toString() }))}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                    >
+                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Cuenta de entrada (Destino)</label>
+                <select
+                  value={formAporte.cuenta_destino}
+                  onChange={e => setFormAporte(p => ({ ...p, cuenta_destino: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white"
+                >
+                  {todasCuentas.map(c => (
+                    <option key={c.key} value={c.key}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           {/* CAMPOS: TRANSFERENCIA */}
           {tipoOperacion === 'transferencia' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -923,6 +1084,7 @@ export default function Movimientos() {
               <option value="venta">Ventas</option>
               <option value="retiro_ysmael">Retiros Ysmael</option>
               <option value="retiro_victor">Retiros Víctor</option>
+              <option value="aporte_capital">Aportes de Capital</option>
               <option value="transferencia">Transferencias Internas</option>
             </select>
           </div>
@@ -984,9 +1146,14 @@ export default function Movimientos() {
                         )}
                         {item.tipo_mov === 'retiro' && (
                           <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                            item.socio === 'ysmael' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                            item.socio === 'ysmael' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'
                           }`}>
                             Retiro: {item.socio?.toUpperCase()}
+                          </span>
+                        )}
+                        {item.tipo_mov === 'aporte_capital' && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                            Aporte: {item.socio?.toUpperCase()}
                           </span>
                         )}
                         {item.tipo_mov === 'transferencia' && (
@@ -1030,6 +1197,13 @@ export default function Movimientos() {
                             {item.moneda_original === 'BS'
                               ? `-Bs ${Number(item.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${item.monto ? ` (≈$${Number(item.monto).toFixed(2)})` : ''}`
                               : `-$${Number(item.monto).toFixed(2)}`}
+                          </span>
+                        )}
+                        {item.tipo_mov === 'aporte_capital' && (
+                          <span className="text-blue-600 font-bold">
+                            {item.moneda_original === 'BS'
+                              ? `+Bs ${Number(item.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${item.monto ? ` (≈$${Number(item.monto).toFixed(2)})` : ''}`
+                              : `+$${Number(item.monto).toFixed(2)}`}
                           </span>
                         )}
                         {item.tipo_mov === 'transferencia' && (
