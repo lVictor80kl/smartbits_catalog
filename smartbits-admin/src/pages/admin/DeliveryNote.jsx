@@ -165,8 +165,13 @@ export default function DeliveryNote() {
           const cajaUpdates = { updated_at: new Date() };
           for (const pago of metodosPago) {
             const cuenta = pago.cuentaKey || METODO_TO_CAJA_KEY[pago.metodo] || 'efectivo';
-            if (cuenta && pago.montoUSD > 0) {
-              cajaUpdates[cuenta] = increment(pago.montoUSD);
+            if (cuenta) {
+              const cuentaObj = todasCuentas.find(c => c.key === cuenta);
+              const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : isBs(pago.metodo);
+              const montoToAdd = esBs ? (Number(pago.monto) || 0) : (Number(pago.montoUSD) || 0);
+              if (montoToAdd > 0) {
+                cajaUpdates[cuenta] = increment(montoToAdd);
+              }
             }
           }
           if (metodosPago.length === 0 && totalPagadoUSD > 0) {
@@ -176,6 +181,8 @@ export default function DeliveryNote() {
         }
 
         // 3. Registrar en historico de ingresos
+        const cuentasUsadas = metodosPago.map(p => p.cuentaKey || METODO_TO_CAJA_KEY[p.metodo] || 'efectivo');
+        const metodoPagoKey = cuentasUsadas.length > 0 ? Array.from(new Set(cuentasUsadas)).join(', ') : 'efectivo';
         await addDoc(collection(db, 'historico_ingresos'), {
           fecha: serverTimestamp(),
           concepto: `Venta de ${laptop.marca || 'Laptop'} ${laptop.modelo || ''}`,
@@ -183,6 +190,7 @@ export default function DeliveryNote() {
           ganancia: ganancia,
           laptopId: id,
           tipo: 'venta_laptop',
+          metodo_pago: metodoPagoKey,
         });
 
         // 4. Registrar venta completa en coleccion ventas
