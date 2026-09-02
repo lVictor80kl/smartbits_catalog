@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, getDocs, doc, updateDoc, deleteDoc, increment, deleteField } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
+import { useCuentasCaja } from '../../../utils/useCuentasCaja';
 import { 
   Search, Download, Edit2, Trash2, Printer, X, Save, AlertTriangle, 
   Loader2, Plus, CreditCard, User, Laptop, RefreshCw, FileText
@@ -20,6 +21,7 @@ const METODO_TO_CAJA_KEY = {
 
 export default function VentasNotas() {
   const { corte, loading: loadingCorte } = useCorteContable();
+  const { todasCuentas } = useCuentasCaja();
 
   const [ventas, setVentas] = useState([]);
   const [laptopsDisponibles, setLaptopsDisponibles] = useState([]);
@@ -226,19 +228,29 @@ export default function VentasNotas() {
       // 1. Revertir pagos anteriores
       const oldMetodos = item.metodos_pago || [];
       for (const pago of oldMetodos) {
-        const cuenta = METODO_TO_CAJA_KEY[pago.metodo];
-        if (cuenta && pago.montoUSD > 0) {
-          cajaNetos[cuenta] = (cajaNetos[cuenta] || 0) - Number(pago.montoUSD);
+        const cuenta = pago.cuentaKey || METODO_TO_CAJA_KEY[pago.metodo] || 'efectivo';
+        if (cuenta) {
+          const cuentaObj = todasCuentas.find(c => c.key === cuenta);
+          const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : (pago.metodo === 'Pago Móvil' || pago.metodo === 'Transferencia');
+          const montoVal = esBs ? (Number(pago.monto) || 0) : (Number(pago.montoUSD) || 0);
+          if (montoVal > 0) {
+            cajaNetos[cuenta] = (cajaNetos[cuenta] || 0) - montoVal;
+          }
         }
       }
 
       // 2. Aplicar nuevos pagos
       metodosPago.forEach(p => {
-        const m = parseFloat(p.montoUSD) || 0;
-        nuevoTotalVentaUSD += m;
-        const cuenta = METODO_TO_CAJA_KEY[p.metodo];
-        if (cuenta && m > 0) {
-          cajaNetos[cuenta] = (cajaNetos[cuenta] || 0) + m;
+        const mUSD = parseFloat(p.montoUSD) || 0;
+        nuevoTotalVentaUSD += mUSD;
+        const cuenta = p.cuentaKey || METODO_TO_CAJA_KEY[p.metodo] || 'efectivo';
+        if (cuenta) {
+          const cuentaObj = todasCuentas.find(c => c.key === cuenta);
+          const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : (p.metodo === 'Pago Móvil' || p.metodo === 'Transferencia');
+          const montoVal = esBs ? (Number(p.monto) || 0) : mUSD;
+          if (montoVal > 0) {
+            cajaNetos[cuenta] = (cajaNetos[cuenta] || 0) + montoVal;
+          }
         }
       });
 
@@ -289,9 +301,14 @@ export default function VentasNotas() {
       const metodos = item.metodos_pago || [];
 
       for (const pago of metodos) {
-        const cuenta = METODO_TO_CAJA_KEY[pago.metodo];
-        if (cuenta && Number(pago.montoUSD) > 0) {
-          cajaUpdates[cuenta] = increment(-Number(pago.montoUSD));
+        const cuenta = pago.cuentaKey || METODO_TO_CAJA_KEY[pago.metodo] || 'efectivo';
+        if (cuenta) {
+          const cuentaObj = todasCuentas.find(c => c.key === cuenta);
+          const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : (pago.metodo === 'Pago Móvil' || pago.metodo === 'Transferencia');
+          const montoVal = esBs ? (Number(pago.monto) || 0) : (Number(pago.montoUSD) || 0);
+          if (montoVal > 0) {
+            cajaUpdates[cuenta] = increment(-montoVal);
+          }
         }
       }
 

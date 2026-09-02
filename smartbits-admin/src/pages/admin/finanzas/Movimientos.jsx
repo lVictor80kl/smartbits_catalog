@@ -188,6 +188,14 @@ export default function Movimientos() {
   const monedaDeCuenta = (key) => todasCuentas.find(c => c.key === key)?.moneda || 'USD';
 
   const getCuentaLabel = (key) => {
+    if (!key) return 'N/A';
+    if (typeof key === 'string' && key.includes(',')) {
+      return key.split(',').map(k => {
+        const trimmed = k.trim();
+        const found = todasCuentas.find(c => c.key === trimmed);
+        return found ? found.label : trimmed;
+      }).join(', ');
+    }
     const found = todasCuentas.find(c => c.key === key);
     return found ? found.label : key;
   };

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Download, Loader2, Plus, X, Check, Clock, Ban } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useCuentasCaja } from '../../utils/useCuentasCaja';
 
@@ -89,6 +89,17 @@ export default function ComponentDeliveryNote() {
     fetchComponent();
   }, [id]);
 
+  const METODO_TO_CAJA_KEY = {
+    'Zelle': 'zelle',
+    'Efectivo': 'efectivo',
+    'USDT': 'binance',
+    'Binance Pay': 'binance',
+    'Zinli': 'zinli',
+    'PayPal': 'paypal',
+    'Pago Móvil': 'venezuela',
+    'Transferencia': 'venezuela',
+  };
+
   const handleUpdateAvailability = async (newStatus) => {
     if (newStatus === 'keep') {
       setShowStatusModal(false);
@@ -98,10 +109,102 @@ export default function ComponentDeliveryNote() {
     setUpdatingStatus(true);
     try {
       const compRef = doc(db, 'componentes', id);
-      await updateDoc(compRef, {
-        disponibilidad: newStatus
-      });
-      setComponent(prev => ({ ...prev, disponibilidad: newStatus }));
+      const updateData = { disponibilidad: newStatus };
+
+      if (newStatus === 'No disponible') {
+        let totalPagadoUSD = 0;
+        const metodosPago = pagos
+          .filter(p => (Number(p.monto) || 0) > 0)
+          .map(p => {
+            const monto = Number(p.monto) || 0;
+            let montoUSD;
+            if (isBs(p.metodo) || isPagoBs(p)) {
+              montoUSD = tasaNum > 0 ? monto / tasaNum : 0;
+            } else {
+              montoUSD = monto;
+            }
+            totalPagadoUSD += montoUSD;
+            return { metodo: p.metodo, cuentaKey: p.cuentaKey || 'efectivo', monto, montoUSD };
+          });
+
+        const costoTotal = (Number(component.costo_compra) || Number(component.precio_ebay) || 0) * unidades;
+        const ganancia = totalPagadoUSD - costoTotal;
+        const porcentaje_ganancia = costoTotal > 0 ? (ganancia / costoTotal) * 100 : 0;
+
+        updateData.fecha_venta = serverTimestamp();
+        updateData.precio_final_venta = totalPagadoUSD;
+        updateData.ganancia = ganancia;
+        updateData.porcentaje_ganancia = porcentaje_ganancia;
+        updateData.metodos_pago = metodosPago;
+        updateData.tasa_venta = tasaNum;
+        updateData.cliente_venta = {
+          nombre: cliente.nombre,
+          cedula: cliente.cedula ? `${cliente.tipoDoc}${cliente.cedula}` : '',
+          telefono: cliente.telefono ? `${cliente.prefijoTlf}${cliente.telefono}` : '',
+          direccion: cliente.direccion,
+        };
+
+        // 1. Actualizar documento del componente
+        await updateDoc(compRef, updateData);
+
+        // 2. Sumar dinero a las cuentas de caja
+        const cajaRef = doc(db, 'caja', 'saldos');
+        const cajaSnap = await getDoc(cajaRef);
+        if (cajaSnap.exists()) {
+          const cajaUpdates = { updated_at: new Date() };
+          for (const pago of metodosPago) {
+            const cuenta = pago.cuentaKey || METODO_TO_CAJA_KEY[pago.metodo] || 'efectivo';
+            if (cuenta) {
+              const cuentaObj = todasCuentas.find(c => c.key === cuenta);
+              const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : isBs(pago.metodo);
+              const montoToAdd = esBs ? (Number(pago.monto) || 0) : (Number(pago.montoUSD) || 0);
+              if (montoToAdd > 0) {
+                cajaUpdates[cuenta] = increment(montoToAdd);
+              }
+            }
+          }
+          if (metodosPago.length === 0 && totalPagadoUSD > 0) {
+            cajaUpdates.ventas_no_asignadas = increment(totalPagadoUSD);
+          }
+          await updateDoc(cajaRef, cajaUpdates);
+        }
+
+        // 3. Registrar en historico de ingresos
+        const cuentasUsadas = metodosPago.map(p => p.cuentaKey || METODO_TO_CAJA_KEY[p.metodo] || 'efectivo');
+        const metodoPagoKey = cuentasUsadas.length > 0 ? Array.from(new Set(cuentasUsadas)).join(', ') : 'efectivo';
+        await addDoc(collection(db, 'historico_ingresos'), {
+          fecha: serverTimestamp(),
+          concepto: `Venta de Componente ${component.nombre || ''}`,
+          monto: totalPagadoUSD,
+          ganancia: ganancia,
+          componenteId: id,
+          tipo: 'venta_componente',
+          metodo_pago: metodoPagoKey,
+        });
+
+        // 4. Registrar en coleccion ventas
+        await addDoc(collection(db, 'ventas'), {
+          fecha: serverTimestamp(),
+          componenteId: id,
+          modelo: component.nombre || '',
+          cliente: updateData.cliente_venta,
+          metodos_pago: metodosPago,
+          precio_venta_usd: totalPagadoUSD,
+          costo_total: costoTotal,
+          ganancia: ganancia,
+          tasa_venta: tasaNum,
+          noteNumber: noteNumber,
+          descripcion: descripcion,
+          observaciones: observaciones,
+          unidades: unidades,
+          garantia: garantia,
+          es_componente: true
+        });
+      } else {
+        await updateDoc(compRef, updateData);
+      }
+
+      setComponent(prev => ({ ...prev, ...updateData }));
       setShowStatusModal(false);
     } catch (err) {
       console.error('Error al actualizar disponibilidad:', err);
