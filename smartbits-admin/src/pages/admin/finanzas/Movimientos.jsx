@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
 import { calcularDiferencial, derivarTasaReal, calcularDestino } from '../../../utils/diferencialCambiario';
@@ -8,6 +8,17 @@ import {
   TrendingDown, Users, ArrowRightLeft, PlusCircle, Search, Trash2, Edit2, 
   Loader2, Filter, AlertCircle, CheckCircle, Calendar, RefreshCw, X, Save
 } from 'lucide-react';
+
+const METODO_TO_CAJA_KEY = {
+  'Zelle': 'zelle',
+  'Efectivo': 'efectivo',
+  'USDT': 'binance',
+  'Binance Pay': 'binance',
+  'Zinli': 'zinli',
+  'PayPal': 'paypal',
+  'Pago Móvil': 'venezuela',
+  'Transferencia': 'venezuela',
+};
 
 const CUENTAS_FIJAS = [
   { key: 'efectivo', label: 'Efectivo (USD)', moneda: 'USD' },
@@ -187,17 +198,37 @@ export default function Movimientos() {
     : `$${Number(monto).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const monedaDeCuenta = (key) => todasCuentas.find(c => c.key === key)?.moneda || 'USD';
 
-  const getCuentaLabel = (key) => {
-    if (!key) return 'N/A';
-    if (typeof key === 'string' && key.includes(',')) {
-      return key.split(',').map(k => {
+  const getCuentaLabel = (val) => {
+    if (!val) return 'N/A';
+    if (Array.isArray(val)) {
+      if (val.length === 0) return 'N/A';
+      const keys = val.map(p => p.cuentaKey || (p.metodo ? METODO_TO_CAJA_KEY[p.metodo] : null) || p.metodo || 'efectivo').filter(Boolean);
+      const uniqueKeys = Array.from(new Set(keys));
+      return uniqueKeys.map(k => getCuentaLabel(k)).join(', ');
+    }
+    if (typeof val === 'string' && val.includes(',')) {
+      return val.split(',').map(k => {
         const trimmed = k.trim();
         const found = todasCuentas.find(c => c.key === trimmed);
-        return found ? found.label : trimmed;
+        if (found) return found.label;
+        const mapped = METODO_TO_CAJA_KEY[trimmed];
+        if (mapped) {
+          const foundMapped = todasCuentas.find(c => c.key === mapped);
+          if (foundMapped) return foundMapped.label;
+        }
+        return trimmed;
       }).join(', ');
     }
-    const found = todasCuentas.find(c => c.key === key);
-    return found ? found.label : key;
+    const keyStr = typeof val === 'object' ? (val.cuentaKey || val.metodo || 'efectivo') : val;
+    const found = todasCuentas.find(c => c.key === keyStr);
+    if (found) return found.label;
+    
+    const mapped = METODO_TO_CAJA_KEY[keyStr];
+    if (mapped) {
+      const foundMapped = todasCuentas.find(c => c.key === mapped);
+      if (foundMapped) return foundMapped.label;
+    }
+    return keyStr || 'N/A';
   };
 
   useEffect(() => {
@@ -246,8 +277,50 @@ export default function Movimientos() {
 
     // 7. Ingresos por Ventas post-corte
     const qIng = query(collection(db, 'historico_ingresos'), where('fecha', '>=', fechaCorte), orderBy('fecha', 'desc'));
-    const unsubIng = onSnapshot(qIng, snap => {
-      setIngresos(snap.docs.map(d => ({ id: d.id, coleccion: 'historico_ingresos', tipo_mov: 'venta', ...d.data() })));
+    const unsubIng = onSnapshot(qIng, async (snap) => {
+      const rawIngresos = snap.docs.map(d => ({ id: d.id, coleccion: 'historico_ingresos', tipo_mov: 'venta', ...d.data() }));
+
+      let ventasSnap = null;
+      try {
+        ventasSnap = await getDocs(query(collection(db, 'ventas')));
+      } catch (e) {}
+
+      const ventasMap = {};
+      if (ventasSnap) {
+        ventasSnap.docs.forEach(d => {
+          const data = d.data();
+          if (data.laptopId) ventasMap[`laptop_${data.laptopId}`] = data;
+          if (data.componenteId) ventasMap[`comp_${data.componenteId}`] = data;
+          ventasMap[d.id] = data;
+        });
+      }
+
+      const enriched = rawIngresos.map(ing => {
+        if (ing.metodo_pago) return ing;
+
+        const matchingVenta = (ing.laptopId && ventasMap[`laptop_${ing.laptopId}`]) ||
+                              (ing.id_venta_detalle && ventasMap[ing.id_venta_detalle]) ||
+                              (ing.componenteId && ventasMap[`comp_${ing.componenteId}`]);
+
+        if (matchingVenta && matchingVenta.metodos_pago) {
+          const cuentas = matchingVenta.metodos_pago.map(p => p.cuentaKey || METODO_TO_CAJA_KEY[p.metodo] || p.metodo || 'efectivo');
+          const metodoKey = Array.from(new Set(cuentas)).join(', ');
+          
+          try {
+            updateDoc(doc(db, 'historico_ingresos', ing.id), { metodo_pago: metodoKey }).catch(() => {});
+          } catch (e) {}
+
+          return { ...ing, metodo_pago: metodoKey, metodos_pago: matchingVenta.metodos_pago };
+        }
+
+        const fallbackKey = ing.metodo_pago || 'efectivo';
+        try {
+          updateDoc(doc(db, 'historico_ingresos', ing.id), { metodo_pago: fallbackKey }).catch(() => {});
+        } catch (e) {}
+        return { ...ing, metodo_pago: fallbackKey };
+      });
+
+      setIngresos(enriched);
       setLoadingData(false);
     });
 
