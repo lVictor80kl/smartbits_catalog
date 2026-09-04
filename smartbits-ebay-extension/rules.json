@@ -1,0 +1,25 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://smartbits-catalog.firebaseapp.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://smartbits-catalog.firebaseapp.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||googleapis.com/",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  }
+]

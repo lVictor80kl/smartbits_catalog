@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Smartbits - Sincronizador de Compras eBay",
+  "version": "1.0.0",
+  "description": "Sincroniza tus compras de eBay en tiempo real con el panel administrativo de Smartbits.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.ebay.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://firestore.googleapis.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.ebay.com/mye/buy/purchase-history*",
+        "*://*.ebay.com/sh/ovw*",
+        "*://*.ebay.com/bin/purchaseHistory*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

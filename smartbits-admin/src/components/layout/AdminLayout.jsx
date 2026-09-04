@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Laptop, LayoutDashboard, PlusCircle, LogOut, CloudLightning, 
-  Package, Wrench, DollarSign, Menu, X, ExternalLink, Truck 
+  Package, Wrench, DollarSign, Menu, X, ExternalLink, Truck, ShoppingBag 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -12,6 +14,18 @@ export default function AdminLayout() {
   const { logout } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pendientesEbay, setPendientesEbay] = useState(0);
+
+  // Escuchar compras de eBay pendientes de inventario
+  useEffect(() => {
+    const q = query(collection(db, 'compras_ebay'), where('estado', '==', 'pendiente'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPendientesEbay(snapshot.size);
+    }, (err) => {
+      console.warn('Error escuchando compras ebay pendientes:', err);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const checkDark = () => {
@@ -33,8 +47,9 @@ export default function AdminLayout() {
   const navItems = [
     { path: '/admin', label: 'Inventario', icon: LayoutDashboard },
     { path: '/admin/components', label: 'Componentes', icon: Package },
-    { path: '/admin/service', label: 'Servicio Técnico', icon: Wrench },
+    { path: '/admin/compras-ebay', label: 'Compras eBay', icon: ShoppingBag, badge: pendientesEbay },
     { path: '/admin/trackings', label: 'Envíos y Trackings', icon: Truck },
+    { path: '/admin/service', label: 'Servicio Técnico', icon: Wrench },
     { path: '/admin/finanzas', label: 'Finanzas', icon: DollarSign },
   ];
 
@@ -79,7 +94,12 @@ export default function AdminLayout() {
                 }`}
               >
                 <Icon className={`h-5 w-5 ${isActive ? 'text-brand-700' : 'text-gray-400'}`} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.badge > 0 && (
+                  <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-extrabold rounded-full bg-red-600 text-white shadow-xs animate-pulse">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -169,7 +189,12 @@ export default function AdminLayout() {
                     }`}
                   >
                     <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge > 0 && (
+                      <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-extrabold rounded-full bg-red-600 text-white shadow-xs animate-pulse">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

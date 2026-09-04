@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus, DollarSign, Trash2, Flame } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
@@ -10,6 +10,8 @@ import { useCuentasCaja } from '../../utils/useCuentasCaja';
 
 export default function EditLaptop() {
   const { id } = useParams();
+  const location = useLocation();
+  const ebayData = location.state?.ebayData;
   const isEditMode = Boolean(id);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(isEditMode);
@@ -63,6 +65,36 @@ export default function EditLaptop() {
     const fetchLaptop = async () => {
       try {
         if (!isEditMode) {
+          if (ebayData) {
+            let detectMarca = '';
+            const t = (ebayData.titulo || '').toLowerCase();
+            if (t.includes('dell')) detectMarca = 'Dell';
+            else if (t.includes('lenovo') || t.includes('thinkpad')) detectMarca = 'Lenovo';
+            else if (t.includes('hp') || t.includes('hewlett')) detectMarca = 'HP';
+            else if (t.includes('asus')) detectMarca = 'Asus';
+            else if (t.includes('acer')) detectMarca = 'Acer';
+            else if (t.includes('apple') || t.includes('macbook')) detectMarca = 'Apple';
+            else if (t.includes('msi')) detectMarca = 'MSI';
+
+            setFormData(prev => ({
+              ...prev,
+              modelo: ebayData.titulo || '',
+              marca: detectMarca || '',
+              precio_ebay: ebayData.precio ? String(ebayData.precio) : '',
+              fecha_compra: ebayData.fecha_compra || new Date().toISOString().split('T')[0],
+              observaciones_compra: `Orden eBay #${ebayData.orderId || ''}\nURL: ${ebayData.item_url || ''}`,
+            }));
+
+            if (ebayData.foto_url) {
+              setExistingImages([ebayData.foto_url]);
+            }
+
+            if (ebayData.precio) {
+              setPagosCompra([
+                { metodoId: 'paypal', bancoNombre: 'PayPal', monto: String(ebayData.precio), comisionPct: 0 }
+              ]);
+            }
+          }
           setLoading(false);
           return;
         }
@@ -330,10 +362,24 @@ export default function EditLaptop() {
           actualizadoEn: serverTimestamp(),
         });
       } else {
-        await addDoc(collection(db, 'laptops'), {
+        const newLaptopDoc = await addDoc(collection(db, 'laptops'), {
           ...laptopDataPayload,
           creadoEn: serverTimestamp(),
         });
+
+        // Si provino de una compra de eBay, marcarla en Firestore como agregada al inventario
+        if (ebayData?.id) {
+          try {
+            await updateDoc(doc(db, 'compras_ebay', ebayData.id), {
+              estado: 'en_inventario',
+              tipo_inventario: 'laptop',
+              inventario_id: newLaptopDoc.id,
+              fecha_actualizacion: serverTimestamp(),
+            });
+          } catch (ebayErr) {
+            console.warn('No se pudo actualizar estado en compras_ebay:', ebayErr);
+          }
+        }
       }
 
       if (Object.keys(cajaUpdates).length > 0) {
@@ -391,7 +437,22 @@ export default function EditLaptop() {
           <p className="text-green-600">El equipo ha sido actualizado exitosamente.</p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <>
+          {ebayData && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-blue-900 shadow-xs">
+              <div className="flex items-center gap-3">
+                <span className="px-2.5 py-1 bg-blue-600 text-white rounded-lg font-bold text-xs">eBay Sync</span>
+                <div className="text-sm">
+                  <p className="font-bold text-blue-950">Prellenado desde compra de eBay</p>
+                  <p className="text-xs text-blue-700">Orden #{ebayData.orderId || 'S/N'} • Costo base: ${ebayData.precio} USD</p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-blue-100 text-blue-800 rounded-md border border-blue-200 self-start sm:self-auto">
+                Al guardar se marcará "En Inventario"
+              </span>
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
             <div className="space-y-6">
@@ -906,6 +967,7 @@ export default function EditLaptop() {
             </button>
           </div>
         </form>
+        </>
       )}
     </div>
   );

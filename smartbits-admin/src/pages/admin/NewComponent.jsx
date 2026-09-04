@@ -1,39 +1,65 @@
 import { useState, useRef } from 'react';
 import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
 
 export default function NewComponent() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const ebayData = location.state?.ebayData;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
+  const [existingImages, setExistingImages] = useState(() => ebayData?.foto_url ? [ebayData.foto_url] : []);
   const [uploadProgress, setUploadProgress] = useState('');
   const fileInputRef = useRef(null);
 
-  const [formData, setFormData] = useState({
-    tipo: 'RAM',
-    nombre: '',
-    marca: '',
-    precio: '',
-    unidades: '',
-    disponibilidad: 'Disponible',
-    imagenes: [],
-    estadoPantalla: 10,
-    estadoCarcasa: 9,
-    otros: '',
-    generacion: '',
-    velocidad: '',
-    capacidad: '',
-    interfaz: '',
-    tipo_ssd: '',
-    capacidad_bateria: '',
-    ciclo: '',
-    descripcion_personalizada: '',
-    bluetooth: '',
+  const [formData, setFormData] = useState(() => {
+    let tipo = 'RAM';
+    let marca = '';
+    const t = (ebayData?.titulo || '').toLowerCase();
+    if (t.includes('ssd') || t.includes('nvme') || t.includes('disco') || t.includes('m.2')) tipo = 'SSD';
+    else if (t.includes('ram') || t.includes('ddr') || t.includes('sodimm')) tipo = 'RAM';
+    else if (t.includes('bateria') || t.includes('battery')) tipo = 'Batería';
+    else if (t.includes('pantalla') || t.includes('screen') || t.includes('display')) tipo = 'Pantalla';
+    else if (t.includes('cargador') || t.includes('charger') || t.includes('ac adapter')) tipo = 'Cargador';
+    else if (t.includes('teclado') || t.includes('keyboard')) tipo = 'Teclado';
+    else if (t.includes('mouse')) tipo = 'Mouse';
+
+    if (t.includes('samsung')) marca = 'Samsung';
+    else if (t.includes('crucial')) marca = 'Crucial';
+    else if (t.includes('kingston')) marca = 'Kingston';
+    else if (t.includes('sk hynix') || t.includes('hynix')) marca = 'SK Hynix';
+    else if (t.includes('dell')) marca = 'Dell';
+    else if (t.includes('hp')) marca = 'HP';
+    else if (t.includes('lenovo')) marca = 'Lenovo';
+    else if (t.includes('asus')) marca = 'Asus';
+
+    return {
+      tipo,
+      nombre: ebayData?.titulo || '',
+      marca,
+      precio: ebayData?.precio ? String(ebayData.precio) : '',
+      unidades: '1',
+      disponibilidad: 'Disponible',
+      imagenes: [],
+      estadoPantalla: 10,
+      estadoCarcasa: 9,
+      otros: ebayData ? `Compra eBay #${ebayData.orderId || ''}\nItem URL: ${ebayData.item_url || ''}` : '',
+      generacion: '',
+      velocidad: '',
+      capacidad: '',
+      interfaz: '',
+      tipo_ssd: '',
+      capacidad_bateria: '',
+      ciclo: '',
+      descripcion_personalizada: '',
+      bluetooth: '',
+    };
   });
 
   const handleChange = (e) => {
@@ -90,6 +116,8 @@ export default function NewComponent() {
 
       setUploadProgress('Guardando en base de datos...');
 
+      const finalUrls = [...existingImages, ...uploadedUrls];
+
       const componentData = {
         tipo: formData.tipo,
         nombre: formData.nombre,
@@ -97,8 +125,8 @@ export default function NewComponent() {
         precio: Number(formData.precio),
         unidades: Number(formData.unidades) || 0,
         disponibilidad: formData.disponibilidad,
-        imagenes: uploadedUrls,
-        imagen: uploadedUrls.length > 0 ? uploadedUrls[0] : '',
+        imagenes: finalUrls,
+        imagen: finalUrls.length > 0 ? finalUrls[0] : '',
         estado: {
           pantalla: formData.estadoPantalla,
           carcasa: formData.estadoCarcasa,
@@ -123,7 +151,21 @@ export default function NewComponent() {
         componentData.descripcion_personalizada = formData.descripcion_personalizada;
       }
 
-      await addDoc(collection(db, 'componentes'), componentData);
+      const newCompRef = await addDoc(collection(db, 'componentes'), componentData);
+
+      // Si viene de eBay, actualizar estado en compras_ebay
+      if (ebayData?.id) {
+        try {
+          await updateDoc(doc(db, 'compras_ebay', ebayData.id), {
+            estado: 'en_inventario',
+            tipo_inventario: 'componente',
+            inventario_id: newCompRef.id,
+            fecha_actualizacion: serverTimestamp(),
+          });
+        } catch (eErr) {
+          console.warn('Error actualizando compras_ebay:', eErr);
+        }
+      }
 
       setShowSuccess(true);
       setTimeout(() => navigate('/admin/components'), 1500);
@@ -159,7 +201,22 @@ export default function NewComponent() {
           <p className="text-green-600">El componente ha sido añadido exitosamente al inventario.</p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <>
+          {ebayData && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-blue-900 shadow-xs">
+              <div className="flex items-center gap-3">
+                <span className="px-2.5 py-1 bg-blue-600 text-white rounded-lg font-bold text-xs">eBay Sync</span>
+                <div className="text-sm">
+                  <p className="font-bold text-blue-950">Prellenado desde compra de eBay</p>
+                  <p className="text-xs text-blue-700">Orden #{ebayData.orderId || 'S/N'} • Costo base: ${ebayData.precio} USD</p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-blue-100 text-blue-800 rounded-md border border-blue-200 self-start sm:self-auto">
+                Al guardar se marcará "En Inventario"
+              </span>
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
             <div className="space-y-6">
@@ -519,6 +576,7 @@ export default function NewComponent() {
             </button>
           </div>
         </form>
+        </>
       )}
     </div>
   );

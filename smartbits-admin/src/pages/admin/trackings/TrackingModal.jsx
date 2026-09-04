@@ -14,7 +14,7 @@ import {
 import { useCuentasCaja } from '../../../utils/useCuentasCaja';
 import { getGastosExtraItems, getCostoBaseConComision } from '../../../utils/costos';
 
-export default function TrackingModal({ isOpen, onClose, trackingToEdit, onSaved }) {
+export default function TrackingModal({ isOpen, onClose, trackingToEdit, initialData, onSaved }) {
   const { todasCuentas, tasaCambio, loading: loadingCajas } = useCuentasCaja();
 
   // Estados de inventario para seleccionar ítems
@@ -106,21 +106,21 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, onSaved
         flete_cuenta: trackingToEdit.flete?.cuenta_caja || 'binance',
       });
     } else {
-      // Nuevo
+      // Nuevo (opcionalmente con datos iniciales desde eBay u otra fuente)
       setFormData({
-        tracking_usa: '',
-        courier_usa: 'usps',
-        prealertado: false,
-        fecha_prealerta: '',
-        casillero_cuenta: '',
+        tracking_usa: initialData?.tracking_usa || '',
+        courier_usa: initialData?.courier_usa || 'usps',
+        prealertado: Boolean(initialData?.prealertado),
+        fecha_prealerta: initialData?.fecha_prealerta || '',
+        casillero_cuenta: initialData?.casillero_cuenta || '',
 
-        tracking_vzla: '',
-        courier_vzla: 'liberty',
-        courier_vzla_otro: '',
+        tracking_vzla: initialData?.tracking_vzla || '',
+        courier_vzla: initialData?.courier_vzla || 'liberty',
+        courier_vzla_otro: initialData?.courier_vzla_otro || '',
 
-        estado: 'por_prealertar',
-        items: [],
-        notas: '',
+        estado: initialData?.estado || 'por_prealertar',
+        items: Array.isArray(initialData?.items) ? initialData.items : [],
+        notas: initialData?.notas || '',
 
         registrarFlete: false,
         flete_monto: '',
@@ -130,7 +130,7 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, onSaved
         flete_cuenta: 'binance',
       });
     }
-  }, [trackingToEdit, isOpen]);
+  }, [trackingToEdit, initialData, isOpen]);
 
   if (!isOpen) return null;
 
