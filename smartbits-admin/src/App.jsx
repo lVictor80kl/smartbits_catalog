@@ -13,6 +13,7 @@ import EditComponent from './pages/admin/EditComponent';
 import ComponentDeliveryNote from './pages/admin/ComponentDeliveryNote';
 import ServiceDeliveryNote from './pages/admin/ServiceDeliveryNote';
 import FinanzasDashboard from './pages/admin/finanzas/FinanzasDashboard';
+import TrackingsDashboard from './pages/admin/trackings/TrackingsDashboard';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
             <Route path="components/edit/:id" element={<EditComponent />} />
             <Route path="components/delivery/:id" element={<ComponentDeliveryNote />} />
             <Route path="service" element={<ServiceDeliveryNote />} />
+            <Route path="trackings" element={<TrackingsDashboard />} />
             <Route path="finanzas/*" element={<FinanzasDashboard />} />
           </Route>
         </Routes>

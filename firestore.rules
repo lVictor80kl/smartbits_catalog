@@ -69,6 +69,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Colección de TRACKINGS Y ENVÍOS
+    match /trackings/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
     // Denegar todo lo demás por defecto
     match /{document=**} {
       allow read, write: if false;

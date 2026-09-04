@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Laptop, LayoutDashboard, PlusCircle, LogOut, CloudLightning, 
-  Package, Wrench, DollarSign, Menu, X, ExternalLink 
+  Package, Wrench, DollarSign, Menu, X, ExternalLink, Truck 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -34,6 +34,7 @@ export default function AdminLayout() {
     { path: '/admin', label: 'Inventario', icon: LayoutDashboard },
     { path: '/admin/components', label: 'Componentes', icon: Package },
     { path: '/admin/service', label: 'Servicio Técnico', icon: Wrench },
+    { path: '/admin/trackings', label: 'Envíos y Trackings', icon: Truck },
     { path: '/admin/finanzas', label: 'Finanzas', icon: DollarSign },
   ];
 
