@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote, Filter, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, X, Copy } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, FileText, Download, CloudLightning, Package, Wrench, Banknote, Filter, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, X, Copy, Flame, MoreVertical } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
 import { tieneEnvioPagado, tienePagoExtra, getCostoTotal } from '../../utils/costos';
@@ -24,6 +25,48 @@ export default function Dashboard() {
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
   const [gastosModalLaptop, setGastosModalLaptop] = useState(null);
   const [modalOferta, setModalOferta] = useState({ open: false, laptop: null, en_oferta: false, precio_oferta: '', etiqueta_oferta: '', saving: false });
+  const [activeMenu, setActiveMenu] = useState(null);
+
+  const toggleActionMenu = (laptop, e) => {
+    e.stopPropagation();
+    if (activeMenu?.id === laptop.id) {
+      setActiveMenu(null);
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setActiveMenu({ id: laptop.id, laptop, rect });
+    }
+  };
+
+  const closeActionMenu = () => setActiveMenu(null);
+
+  useEffect(() => {
+    if (!activeMenu) return;
+
+    const handleClickOutside = (e) => {
+      if (e.target.closest('#actions-dropdown-menu')) return;
+      setActiveMenu(null);
+    };
+
+    const handleScroll = () => {
+      setActiveMenu(null);
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setActiveMenu(null);
+    };
+
+    window.addEventListener('click', handleClickOutside);
+    window.addEventListener('resize', handleScroll);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('resize', handleScroll);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeMenu]);
 
   // Model count: how many units per model name
   const modelCounts = laptops.reduce((acc, l) => {
@@ -704,7 +747,8 @@ export default function Dashboard() {
                             )}
                             {laptop.en_oferta && (
                               <span className="text-[10px] font-black text-white bg-gradient-to-r from-red-600 to-orange-500 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 shadow-xs">
-                                🔥 OFERTA ${laptop.precio_oferta} ({laptop.etiqueta_oferta || `-${Math.round(((Number(laptop.precio) - Number(laptop.precio_oferta)) / Number(laptop.precio)) * 100)}%`})
+                                <Flame className="w-3 h-3 fill-white text-white shrink-0" />
+                                <span>OFERTA ${laptop.precio_oferta} ({laptop.etiqueta_oferta || `-${Math.round(((Number(laptop.precio) - Number(laptop.precio_oferta)) / Number(laptop.precio)) * 100)}%`})</span>
                               </span>
                             )}
 
@@ -746,7 +790,8 @@ export default function Dashboard() {
                       {laptop.en_oferta ? (
                         <div>
                           <div className="font-black text-orange-600 text-sm flex items-center gap-1">
-                            🔥 ${laptop.precio_oferta}
+                            <Flame className="w-3.5 h-3.5 fill-orange-500 text-orange-500 shrink-0" />
+                            <span>${laptop.precio_oferta}</span>
                           </div>
                           <div className="text-xs text-gray-400 line-through font-medium">
                             ${laptop.precio}
@@ -770,69 +815,40 @@ export default function Dashboard() {
                     </td>
 
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => setModalOferta({
-                            open: true,
-                            laptop,
-                            en_oferta: Boolean(laptop.en_oferta),
-                            precio_oferta: laptop.precio_oferta ? laptop.precio_oferta.toString() : (laptop.precio ? Math.round(Number(laptop.precio) * 0.85).toString() : ''),
-                            etiqueta_oferta: laptop.etiqueta_oferta || '',
-                            saving: false
-                          })}
-                          className={`p-1.5 rounded transition-colors ${laptop.en_oferta
-                              ? 'text-orange-600 bg-orange-50 hover:bg-orange-100 font-bold'
-                              : 'text-gray-400 hover:text-orange-600 hover:bg-orange-50'
+                      {duplicatingId === laptop.id ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 rounded-lg">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600" />
+                          <span className="hidden sm:inline">Duplicando...</span>
+                        </div>
+                      ) : deletingId === laptop.id ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 rounded-lg">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
+                          <span className="hidden sm:inline">Eliminando...</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            to={`/admin/edit/${laptop.id}`}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors rounded-lg hidden sm:inline-flex"
+                            title="Editar equipo"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={(e) => toggleActionMenu(laptop, e)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                              activeMenu?.id === laptop.id
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-xs ring-2 ring-blue-500/20'
+                                : 'text-gray-700 bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-2xs'
                             }`}
-                          title={laptop.en_oferta ? 'Editar Oferta Promocional' : 'Poner en Oferta Promocional'}
-                        >
-                          <span className="text-sm">🔥</span>
-                        </button>
-                        <button
-                          onClick={() => handleDuplicateLaptops([laptop.id])}
-                          disabled={duplicatingId === laptop.id || duplicatingId === 'bulk'}
-                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors rounded disabled:opacity-50"
-                          title="Duplicar este equipo (sin contabilidad)"
-                        >
-                          {duplicatingId === laptop.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setGastosModalLaptop(laptop)}
-                          className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors rounded"
-                          title="Registrar Gasto extra / Envío"
-                        >
-                          <Banknote className="w-4 h-4" />
-                        </button>
-                        <Link
-                          to={`/admin/delivery/${laptop.id}`}
-                          className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors"
-                          title="Nota de Entrega"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </Link>
-                        <Link
-                          to={`/admin/edit/${laptop.id}`}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button
-                          onClick={() => handleDeleteClick(laptop.id, laptop.modelo)}
-                          disabled={deletingId === laptop.id || deletingId === 'bulk'}
-                          className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                          title="Eliminar"
-                        >
-                          {deletingId === laptop.id
-                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : <Trash2 className="w-4 h-4" />
-                          }
-                        </button>
-                      </div>
+                            title="Menú de acciones"
+                          >
+                            <span className="hidden md:inline font-semibold">Acciones</span>
+                            <MoreVertical className="w-3.5 h-3.5 text-gray-500" />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -897,7 +913,10 @@ export default function Dashboard() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <span>🔥</span> Oferta Promocional
+                <div className="p-1.5 bg-orange-100 text-orange-600 rounded-lg">
+                  <Flame className="w-5 h-5 fill-orange-500/20" />
+                </div>
+                <span>Oferta Promocional</span>
               </h3>
               <button
                 type="button"
@@ -986,6 +1005,130 @@ export default function Dashboard() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* DROPDOWN FLOTANTE DE ACCIONES POR PORTAL */}
+      {activeMenu && createPortal(
+        <div
+          id="actions-dropdown-menu"
+          style={{
+            position: 'fixed',
+            zIndex: 9999,
+            width: '220px',
+            right: `${Math.max(12, window.innerWidth - activeMenu.rect.right)}px`,
+            ...(window.innerHeight - activeMenu.rect.bottom < 280 && activeMenu.rect.top > 280
+              ? { bottom: `${window.innerHeight - activeMenu.rect.top + 6}px` }
+              : { top: `${activeMenu.rect.bottom + 6}px` })
+          }}
+          className="bg-white rounded-xl shadow-2xl border border-gray-200/80 py-1 text-xs text-gray-700 animate-in fade-in zoom-in-95 duration-100 overflow-hidden select-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between gap-2">
+            <span className="font-semibold text-gray-500 uppercase text-[10px] tracking-wider shrink-0">
+              Acciones
+            </span>
+            <span className="text-[11px] font-medium text-gray-700 truncate" title={activeMenu.laptop.modelo}>
+              {activeMenu.laptop.modelo}
+            </span>
+          </div>
+
+          <div className="p-1 space-y-0.5">
+            <Link
+              to={`/admin/edit/${activeMenu.laptop.id}`}
+              onClick={closeActionMenu}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-blue-50 text-gray-700 hover:text-blue-700 font-medium transition-colors"
+            >
+              <Edit className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Editar equipo</span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => {
+                const lp = activeMenu.laptop;
+                closeActionMenu();
+                setModalOferta({
+                  open: true,
+                  laptop: lp,
+                  en_oferta: Boolean(lp.en_oferta),
+                  precio_oferta: lp.precio_oferta ? lp.precio_oferta.toString() : (lp.precio ? Math.round(Number(lp.precio) * 0.85).toString() : ''),
+                  etiqueta_oferta: lp.etiqueta_oferta || '',
+                  saving: false
+                });
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors text-left ${
+                activeMenu.laptop.en_oferta
+                  ? 'bg-orange-50/70 text-orange-800 hover:bg-orange-100/80'
+                  : 'hover:bg-orange-50/60 text-gray-700 hover:text-orange-700'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Flame className={`w-4 h-4 shrink-0 ${activeMenu.laptop.en_oferta ? 'text-orange-600 fill-orange-500/20' : 'text-orange-500'}`} />
+                <span>{activeMenu.laptop.en_oferta ? 'Editar oferta' : 'Poner en oferta'}</span>
+              </div>
+              {activeMenu.laptop.en_oferta && (
+                <span className="text-[10px] font-bold bg-orange-200 text-orange-800 px-1.5 py-0.5 rounded-full">
+                  Activa
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const id = activeMenu.laptop.id;
+                closeActionMenu();
+                handleDuplicateLaptops([id]);
+              }}
+              disabled={duplicatingId === activeMenu.laptop.id || duplicatingId === 'bulk'}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-purple-50 text-gray-700 hover:text-purple-700 font-medium transition-colors text-left disabled:opacity-50"
+            >
+              <Copy className="w-4 h-4 text-purple-600 shrink-0" />
+              <span>Duplicar equipo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const lp = activeMenu.laptop;
+                closeActionMenu();
+                setGastosModalLaptop(lp);
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-emerald-50 text-gray-700 hover:text-emerald-700 font-medium transition-colors text-left"
+            >
+              <Banknote className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Gastos / Envío</span>
+            </button>
+
+            <Link
+              to={`/admin/delivery/${activeMenu.laptop.id}`}
+              onClick={closeActionMenu}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-teal-50 text-gray-700 hover:text-teal-700 font-medium transition-colors"
+            >
+              <FileText className="w-4 h-4 text-teal-600 shrink-0" />
+              <span>Nota de entrega</span>
+            </Link>
+          </div>
+
+          <div className="h-px bg-gray-100 my-1" />
+
+          <div className="p-1">
+            <button
+              type="button"
+              onClick={() => {
+                const lp = activeMenu.laptop;
+                closeActionMenu();
+                handleDeleteClick(lp.id, lp.modelo);
+              }}
+              disabled={deletingId === activeMenu.laptop.id || deletingId === 'bulk'}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-red-50 text-red-600 hover:text-red-700 font-medium transition-colors text-left disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4 text-red-600 shrink-0" />
+              <span>Eliminar equipo</span>
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

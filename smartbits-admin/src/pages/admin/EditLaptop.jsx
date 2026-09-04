@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus, DollarSign, Trash2 } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus, DollarSign, Trash2, Flame } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -549,8 +549,10 @@ export default function EditLaptop() {
               {/* SECCIÓN DE OFERTA PROMOCIONAL */}
               <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 p-6 rounded-xl border-2 border-orange-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">🔥</span>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-100 text-orange-600 rounded-lg shrink-0">
+                      <Flame className="w-5 h-5 fill-orange-500/20" />
+                    </div>
                     <div>
                       <h3 className="font-bold text-orange-950 text-sm">Oferta Promocional</h3>
                       <p className="text-xs text-orange-700">Destaca este equipo en oferta al inicio del catálogo público.</p>
