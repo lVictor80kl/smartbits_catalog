@@ -30,9 +30,16 @@
   "content_scripts": [
     {
       "matches": [
+        "*://*.ebay.com/mye/myebay/purchase*",
         "*://*.ebay.com/mye/buy/purchase-history*",
+        "*://*.ebay.com/myb/PurchaseHistory*",
         "*://*.ebay.com/sh/ovw*",
-        "*://*.ebay.com/bin/purchaseHistory*"
+        "*://*.ebay.com/bin/purchaseHistory*",
+        "*://order.ebay.com/*",
+        "*://*.ebay.com/vod/*",
+        "*://*.ebay.com/cnt/TrackPackage*",
+        "*://*.ebay.com/mye/myebay/v2/purchase/tracking*",
+        "*://*.ebay.com/ship/tra*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
