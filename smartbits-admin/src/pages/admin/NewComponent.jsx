@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
+import { syncTrackingFromEbay } from '../../utils/syncTrackingFromEbay';
 
 export default function NewComponent() {
   const navigate = useNavigate();
@@ -153,17 +154,32 @@ export default function NewComponent() {
 
       const newCompRef = await addDoc(collection(db, 'componentes'), componentData);
 
-      // Si viene de eBay, actualizar estado en compras_ebay
+      // Si viene de eBay, actualizar estado en compras_ebay y sincronizar con trackings
       if (ebayData?.id) {
         try {
+          let trackingId = null;
+          if (ebayData.tracking_usa) {
+            trackingId = await syncTrackingFromEbay(db, {
+              ebayItem: ebayData,
+              inventoryItem: {
+                id: newCompRef.id,
+                nombre: formData.nombre,
+                modelo: formData.marca || '',
+                costo: formData.precio || ebayData.precio
+              },
+              tipo: 'componente'
+            });
+          }
+
           await updateDoc(doc(db, 'compras_ebay', ebayData.id), {
             estado: 'en_inventario',
             tipo_inventario: 'componente',
             inventario_id: newCompRef.id,
+            tracking_id: trackingId || ebayData.tracking_id || null,
             fecha_actualizacion: serverTimestamp(),
           });
         } catch (eErr) {
-          console.warn('Error actualizando compras_ebay:', eErr);
+          console.warn('Error actualizando compras_ebay o trackings:', eErr);
         }
       }
 

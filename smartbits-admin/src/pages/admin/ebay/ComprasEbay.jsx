@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
-  collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp, writeBatch 
+  collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, setDoc, serverTimestamp, writeBatch 
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useNavigate } from 'react-router-dom';
@@ -9,10 +9,11 @@ import {
   AlertTriangle, CheckCircle2, Clock, Package, Laptop, 
   Box, ArrowRight, DollarSign, Calendar, RefreshCw, X, ShieldAlert,
   Info, Sparkles, Filter, Check, EyeOff, RotateCcw, Link as LinkIcon,
-  CheckCircle, Unlink, Layers
+  CheckCircle, Unlink, Layers, Edit2, Plus
 } from 'lucide-react';
-import { getTrackingUrlUsa, getCourierUsaConfig } from '../../../utils/couriers';
+import { getTrackingUrlUsa, getCourierUsaConfig, COURIERS_USA } from '../../../utils/couriers';
 import TrackingModal from '../trackings/TrackingModal';
+import { syncTrackingFromEbay } from '../../../utils/syncTrackingFromEbay';
 
 export default function ComprasEbay() {
   const navigate = useNavigate();
@@ -39,7 +40,22 @@ export default function ComprasEbay() {
   const [linkActiveTab, setLinkActiveTab] = useState('laptops'); // 'laptops' | 'componentes' | 'directo'
   const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
   const [linkingProcessing, setLinkingProcessing] = useState(false);
+  const [syncingTrackings, setSyncingTrackings] = useState(false);
+  const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
   const [autoLinkNotification, setAutoLinkNotification] = useState('');
+
+  // Modal rápido para asignar / editar Tracking USA
+  const [quickTrackingModal, setQuickTrackingModal] = useState({
+    open: false,
+    item: null,
+    tracking_usa: '',
+    courier_usa: 'usps',
+    syncToEnvios: true
+  });
+
+  // Edición rápida de precio
+  const [editingPriceId, setEditingPriceId] = useState(null);
+  const [editingPriceVal, setEditingPriceVal] = useState('');
 
   // 1. Escuchar compras de eBay en tiempo real
   useEffect(() => {
@@ -85,8 +101,8 @@ export default function ComprasEbay() {
     };
   }, []);
 
-  // Algoritmo de Coincidencia Inteligente
-  const findInventoryMatch = (ebayItem) => {
+  // Algoritmo de Coincidencia Inteligente con exclusión de equipos ya asignados
+  const findInventoryMatch = (ebayItem, excludedLaptopIds = new Set()) => {
     if (!ebayItem || ebayItem.estado === 'en_inventario') return null;
 
     const ebayTitle = (ebayItem.titulo || '').toLowerCase();
@@ -94,8 +110,12 @@ export default function ComprasEbay() {
     const ebayItemId = (ebayItem.itemId || '').toLowerCase().trim();
     const ebayTracking = (ebayItem.tracking_usa || '').replace(/[\s-]/g, '').toLowerCase();
 
-    // 1. Coincidencia exacta por N° de orden o ID de item en observaciones_compra
+    // 1. Coincidencia exacta por N° de orden o ID de item en observaciones_compra o ebay_compra_id
     for (const lap of laptops) {
+      if (excludedLaptopIds.has(lap.id)) continue;
+      if (lap.ebay_compra_id && lap.ebay_compra_id === ebayItem.id) {
+        return { type: 'laptop', item: lap, confidence: 'exact', reason: `Ficha ya enlazada a esta compra` };
+      }
       const obs = (lap.observaciones_compra || '').toLowerCase();
       if (ebayOrderId && obs.includes(ebayOrderId)) {
         return { type: 'laptop', item: lap, confidence: 'exact', reason: `Orden #${ebayItem.orderId}` };
@@ -113,7 +133,7 @@ export default function ComprasEbay() {
           if (Array.isArray(trk.items)) {
             for (const ti of trk.items) {
               const lap = laptops.find(l => l.id === ti.id);
-              if (lap) {
+              if (lap && !excludedLaptopIds.has(lap.id)) {
                 return { type: 'laptop', item: lap, confidence: 'exact', reason: `Mismo Tracking ${ebayItem.tracking_usa}` };
               }
             }
@@ -134,9 +154,10 @@ export default function ComprasEbay() {
     let maxScore = 0;
 
     for (const lap of laptops) {
+      if (excludedLaptopIds.has(lap.id)) continue;
+
       const lapModel = (lap.modelo || '').toLowerCase();
       const lapBrand = (lap.marca || '').toLowerCase();
-      const fullText = `${lapBrand} ${lapModel}`;
       let score = 0;
 
       // Coincidencia de marca (ej. Asus, Dell, Lenovo)
@@ -197,19 +218,84 @@ export default function ComprasEbay() {
     return null;
   };
 
-  // Mapa de sugerencias calculadas en memoria
+  // Mapa de sugerencias calculadas en memoria con asignación 1 a 1
   const sugerenciasMap = useMemo(() => {
+    // 1. Identificar laptops que ya están vinculadas en la base de datos
+    const globallyLinkedLaptops = new Set();
+    compras.forEach(c => {
+      if (c.estado === 'en_inventario' && c.tipo_inventario === 'laptop' && c.inventario_id) {
+        globallyLinkedLaptops.add(c.inventario_id);
+      }
+    });
+    laptops.forEach(l => {
+      if (l.ebay_compra_id) globallyLinkedLaptops.add(l.id);
+    });
+
+    const allocatedLaptopIds = new Set(globallyLinkedLaptops);
     const map = {};
+
+    // 2. Emparejar compras pendientes secuencialmente de forma excluyente
     compras.forEach(item => {
       if (item.estado === 'pendiente') {
-        const match = findInventoryMatch(item);
-        if (match) map[item.id] = match;
+        const match = findInventoryMatch(item, allocatedLaptopIds);
+        if (match) {
+          map[item.id] = match;
+          if (match.type === 'laptop') {
+            allocatedLaptopIds.add(match.item.id);
+          }
+        }
       }
     });
     return map;
   }, [compras, laptops, componentes, trackings]);
 
   const totalSugerencias = Object.keys(sugerenciasMap).length;
+
+  // Detección inteligente de compras duplicadas reales (mismo itemId exacto, NO por título)
+  const detectedDuplicates = useMemo(() => {
+    const byOrder = {};
+    compras.forEach(item => {
+      const ordKey = (item.orderId || 'sin_orden').trim().toLowerCase();
+      if (!byOrder[ordKey]) byOrder[ordKey] = [];
+      byOrder[ordKey].push(item);
+    });
+
+    const duplicatesList = [];
+
+    Object.entries(byOrder).forEach(([ordKey, items]) => {
+      if (items.length <= 1) return;
+
+      const subGroups = [];
+      items.forEach(item => {
+        let placed = false;
+        for (const grp of subGroups) {
+          const first = grp[0];
+          // Solo se considera duplicado si coincide el itemId exacto con ID de documento diferente o conflicto con id legado
+          const isExactSameItem = item.itemId && first.itemId && item.itemId === first.itemId && item.id !== first.id;
+          const isLegacyConflict = items.length === 2 && (item.id === `ebay_${item.orderId}` || first.id === `ebay_${first.orderId}`);
+
+          if (isExactSameItem || isLegacyConflict) {
+            grp.push(item);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          subGroups.push([item]);
+        }
+      });
+
+      subGroups.forEach(grp => {
+        if (grp.length > 1) {
+          duplicatesList.push(...grp.slice(1));
+        }
+      });
+    });
+
+    return duplicatesList;
+  }, [compras]);
+
+  const detectedDuplicatesCount = detectedDuplicates.length;
 
   // Conteos para métricas y filtros
   const totalCount = compras.length;
@@ -218,26 +304,38 @@ export default function ComprasEbay() {
   const enInventarioCount = compras.filter(c => c.estado === 'en_inventario').length;
   const descartadosCount = compras.filter(c => c.estado === 'descartado').length;
 
-  // Filtrado de compras
-  const comprasFiltradas = compras.filter(item => {
-    if (filterEstado === 'pendientes' && item.estado !== 'pendiente') return false;
-    if (filterEstado === 'en_tracking' && item.estado !== 'en_tracking') return false;
-    if (filterEstado === 'en_inventario' && item.estado !== 'en_inventario') return false;
-    if (filterEstado === 'descartados' && item.estado !== 'descartado') return false;
+  // Filtrado y ordenación de compras (siguiendo el orden cronológico de fecha_compra)
+  const comprasFiltradas = compras
+    .filter(item => {
+      if (filterEstado === 'pendientes' && item.estado !== 'pendiente') return false;
+      if (filterEstado === 'en_tracking' && item.estado !== 'en_tracking') return false;
+      if (filterEstado === 'en_inventario' && item.estado !== 'en_inventario') return false;
+      if (filterEstado === 'descartados' && item.estado !== 'descartado') return false;
 
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      const matchTitulo = item.titulo && item.titulo.toLowerCase().includes(term);
-      const matchOrder = item.orderId && item.orderId.toLowerCase().includes(term);
-      const matchTracking = item.tracking_usa && item.tracking_usa.toLowerCase().includes(term);
-      const matchVendedor = item.vendedor && item.vendedor.toLowerCase().includes(term);
-      if (!matchTitulo && !matchOrder && !matchTracking && !matchVendedor) return false;
-    }
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase();
+        const matchTitulo = item.titulo && item.titulo.toLowerCase().includes(term);
+        const matchOrder = item.orderId && item.orderId.toLowerCase().includes(term);
+        const matchTracking = item.tracking_usa && item.tracking_usa.toLowerCase().includes(term);
+        const matchVendedor = item.vendedor && item.vendedor.toLowerCase().includes(term);
+        if (!matchTitulo && !matchOrder && !matchTracking && !matchVendedor) return false;
+      }
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => {
+      // 1. Fecha de compra descendente (más reciente primero)
+      const dateA = a.fecha_compra ? new Date(a.fecha_compra).getTime() : 0;
+      const dateB = b.fecha_compra ? new Date(b.fecha_compra).getTime() : 0;
+      if (dateB !== dateA) return dateB - dateA;
 
-  // Acciones de Auto-vinculación
+      // 2. Si tienen la misma fecha, por fecha de sincronización descendente
+      const syncA = a.fecha_sincronizacion?.toMillis?.() || (a.fecha_sincronizacion ? new Date(a.fecha_sincronizacion).getTime() : 0);
+      const syncB = b.fecha_sincronizacion?.toMillis?.() || (b.fecha_sincronizacion ? new Date(b.fecha_sincronizacion).getTime() : 0);
+      return syncB - syncA;
+    });
+
+  // Acciones de Auto-vinculación con sincronización a Trackings
   const handleAutoLinkAll = async () => {
     const keys = Object.keys(sugerenciasMap);
     if (keys.length === 0) {
@@ -245,31 +343,66 @@ export default function ComprasEbay() {
       return;
     }
 
-    if (!confirm(`Se detectaron ${keys.length} compras de eBay con coincidencia en tu inventario. ¿Deseas vincularlas automáticamente ahora?`)) {
+    if (!confirm(`Se detectaron ${keys.length} compras de eBay con coincidencia en tu inventario. ¿Deseas vincularlas automáticamente ahora y registrar sus trackings de USA en Envíos?`)) {
       return;
     }
 
     setLinkingProcessing(true);
     let linked = 0;
+    let trackingsSynced = 0;
 
     try {
-      const batch = writeBatch(db);
       for (const ebayId of keys) {
         const match = sugerenciasMap[ebayId];
+        const ebayItem = compras.find(c => c.id === ebayId);
+        let trkId = null;
+
+        if (ebayItem?.tracking_usa) {
+          try {
+            const trkRes = await syncTrackingFromEbay(db, {
+              ebayItem,
+              inventoryItem: match.item,
+              tipo: match.type
+            });
+            if (trkRes?.id) {
+              trkId = trkRes.id;
+              trackingsSynced++;
+            }
+          } catch (trkErr) {
+            console.warn('Error sincronizando tracking para ' + ebayId, trkErr);
+          }
+        }
+
+        // 1. Actualizar registro en compras_ebay
         const ebayRef = doc(db, 'compras_ebay', ebayId);
-        batch.update(ebayRef, {
+        await updateDoc(ebayRef, {
           estado: 'en_inventario',
           tipo_inventario: match.type,
           inventario_id: match.item.id,
+          tracking_id: trkId || ebayItem?.tracking_id || null,
           vinculado_automatico: true,
           fecha_actualizacion: serverTimestamp()
         });
+
+        // 2. Actualizar ficha en inventario (laptops) para cerrar vinculación bidireccional
+        if (match.type === 'laptop') {
+          try {
+            await updateDoc(doc(db, 'laptops', match.item.id), {
+              ebay_compra_id: ebayId,
+              tracking_usa: ebayItem?.tracking_usa ? ebayItem.tracking_usa.trim().toUpperCase() : (match.item.tracking_usa || ''),
+              precio_ebay: ebayItem?.precio || match.item.precio_ebay || 0,
+              ...(trkId ? { tracking_id: trkId } : {})
+            });
+          } catch (lErr) {
+            console.warn('No se pudo actualizar ficha de laptop con ebay_compra_id:', lErr);
+          }
+        }
+
         linked++;
       }
-      await batch.commit();
 
-      setAutoLinkNotification(`¡Éxito! Se auto-vincularon ${linked} compras con tu inventario.`);
-      setTimeout(() => setAutoLinkNotification(''), 6000);
+      setAutoLinkNotification(`¡Éxito! Se vincularon ${linked} compras con tu inventario${trackingsSynced > 0 ? ` y se sincronizaron ${trackingsSynced} encomiendas en Envíos` : ''}.`);
+      setTimeout(() => setAutoLinkNotification(''), 7000);
     } catch (e) {
       alert('Error en auto-vinculación: ' + e.message);
     } finally {
@@ -279,13 +412,33 @@ export default function ComprasEbay() {
 
   const handleConfirmSingleAutoLink = async (ebayItem, match) => {
     try {
+      let trkId = null;
+      if (ebayItem?.tracking_usa) {
+        const trkRes = await syncTrackingFromEbay(db, {
+          ebayItem,
+          inventoryItem: match.item,
+          tipo: match.type
+        });
+        trkId = trkRes?.id || null;
+      }
+
       await updateDoc(doc(db, 'compras_ebay', ebayItem.id), {
         estado: 'en_inventario',
         tipo_inventario: match.type,
         inventario_id: match.item.id,
+        tracking_id: trkId || ebayItem.tracking_id || null,
         vinculado_automatico: true,
         fecha_actualizacion: serverTimestamp()
       });
+
+      if (match.type === 'laptop') {
+        await updateDoc(doc(db, 'laptops', match.item.id), {
+          ebay_compra_id: ebayItem.id,
+          tracking_usa: ebayItem?.tracking_usa ? ebayItem.tracking_usa.trim().toUpperCase() : (match.item.tracking_usa || ''),
+          precio_ebay: ebayItem?.precio || match.item.precio_ebay || 0,
+          ...(trkId ? { tracking_id: trkId } : {})
+        });
+      }
     } catch (e) {
       alert('Error vinculando compra: ' + e.message);
     }
@@ -309,10 +462,26 @@ export default function ComprasEbay() {
 
       if (linkActiveTab === 'directo') {
         // Marcar como ya en inventario sin asociar ficha específica
+        let trkId = null;
+        if (activeEbayItemForLink.tracking_usa) {
+          const trkRes = await syncTrackingFromEbay(db, {
+            ebayItem: activeEbayItemForLink,
+            inventoryItem: {
+              id: `manual_${activeEbayItemForLink.id}`,
+              nombre: activeEbayItemForLink.titulo,
+              modelo: '',
+              costo: activeEbayItemForLink.precio
+            },
+            tipo: 'laptop'
+          });
+          trkId = trkRes?.id || null;
+        }
+
         await updateDoc(doc(db, 'compras_ebay', activeEbayItemForLink.id), {
           estado: 'en_inventario',
           tipo_inventario: 'manual',
           inventario_id: '',
+          tracking_id: trkId || activeEbayItemForLink.tracking_id || null,
           notas_vinculacion: 'Marcado manualmente en inventario',
           fecha_actualizacion: serverTimestamp()
         });
@@ -324,12 +493,34 @@ export default function ComprasEbay() {
         }
 
         const tipo = linkActiveTab === 'laptops' ? 'laptop' : 'componente';
+        let trkId = null;
+        if (activeEbayItemForLink.tracking_usa) {
+          const trkRes = await syncTrackingFromEbay(db, {
+            ebayItem: activeEbayItemForLink,
+            inventoryItem: selectedInventoryItem,
+            tipo
+          });
+          trkId = trkRes?.id || null;
+        }
+
+        // 1. Actualizar compra
         await updateDoc(doc(db, 'compras_ebay', activeEbayItemForLink.id), {
           estado: 'en_inventario',
           tipo_inventario: tipo,
           inventario_id: selectedInventoryItem.id,
+          tracking_id: trkId || activeEbayItemForLink.tracking_id || null,
           fecha_actualizacion: serverTimestamp()
         });
+
+        // 2. Actualizar inventario si es laptop
+        if (tipo === 'laptop') {
+          await updateDoc(doc(db, 'laptops', selectedInventoryItem.id), {
+            ebay_compra_id: activeEbayItemForLink.id,
+            tracking_usa: activeEbayItemForLink.tracking_usa ? activeEbayItemForLink.tracking_usa.trim().toUpperCase() : (selectedInventoryItem.tracking_usa || ''),
+            precio_ebay: activeEbayItemForLink.precio || selectedInventoryItem.precio_ebay || 0,
+            ...(trkId ? { tracking_id: trkId } : {})
+          });
+        }
       }
 
       setIsLinkModalOpen(false);
@@ -341,10 +532,206 @@ export default function ComprasEbay() {
     }
   };
 
+  // Sincronización masiva de trackings hacia el módulo de Envíos
+  const handleSyncAllTrackingsToEnvios = async () => {
+    const itemsWithTracking = compras.filter(c => {
+      const trk = (c.tracking_usa || '').trim();
+      const rawItemId = String(c.itemId || '').replace(/_u[0-9]+$/, '').trim();
+      const rawOrderId = String(c.orderId || '').replace(/[\s-]/g, '').trim();
+      const isBogus = (rawItemId && trk === rawItemId) || (rawOrderId && trk === rawOrderId);
+      return trk.length > 0 && !trk.startsWith('{') && !trk.includes('EVENTFAMILY') && !isBogus && c.estado !== 'descartado';
+    });
+
+    if (itemsWithTracking.length === 0) {
+      alert('ℹ️ No se encontraron compras de eBay con número de Tracking USA válido registrado en esta lista.\n\n👉 Cómo ingresar trackings:\n1. Si la orden tiene tracking en eBay: Abre la extensión en tu historial de eBay y pulsa "Sincronizar Compras".\n2. O en la lista de abajo, haz clic en el botón "+ Tracking USA" en cualquier compra para ingresarlo directamente.');
+      return;
+    }
+
+    if (!confirm(`Se encontraron ${itemsWithTracking.length} compras de eBay con Tracking USA válido.\n\n¿Deseas sincronizarlas con el módulo de Envíos/Trackings? Los paquetes se registrarán automáticamente con su tracking de USA para que luego solo ingreses el tracking de Venezuela.`)) {
+      return;
+    }
+
+    setSyncingTrackings(true);
+    let createdCount = 0;
+    let updatedCount = 0;
+    let failedCount = 0;
+    let lastError = '';
+
+    try {
+      for (const item of itemsWithTracking) {
+        let invItem = null;
+        if (item.tipo_inventario === 'laptop' && item.inventario_id) {
+          invItem = laptops.find(l => l.id === item.inventario_id);
+        } else if (item.tipo_inventario === 'componente' && item.inventario_id) {
+          invItem = componentes.find(co => co.id === item.inventario_id);
+        }
+
+        const itemPayload = invItem ? {
+          id: invItem.id,
+          nombre: invItem.nombre || `${invItem.marca || ''} ${invItem.modelo || ''}`.trim(),
+          modelo: invItem.modelo || '',
+          costo: Number(invItem.precio_ebay || invItem.costo || item.precio) || 0
+        } : {
+          id: `ebay_${item.id}`,
+          nombre: item.titulo,
+          modelo: '',
+          costo: Number(item.precio) || 0
+        };
+
+        const result = await syncTrackingFromEbay(db, {
+          ebayItem: item,
+          inventoryItem: itemPayload,
+          tipo: item.tipo_inventario === 'componente' ? 'componente' : 'laptop'
+        });
+
+        if (result?.success && result.id) {
+          if (result.status === 'created') createdCount++;
+          else updatedCount++;
+
+          if (result.id !== item.tracking_id) {
+            await updateDoc(doc(db, 'compras_ebay', item.id), {
+              tracking_id: result.id,
+              fecha_actualizacion: serverTimestamp()
+            });
+          }
+        } else {
+          failedCount++;
+          if (result?.error) lastError = result.error;
+        }
+      }
+
+      if (failedCount === 0) {
+        setAutoLinkNotification(`¡Sincronización con Envíos exitosa! ${createdCount} nuevos paquetes creados y ${updatedCount} actualizados.`);
+      } else {
+        setAutoLinkNotification(`Sincronización finalizada: ${createdCount} creados, ${updatedCount} actualizados, ${failedCount} no procesados. ${lastError ? `(Error: ${lastError})` : ''}`);
+      }
+      setTimeout(() => setAutoLinkNotification(''), 7000);
+    } catch (err) {
+      alert('Error sincronizando trackings con Envíos: ' + err.message);
+    } finally {
+      setSyncingTrackings(false);
+    }
+  };
+
+  // Limpieza inteligente de compras duplicadas
+  const handleCleanDuplicates = async () => {
+    if (compras.length === 0) return;
+
+    const byOrder = {};
+    compras.forEach(item => {
+      const ordKey = (item.orderId || 'sin_orden').trim().toLowerCase();
+      if (!byOrder[ordKey]) byOrder[ordKey] = [];
+      byOrder[ordKey].push(item);
+    });
+
+    const toDeleteIds = [];
+    const updates = [];
+
+    Object.entries(byOrder).forEach(([ordKey, items]) => {
+      if (items.length <= 1) return;
+
+      const subGroups = [];
+      items.forEach(item => {
+        let placed = false;
+        for (const grp of subGroups) {
+          const first = grp[0];
+          if (item.itemId && first.itemId && item.itemId === first.itemId) {
+            grp.push(item);
+            placed = true;
+            break;
+          }
+          if (item.titulo && first.titulo && item.titulo.trim().toLowerCase() === first.titulo.trim().toLowerCase()) {
+            grp.push(item);
+            placed = true;
+            break;
+          }
+          if (items.length === 2 && (item.id === `ebay_${item.orderId}` || first.id === `ebay_${first.orderId}`)) {
+            grp.push(item);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          subGroups.push([item]);
+        }
+      });
+
+      subGroups.forEach(grp => {
+        if (grp.length > 1) {
+          // Ordenar: preferir el que está en_inventario, con tracking_usa o vinculado
+          grp.sort((a, b) => {
+            const scoreA = (a.estado === 'en_inventario' ? 10 : 0) + (a.tracking_usa ? 5 : 0) + (a.inventario_id ? 5 : 0) + (a.tracking_id ? 3 : 0);
+            const scoreB = (b.estado === 'en_inventario' ? 10 : 0) + (b.tracking_usa ? 5 : 0) + (b.inventario_id ? 5 : 0) + (b.tracking_id ? 3 : 0);
+            return scoreB - scoreA;
+          });
+
+          const keep = grp[0];
+          const duplicates = grp.slice(1);
+
+          // Si el que eliminamos tenía tracking_usa y el conservado no, transferirlo
+          const missingTracking = !keep.tracking_usa && duplicates.find(d => d.tracking_usa);
+          if (missingTracking) {
+            updates.push({
+              id: keep.id,
+              tracking_usa: missingTracking.tracking_usa,
+              courier_usa: missingTracking.courier_usa || 'usps',
+              tracking_id: missingTracking.tracking_id || null
+            });
+          }
+
+          duplicates.forEach(d => toDeleteIds.push(d.id));
+        }
+      });
+    });
+
+    if (toDeleteIds.length === 0) {
+      alert('¡Todo limpio! No se encontraron compras duplicadas.');
+      return;
+    }
+
+    if (!confirm(`Se detectaron ${toDeleteIds.length} compras duplicadas (repetidas tras la resincronización).\n\n¿Deseas limpiarlas ahora? Se conservará automáticamente la versión más completa/vinculada de cada una.`)) {
+      return;
+    }
+
+    setCleaningDuplicates(true);
+    try {
+      for (const u of updates) {
+        await updateDoc(doc(db, 'compras_ebay', u.id), {
+          tracking_usa: u.tracking_usa,
+          courier_usa: u.courier_usa,
+          ...(u.tracking_id ? { tracking_id: u.tracking_id } : {}),
+          fecha_actualizacion: serverTimestamp()
+        });
+      }
+
+      const batch = writeBatch(db);
+      toDeleteIds.forEach(id => {
+        batch.delete(doc(db, 'compras_ebay', id));
+      });
+      await batch.commit();
+
+      setAutoLinkNotification(`¡Limpieza exitosa! Se eliminaron ${toDeleteIds.length} compras duplicadas preservando su información.`);
+      setTimeout(() => setAutoLinkNotification(''), 7000);
+    } catch (err) {
+      alert('Error eliminando duplicados: ' + err.message);
+    } finally {
+      setCleaningDuplicates(false);
+    }
+  };
+
   // Desvincular de inventario (volver a pendiente)
   const handleUnlink = async (item) => {
     if (!confirm('¿Deseas desvincular esta compra y regresarla a estado Pendiente de inventario?')) return;
     try {
+      if (item.tipo_inventario === 'laptop' && item.inventario_id) {
+        try {
+          await updateDoc(doc(db, 'laptops', item.inventario_id), {
+            ebay_compra_id: null
+          });
+        } catch (lErr) {
+          console.warn('No se pudo limpiar ebay_compra_id en laptop:', lErr);
+        }
+      }
       await updateDoc(doc(db, 'compras_ebay', item.id), {
         estado: 'pendiente',
         tipo_inventario: '',
@@ -353,6 +740,31 @@ export default function ComprasEbay() {
       });
     } catch (e) {
       alert('Error desvinculando: ' + e.message);
+    }
+  };
+
+  // Edición rápida de precio
+  const handleStartEditPrice = (item) => {
+    setEditingPriceId(item.id);
+    setEditingPriceVal(String(item.precio || ''));
+  };
+
+  const handleSavePrice = async (itemId) => {
+    const num = parseFloat(editingPriceVal);
+    if (isNaN(num) || num < 0) {
+      alert('Ingresa un precio válido');
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'compras_ebay', itemId), {
+        precio: num,
+        fecha_actualizacion: serverTimestamp()
+      });
+      setEditingPriceId(null);
+      setAutoLinkNotification(`¡Precio actualizado a $${num.toFixed(2)} USD!`);
+      setTimeout(() => setAutoLinkNotification(''), 5000);
+    } catch (e) {
+      alert('Error actualizando precio: ' + e.message);
     }
   };
 
@@ -369,7 +781,8 @@ export default function ComprasEbay() {
           fecha_compra: item.fecha_compra,
           item_url: item.item_url,
           foto_url: item.foto_url,
-          tracking_usa: item.tracking_usa
+          tracking_usa: item.tracking_usa,
+          courier_usa: item.courier_usa
         }
       }
     });
@@ -386,7 +799,9 @@ export default function ComprasEbay() {
           precio: item.precio,
           fecha_compra: item.fecha_compra,
           item_url: item.item_url,
-          foto_url: item.foto_url
+          foto_url: item.foto_url,
+          tracking_usa: item.tracking_usa,
+          courier_usa: item.courier_usa
         }
       }
     });
@@ -413,19 +828,120 @@ export default function ComprasEbay() {
     setIsTrackingModalOpen(true);
   };
 
-  const handleTrackingSaved = async () => {
+  const handleTrackingSaved = async (savedTracking) => {
     if (activeEbayItemForTracking) {
       try {
-        await updateDoc(doc(db, 'compras_ebay', activeEbayItemForTracking.id), {
+        const updatePayload = {
           estado: 'en_tracking',
           fecha_actualizacion: serverTimestamp()
-        });
+        };
+        if (savedTracking?.tracking_usa) {
+          updatePayload.tracking_usa = savedTracking.tracking_usa;
+        }
+        if (savedTracking?.courier_usa) {
+          updatePayload.courier_usa = savedTracking.courier_usa;
+        }
+        if (savedTracking?.id) {
+          updatePayload.tracking_id = savedTracking.id;
+        }
+        await updateDoc(doc(db, 'compras_ebay', activeEbayItemForTracking.id), updatePayload);
       } catch (e) {
         console.error('Error actualizando estado en compras_ebay:', e);
       }
     }
     setIsTrackingModalOpen(false);
     setActiveEbayItemForTracking(null);
+  };
+
+  // Handlers para el modal rápido de Tracking USA
+  const handleOpenQuickTracking = (item) => {
+    setQuickTrackingModal({
+      open: true,
+      item,
+      tracking_usa: item.tracking_usa || '',
+      courier_usa: item.courier_usa || 'usps',
+      syncToEnvios: true
+    });
+  };
+
+  const handleQuickTrackingNumberChange = (val) => {
+    let detected = quickTrackingModal.courier_usa;
+    const clean = val.replace(/[\s-]/g, '').toUpperCase();
+    if (/^1Z[0-9A-Z]{16}$/i.test(clean)) detected = 'ups';
+    else if (/^(94|93|92|95|91|420)[0-9]{18,28}$/.test(clean) || /^[0-9]{20,24}$/.test(clean) || /^(ESUS|EEUS|UPAA|LVS)/i.test(clean)) detected = 'usps';
+    else if (/^[0-9]{12}$/.test(clean) || /^[0-9]{15}$/.test(clean) || /^7489[0-9]{16,22}$/.test(clean)) detected = 'fedex';
+    else if (/^[0-9]{10}$/.test(clean)) detected = 'dhl';
+
+    setQuickTrackingModal(prev => ({
+      ...prev,
+      tracking_usa: val,
+      courier_usa: detected
+    }));
+  };
+
+  const handleSaveQuickTracking = async () => {
+    const { item, tracking_usa, courier_usa, syncToEnvios } = quickTrackingModal;
+    if (!item) return;
+
+    const cleanTracking = tracking_usa.trim().replace(/[\s-]/g, '').toUpperCase();
+    if (!cleanTracking) {
+      alert('Por favor ingresa el número de tracking de USA.');
+      return;
+    }
+
+    try {
+      setLinkingProcessing(true);
+      let trackingId = item.tracking_id || null;
+
+      // Si se marcó sincronizar con Envíos
+      if (syncToEnvios) {
+        let invItem = null;
+        if (item.tipo_inventario === 'laptop' && item.inventario_id) {
+          invItem = laptops.find(l => l.id === item.inventario_id);
+        } else if (item.tipo_inventario === 'componente' && item.inventario_id) {
+          invItem = componentes.find(c => c.id === item.inventario_id);
+        }
+
+        const itemPayload = invItem ? {
+          id: invItem.id,
+          nombre: invItem.nombre || `${invItem.marca || ''} ${invItem.modelo || ''}`.trim(),
+          modelo: invItem.modelo || '',
+          costo: invItem.precio_ebay || invItem.costo || item.precio || 0
+        } : {
+          id: item.id,
+          nombre: item.titulo,
+          modelo: '',
+          costo: item.precio || 0
+        };
+
+        const resTrkId = await syncTrackingFromEbay(db, {
+          ebayItem: {
+            ...item,
+            tracking_usa: cleanTracking,
+            courier_usa: courier_usa || 'usps'
+          },
+          inventoryItem: itemPayload,
+          tipo: item.tipo_inventario === 'componente' ? 'componente' : 'laptop'
+        });
+
+        if (resTrkId) trackingId = resTrkId;
+      }
+
+      await updateDoc(doc(db, 'compras_ebay', item.id), {
+        tracking_usa: cleanTracking,
+        courier_usa: courier_usa || 'usps',
+        tracking_id: trackingId,
+        fecha_actualizacion: serverTimestamp()
+      });
+
+      setQuickTrackingModal({ open: false, item: null, tracking_usa: '', courier_usa: 'usps', syncToEnvios: true });
+      setAutoLinkNotification(`¡Tracking USA ${cleanTracking} guardado${syncToEnvios ? ' y sincronizado con Envíos' : ''}!`);
+      setTimeout(() => setAutoLinkNotification(''), 6000);
+    } catch (e) {
+      alert('Error guardando tracking: ' + e.message);
+    } finally {
+      setLinkingProcessing(false);
+    }
   };
 
   const handleToggleDescartar = async (item) => {
@@ -457,15 +973,40 @@ export default function ComprasEbay() {
     setTimeout(() => setCopiedPath(false), 2500);
   };
 
+  // Mapa de laptops ya vinculadas a alguna compra de eBay
+  const linkedLaptopsMap = useMemo(() => {
+    const map = {};
+    compras.forEach(c => {
+      if (c.estado === 'en_inventario' && c.tipo_inventario === 'laptop' && c.inventario_id) {
+        map[c.inventario_id] = c;
+      }
+    });
+    laptops.forEach(l => {
+      if (l.ebay_compra_id && !map[l.id]) {
+        map[l.id] = { id: l.ebay_compra_id, orderId: 'vinculado' };
+      }
+    });
+    return map;
+  }, [compras, laptops]);
+
   // Filtrado para el modal de vinculación manual
-  const filteredLaptopsForLink = laptops.filter(l => {
-    if (!linkSearchTerm.trim()) return true;
-    const term = linkSearchTerm.toLowerCase();
-    return (
-      (l.modelo && l.modelo.toLowerCase().includes(term)) ||
-      (l.marca && l.marca.toLowerCase().includes(term))
-    );
-  });
+  const filteredLaptopsForLink = useMemo(() => {
+    return laptops.filter(l => {
+      if (!linkSearchTerm.trim()) return true;
+      const term = linkSearchTerm.toLowerCase();
+      return (
+        (l.modelo && l.modelo.toLowerCase().includes(term)) ||
+        (l.marca && l.marca.toLowerCase().includes(term)) ||
+        (l.id && l.id.toLowerCase().includes(term))
+      );
+    }).sort((a, b) => {
+      const aLinked = Boolean(linkedLaptopsMap[a.id]);
+      const bLinked = Boolean(linkedLaptopsMap[b.id]);
+      if (aLinked && !bLinked) return 1;
+      if (!aLinked && bLinked) return -1;
+      return 0;
+    });
+  }, [laptops, linkSearchTerm, linkedLaptopsMap]);
 
   const filteredComponentsForLink = componentes.filter(c => {
     if (!linkSearchTerm.trim()) return true;
@@ -510,6 +1051,34 @@ export default function ComprasEbay() {
               <span>Auto-vincular ({totalSugerencias})</span>
             </button>
           )}
+
+          {/* Botón Limpiar Duplicados */}
+          {detectedDuplicatesCount > 0 && (
+            <button
+              onClick={handleCleanDuplicates}
+              disabled={cleaningDuplicates}
+              className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-200 transition shadow-sm"
+              title="Eliminar compras duplicadas conservando la versión vinculada o con tracking"
+            >
+              <Trash2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span>{cleaningDuplicates ? 'Limpiando...' : `Limpiar Duplicados (${detectedDuplicatesCount})`}</span>
+            </button>
+          )}
+
+          {/* Botón Sincronizar Trackings USA a Envíos */}
+          <button
+            onClick={handleSyncAllTrackingsToEnvios}
+            disabled={syncingTrackings}
+            className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900 rounded-lg hover:bg-purple-100 transition shadow-sm"
+            title="Registrar o actualizar en Envíos todas las compras con Tracking USA"
+          >
+            {syncingTrackings ? (
+              <RefreshCw className="w-4 h-4 animate-spin text-purple-600" />
+            ) : (
+              <Package className="w-4 h-4 text-purple-600" />
+            )}
+            <span>{syncingTrackings ? 'Sincronizando...' : 'Sincronizar Trackings USA'}</span>
+          </button>
 
           <button
             onClick={() => setShowHelpModal(true)}
@@ -822,10 +1391,56 @@ export default function ComprasEbay() {
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                          ${Number(item.precio || 0).toFixed(2)} USD
-                        </span>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        {editingPriceId === item.id ? (
+                          <div className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/50 p-1 rounded-lg border border-emerald-300 dark:border-emerald-700 shadow-xs">
+                            <span className="text-emerald-700 dark:text-emerald-300 font-bold text-xs">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editingPriceVal}
+                              onChange={(e) => setEditingPriceVal(e.target.value)}
+                              className="w-24 px-1.5 py-0.5 text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-white dark:bg-gray-900 border border-emerald-300 rounded focus:outline-hidden"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSavePrice(item.id);
+                                if (e.key === 'Escape') setEditingPriceId(null);
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSavePrice(item.id)}
+                              className="p-1 text-emerald-700 hover:bg-emerald-200 rounded"
+                              title="Guardar precio"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setEditingPriceId(null)}
+                              className="p-1 text-gray-400 hover:bg-gray-200 rounded"
+                              title="Cancelar"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 group/price">
+                            <span 
+                              onClick={() => handleStartEditPrice(item)}
+                              className="font-bold text-emerald-600 dark:text-emerald-400 text-sm cursor-pointer hover:underline"
+                              title="Clic para editar precio"
+                            >
+                              ${Number(item.precio || 0).toFixed(2)} USD
+                            </span>
+                            <button
+                              onClick={() => handleStartEditPrice(item)}
+                              className="opacity-0 group-hover/price:opacity-100 p-0.5 text-gray-400 hover:text-emerald-600 transition"
+                              title="Editar precio"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+
                         {item.fecha_compra && (
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -837,27 +1452,86 @@ export default function ComprasEbay() {
                         )}
                       </div>
 
-                      {item.tracking_usa ? (
-                        <div className="pt-0.5 flex items-center gap-2 text-xs">
-                          <span className="text-gray-400">Tracking USA:</span>
-                          {trackingUrl ? (
-                            <a 
-                              href={trackingUrl} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1"
+                      {(() => {
+                        const rawItem = String(item.itemId || '').replace(/_u[0-9]+$/, '').trim();
+                        const isItemIdBogus = item.tracking_usa && rawItem && item.tracking_usa.trim() === rawItem;
+                        const isWordBogus = item.tracking_usa && (item.tracking_usa.toLowerCase() === 'experience' || item.tracking_usa.replace(/\D/g, '').length < 4);
+                        if (isItemIdBogus || isWordBogus) {
+                          return (
+                            <div className="pt-1 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-md border border-amber-200 dark:border-amber-800">
+                              <span>⚠️ Tracking inválido ({item.tracking_usa}{isItemIdBogus ? ' es el Item ID' : ''}).</span>
+                              <button
+                                onClick={() => handleOpenQuickTracking(item)}
+                                className="underline font-semibold hover:text-amber-800"
+                              >
+                                Corregir
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        if (item.tracking_usa) {
+                          const trk = trackings.find(t => (t.tracking_usa || '').trim().toUpperCase() === item.tracking_usa.trim().toUpperCase() || t.id === item.tracking_id);
+                          return (
+                            <div className="pt-1 flex flex-wrap items-center gap-2 text-xs">
+                              <span className="text-gray-400">Tracking USA:</span>
+                              {trackingUrl ? (
+                                <a 
+                                  href={trackingUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1"
+                                >
+                                  <span>{courierConfig?.label || (item.courier_usa?.toUpperCase() || 'USA')}:</span>
+                                  <span>{item.tracking_usa}</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              ) : (
+                                <span className="font-mono font-medium text-gray-700 dark:text-gray-300">
+                                  {item.tracking_usa}
+                                </span>
+                              )}
+
+                              <button
+                                onClick={() => handleOpenQuickTracking(item)}
+                                className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition"
+                                title="Editar Tracking USA"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+
+                              {trk && (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                                  trk.tracking_vzla 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' 
+                                    : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                                }`}>
+                                  <Package className="w-3 h-3" />
+                                  <span>{trk.tracking_vzla ? `VZLA: ${trk.tracking_vzla}` : 'En Envíos (Falta Tracking VZLA)'}</span>
+                                </span>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="pt-1 flex items-center gap-2 text-xs">
+                            {item.shipping_status === 'awaiting_shipment' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title="El vendedor en eBay aún no ha emitido la guía de envío">
+                                ⏳ Awaiting shipment
+                              </span>
+                            )}
+                            <button
+                              onClick={() => handleOpenQuickTracking(item)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-dashed border-purple-300 dark:border-purple-800 rounded-lg transition"
+                              title="Asignar número de Tracking USA a esta compra"
                             >
-                              <span>{courierConfig?.label || (item.courier_usa?.toUpperCase() || 'USA')}:</span>
-                              <span>{item.tracking_usa}</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          ) : (
-                            <span className="font-mono font-medium text-gray-700 dark:text-gray-300">
-                              {item.tracking_usa}
-                            </span>
-                          )}
-                        </div>
-                      ) : null}
+                              <Plus className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                              <span>Tracking USA</span>
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1078,6 +1752,7 @@ export default function ComprasEbay() {
                 {(linkActiveTab === 'laptops' ? filteredLaptopsForLink : filteredComponentsForLink).map((inv) => {
                   const isSelected = selectedInventoryItem?.id === inv.id;
                   const title = inv.modelo ? `${inv.marca || ''} ${inv.modelo}` : inv.nombre;
+                  const alreadyLinked = linkActiveTab === 'laptops' && Boolean(linkedLaptopsMap[inv.id]);
                   return (
                     <div
                       key={inv.id}
@@ -1085,11 +1760,20 @@ export default function ComprasEbay() {
                       className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
                         isSelected 
                           ? 'border-blue-600 bg-blue-50/60 dark:bg-blue-950/50 font-bold' 
-                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/50'
+                          : alreadyLinked
+                            ? 'border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-950/20 hover:bg-amber-50/60'
+                            : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/50'
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-gray-900 dark:text-white font-medium">{title}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-gray-900 dark:text-white font-medium">{title}</p>
+                          {alreadyLinked && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold flex-shrink-0">
+                              Ya Vinculada
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-gray-500">
                           {inv.precio ? `Venta: $${inv.precio}` : ''} {inv.precio_ebay ? `• Costo eBay: $${inv.precio_ebay}` : ''}
                         </p>
@@ -1216,6 +1900,101 @@ export default function ComprasEbay() {
                 className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
               >
                 Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Rápido: Asignar / Editar Tracking USA */}
+      {quickTrackingModal.open && quickTrackingModal.item && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 rounded-lg">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                    {quickTrackingModal.item.tracking_usa ? 'Editar Tracking USA' : 'Asignar Tracking USA'}
+                  </h3>
+                  <p className="text-xs text-gray-500 truncate max-w-[260px]">
+                    {quickTrackingModal.item.titulo}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setQuickTrackingModal({ open: false, item: null, tracking_usa: '', courier_usa: 'usps', syncToEnvios: true })}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Número de Tracking USA <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={quickTrackingModal.tracking_usa}
+                  onChange={(e) => handleQuickTrackingNumberChange(e.target.value)}
+                  placeholder="Ej: 9400111899562537638491 o 1Z9999999999999999"
+                  className="w-full font-mono text-sm px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-hidden dark:text-white uppercase"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Empresa / Courier USA
+                </label>
+                <select
+                  value={quickTrackingModal.courier_usa}
+                  onChange={(e) => setQuickTrackingModal(prev => ({ ...prev, courier_usa: e.target.value }))}
+                  className="w-full text-sm px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-hidden dark:text-white"
+                >
+                  {COURIERS_USA.map(c => (
+                    <option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Detecta automáticamente formatos de USPS, UPS, FedEx, etc.
+                </p>
+              </div>
+
+              <div className="p-3 bg-purple-50 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-900">
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-purple-950 dark:text-purple-200">
+                  <input
+                    type="checkbox"
+                    checked={quickTrackingModal.syncToEnvios}
+                    onChange={(e) => setQuickTrackingModal(prev => ({ ...prev, syncToEnvios: e.target.checked }))}
+                    className="mt-0.5 rounded text-purple-600 focus:ring-purple-500"
+                  />
+                  <span>
+                    <strong>Registrar automáticamente en el módulo de Envíos:</strong> Crea o actualiza la encomienda en estado <em>"Por Prealertar"</em> para que luego solo ingreses el tracking de Venezuela.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setQuickTrackingModal({ open: false, item: null, tracking_usa: '', courier_usa: 'usps', syncToEnvios: true })}
+                className="px-3.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveQuickTracking}
+                disabled={linkingProcessing || !quickTrackingModal.tracking_usa.trim()}
+                className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg shadow-sm transition"
+              >
+                {linkingProcessing ? 'Guardando...' : 'Guardar Tracking'}
               </button>
             </div>
           </div>

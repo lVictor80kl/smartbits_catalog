@@ -6,6 +6,7 @@ import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
 import { COMISIONES_POR_CUENTA } from '../../utils/bancos';
 import { useCuentasCaja } from '../../utils/useCuentasCaja';
+import { syncTrackingFromEbay } from '../../utils/syncTrackingFromEbay';
 
 
 export default function EditLaptop() {
@@ -364,20 +365,44 @@ export default function EditLaptop() {
       } else {
         const newLaptopDoc = await addDoc(collection(db, 'laptops'), {
           ...laptopDataPayload,
+          ebay_compra_id: ebayData?.id || null,
+          tracking_usa: ebayData?.tracking_usa ? ebayData.tracking_usa.trim().toUpperCase() : '',
           creadoEn: serverTimestamp(),
         });
 
         // Si provino de una compra de eBay, marcarla en Firestore como agregada al inventario
         if (ebayData?.id) {
           try {
+            let trkId = null;
+            if (ebayData.tracking_usa) {
+              const trackingResult = await syncTrackingFromEbay(db, {
+                ebayItem: ebayData,
+                inventoryItem: {
+                  id: newLaptopDoc.id,
+                  marca: formData.marca,
+                  modelo: formData.modelo,
+                  precio_ebay: formData.precio_ebay || ebayData.precio
+                },
+                tipo: 'laptop'
+              });
+              trkId = trackingResult?.id || null;
+            }
+
             await updateDoc(doc(db, 'compras_ebay', ebayData.id), {
               estado: 'en_inventario',
               tipo_inventario: 'laptop',
               inventario_id: newLaptopDoc.id,
+              tracking_id: trkId || ebayData.tracking_id || null,
               fecha_actualizacion: serverTimestamp(),
             });
+
+            if (trkId) {
+              await updateDoc(doc(db, 'laptops', newLaptopDoc.id), {
+                tracking_id: trkId,
+              });
+            }
           } catch (ebayErr) {
-            console.warn('No se pudo actualizar estado en compras_ebay:', ebayErr);
+            console.warn('No se pudo actualizar estado en compras_ebay o trackings:', ebayErr);
           }
         }
       }

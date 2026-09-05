@@ -510,7 +510,17 @@ export default function TrackingsDashboard() {
                       )}
                     </div>
                     <div className="font-mono text-sm font-bold text-slate-900 break-all select-all">
-                      {item.tracking_usa || <span className="text-slate-400 font-sans font-normal italic">No asignado</span>}
+                      {item.tracking_usa && (item.tracking_usa.startsWith('{') || item.tracking_usa.includes('EVENTFAMILY')) ? (
+                        <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 font-sans font-medium">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold text-amber-800">Tracking no disponible / Código interno de eBay</p>
+                            <p className="text-[11px] text-amber-700 mt-0.5">eBay no expuso el número de guía de courier en la vista rápida. Haz clic en el lápiz ✏️ de arriba para ingresar el tracking real.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        item.tracking_usa || <span className="text-slate-400 font-sans font-normal italic">No asignado</span>
+                      )}
                     </div>
                   </div>
 

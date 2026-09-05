@@ -90,7 +90,9 @@ export function getCourierVzlaConfig(courierId) {
 // Genera la URL directa de rastreo oficial para abrir en 1 clic
 export function getTrackingUrlUsa(courierId, trackingNum) {
   const num = (trackingNum || '').trim();
-  if (!num) return null;
+  if (!num || num.startsWith('{') || num.startsWith('[') || num.includes('EVENTFAMILY') || num.includes('"') || num.length > 40) {
+    return null;
+  }
 
   switch (courierId) {
     case 'usps':

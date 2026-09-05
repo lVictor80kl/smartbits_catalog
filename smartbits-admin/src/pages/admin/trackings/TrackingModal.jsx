@@ -338,7 +338,7 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, initial
         await batch.commit();
       }
 
-      onSaved();
+      if (typeof onSaved === 'function') onSaved({ id: savedDocId, ...trackingData });
       onClose();
     } catch (err) {
       console.error('Error al guardar tracking:', err);
