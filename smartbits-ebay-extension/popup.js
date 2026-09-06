@@ -199,12 +199,12 @@ function isValidTrackingNumber(str, excludedIds = []) {
   if (!str || typeof str !== 'string') return false;
   const clean = str.trim();
 
-  // Rechazar si coincide con algún itemId u orderId excluido
+  // Rechazar si coincide exactamente con algún itemId u orderId excluido
   if (excludedIds && excludedIds.length > 0) {
     for (const ex of excludedIds) {
       if (!ex) continue;
       const cleanEx = String(ex).replace(/[\s-]/g, '').trim();
-      if (cleanEx && (clean === cleanEx || clean.includes(cleanEx) || cleanEx.includes(clean))) {
+      if (cleanEx && clean.toUpperCase() === cleanEx.toUpperCase()) {
         return false;
       }
     }
@@ -240,9 +240,9 @@ function detectCourier(tracking) {
   if (!tracking || !isValidTrackingNumber(tracking)) return 'otro';
   const clean = tracking.replace(/[\s-]/g, '').toUpperCase();
   if (/^1Z[0-9A-Z]{16}$/i.test(clean)) return 'ups';
+  if (/^(?:7489[0-9]{16,22}|96[0-9]{18,22}|[0-9]{12}|[0-9]{15}|DT[0-9]{12})$/i.test(clean)) return 'fedex';
   if (/^(94|93|92|95|91|420|03|82|23)[0-9]{16,28}$/.test(clean) || /^[0-9]{20,24}$/.test(clean)) return 'usps';
   if (/^(ESUS|EEUS|UPAA|LVS)[0-9A-Z]+$/i.test(clean) || /^[A-Z]{2}[0-9]{9}US$/i.test(clean)) return 'usps';
-  if (/^[0-9]{12}$/.test(clean) || /^[0-9]{15}$/.test(clean) || /^7489[0-9]{16,22}$/.test(clean)) return 'fedex';
   if (/^[0-9]{10}$/.test(clean)) return 'dhl';
   return 'otro';
 }
@@ -257,16 +257,16 @@ async function fetchTrackingForOrder(order) {
   if (order.trackHref) {
     let fullTrackHref = order.trackHref;
     if (fullTrackHref.startsWith('/')) fullTrackHref = `https://www.ebay.com${fullTrackHref}`;
-    if (fullTrackHref.startsWith('http') && !fullTrackHref.includes('/ord/show')) {
+    if (fullTrackHref.startsWith('http')) {
       urls.push(fullTrackHref);
     }
   }
   if (/^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(order.orderId)) {
-    // NUNCA consultar order.ebay.com/ord/show porque activa el limitexceeded de facturas de eBay
     urls.push(`https://www.ebay.com/cnt/TrackPackage?orderId=${encodeURIComponent(order.orderId)}`);
     if (rawItemId) {
       urls.push(`https://www.ebay.com/cnt/TrackPackage?orderId=${encodeURIComponent(order.orderId)}&itemId=${encodeURIComponent(rawItemId)}`);
     }
+    urls.push(`https://order.ebay.com/ord/show?orderId=${encodeURIComponent(order.orderId)}`);
     urls.push(`https://www.ebay.com/mye/myebay/v2/purchase/tracking?orderId=${encodeURIComponent(order.orderId)}`);
   }
 
@@ -277,10 +277,12 @@ async function fetchTrackingForOrder(order) {
     /\b([0-9]{4}\s+[0-9]{4}\s+[0-9]{4}\s+[0-9]{4}\s+[0-9]{4}\s+[0-9]{2,4})\b/g,
     /\b(ESUS[0-9A-Za-z]{6,20}|EEUS[0-9A-Za-z]{6,20}|UPAA[0-9A-Za-z]{6,20})\b/gi,
     /\b([A-Z]{2}[0-9]{9}US)\b/gi,
+    // FedEx con espacios estándar (ej: 8763 1669 7415)
+    /\b([0-9]{4}\s+[0-9]{4}\s+[0-9]{4})\b/g,
     /(?:fedex(?:[\s\w-]{0,35})?|carrier\s*:\s*fedex[^\d]{0,20})[\s:#=-]+([0-9]{12,15})\b/gi,
     /\b(7489[\s-]?[0-9\s-]{16,22})\b/g,
-    // Labeled matches: NUNCA bare 'track=' (que capturaba palabras como 'experience')
-    /(?:tracking(?:_?num(?:ber)?|_?no|_?id|_?code)?|track(?:_?num(?:ber)?|_?no|_?id)|shipmentTracking(?:Number)?|carrierTrackingNumber|deliveryTrackingNumber|trknbr|tracknumbers?)["':=\s]+["']?([A-Za-z0-9_-]{8,40})["']?/gi
+    // Labeled matches que cruzan tags HTML
+    /(?:tracking(?:_?num(?:ber)?|_?no|_?id|_?code)?|track(?:_?num(?:ber)?|_?no|_?id)|shipmentTracking(?:Number)?|carrierTrackingNumber|deliveryTrackingNumber|trknbr|tracknumbers?)(?:<[^>]+>|["':=\s#-])+([A-Za-z0-9_-]{8,36})\b/gi
   ];
 
   for (const url of urls) {
@@ -323,10 +325,24 @@ async function fetchTrackingForOrder(order) {
         }
       }
 
-      // Si la página menciona FedEx, buscar enlaces a fedex.com o 12 dígitos válidos
-      if (/fedex/i.test(html)) {
-        const fedexMatches = html.matchAll(/(?:fedex\.com\/[^\s"']*?(?:trknbr|tracknumbers?)=([0-9]{12,15}))/gi);
+      // Enlaces a fedex.com
+      if (/fedex\.com/i.test(html)) {
+        const fedexMatches = html.matchAll(/(?:fedex\.com\/[^\s"']*?(?:[?&#/])(?:tracking_?numbers?|track_?numbers?|trknbr|trackId|tLabels|tracklist)?=?([0-9]{12,22}))/gi);
         for (const fm of fedexMatches) {
+          const cleanFm = fm[1];
+          if (isValidTrackingNumber(cleanFm, excluded)) {
+            return {
+              trackingNumber: cleanFm,
+              courier: 'fedex'
+            };
+          }
+        }
+      }
+
+      // Si la página menciona FedEx, buscar números de 12 o 15 dígitos o con formato spaced
+      if (/fedex/i.test(html)) {
+        const fMatches = html.matchAll(/\b([0-9]{12}|[0-9]{15})\b/g);
+        for (const fm of fMatches) {
           if (isValidTrackingNumber(fm[1], excluded)) {
             return {
               trackingNumber: fm[1],
@@ -334,11 +350,12 @@ async function fetchTrackingForOrder(order) {
             };
           }
         }
-        const fMatches = html.matchAll(/(?:fedex[^\d]{0,25})([0-9]{12,15})\b/gi);
-        for (const fm of fMatches) {
-          if (isValidTrackingNumber(fm[1], excluded)) {
+        const sfMatches = html.matchAll(/\b([0-9]{4}\s+[0-9]{4}\s+[0-9]{4})\b/g);
+        for (const sf of sfMatches) {
+          const cleanSf = sf[1].replace(/\s+/g, '');
+          if (isValidTrackingNumber(cleanSf, excluded)) {
             return {
-              trackingNumber: fm[1],
+              trackingNumber: cleanSf,
               courier: 'fedex'
             };
           }
@@ -442,7 +459,8 @@ async function enrichMissingTrackings() {
             badge.innerText = `📦 ${order.courier_usa.toUpperCase()}: ${order.tracking_usa}`;
           }
         } else {
-          // Protección estricta: NO bombardear eBay con peticiones automáticas para evitar limitexceeded
+          // Sin tracking en lista: encolar para búsqueda automática respetuosa
+          missingIndices.push(idx);
           const badge = document.getElementById(`trk-badge-${idx}`);
           if (badge) {
             badge.style.cssText = 'background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 2px 6px; border-radius: 4px; font-size: 10px;';
@@ -451,6 +469,52 @@ async function enrichMissingTrackings() {
         }
       }
     });
+
+    // 2. Consulta secuencial respetuosa y pausada para órdenes sin guía en lista
+    for (const idx of missingIndices) {
+      const order = detectedOrders[idx];
+      if (!order || order.tracking_usa) continue;
+
+      const badge = document.getElementById(`trk-badge-${idx}`);
+      if (badge) {
+        badge.innerText = '🔍 Buscando guía...';
+        badge.style.color = '#93c5fd';
+      }
+
+      // Pausa prudente de 800ms entre solicitudes para proteger la cuenta contra rate limits
+      await new Promise(r => setTimeout(r, 800));
+
+      const result = await fetchTrackingForOrder(order);
+      if (result && result.rateLimited) {
+        console.warn('[Smartbits] eBay rate limit detectado. Deteniendo búsqueda automática en segundo plano.');
+        if (badge) {
+          badge.style.cssText = 'background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 2px 6px; border-radius: 4px; font-size: 10px;';
+          badge.innerText = '⚪ Sin tracking en lista';
+        }
+        break;
+      }
+
+      if (result && result.trackingNumber) {
+        order.tracking_usa = result.trackingNumber;
+        order.courier_usa = result.courier || detectCourier(result.trackingNumber);
+        cache[order.orderId] = {
+          trackingNumber: order.tracking_usa,
+          courier: order.courier_usa
+        };
+        cacheUpdated = true;
+
+        if (badge) {
+          badge.className = 'tracking-tag';
+          badge.style.cssText = 'background: #065f46; color: #a7f3d0; border: 1px solid #059669; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;';
+          badge.innerText = `📦 ${order.courier_usa.toUpperCase()}: ${order.tracking_usa}`;
+        }
+      } else {
+        if (badge) {
+          badge.style.cssText = 'background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 2px 6px; border-radius: 4px; font-size: 10px;';
+          badge.innerText = '⚪ Sin tracking en lista';
+        }
+      }
+    }
 
     if (cacheUpdated) {
       await chrome.storage.local.set({ sb_ebay_trackings_cache: cache });
@@ -540,19 +604,11 @@ function renderOrders(orders) {
     const safeTrackUrl = order.trackHref || (order.orderId ? `https://www.ebay.com/cnt/TrackPackage?orderId=${encodeURIComponent(order.orderId)}` : '');
 
     let trkBadgeHtml = '';
-    const isAwaiting = Boolean(order.isAwaitingShipment || 
-                               order.shipping_status === 'awaiting_shipment' || 
-                               (!order.tracking_usa && !order.isDelivered && !order.trackHref));
 
     if (order.tracking_usa) {
       trkBadgeHtml = `
         <span class="tracking-tag" id="trk-badge-${index}" style="background: #065f46; color: #a7f3d0; border: 1px solid #059669; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">📦 ${(order.courier_usa || 'OTRO').toUpperCase()}: ${escapeHtml(order.tracking_usa)}</span>
         <button type="button" class="btn-edit-trk" data-index="${index}" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 11px; padding: 0 4px;" title="Editar tracking">✏️</button>
-      `;
-    } else if (isAwaiting) {
-      trkBadgeHtml = `
-        <span id="trk-badge-${index}" style="background: #451a03; color: #fde047; border: 1px solid #b45309; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;" title="El vendedor aún no ha emitido el tracking en eBay (Awaiting shipment)">⏳ Awaiting shipment</span>
-        <button type="button" class="btn-edit-trk" data-index="${index}" style="background: #1e293b; border: 1px solid #475569; color: #60a5fa; cursor: pointer; font-size: 10px; padding: 1px 6px; border-radius: 4px;" title="Pegar número de guía manualmente si ya la tienes">✏️ Pegar</button>
       `;
     } else {
       trkBadgeHtml = `
@@ -684,12 +740,9 @@ function formatFirestoreFields(order) {
     item_url: { stringValue: String(order.item_url || '') },
     tracking_usa: { stringValue: cleanTracking },
     courier_usa: { stringValue: cleanTracking ? String(order.courier_usa || 'otro') : 'otro' },
+    shipping_status: { stringValue: String(order.shipping_status || 'pendiente') },
     fecha_sincronizacion: { timestampValue: new Date().toISOString() }
   };
-
-  if (order.isAwaitingShipment || order.shipping_status === 'awaiting_shipment') {
-    fields.shipping_status = { stringValue: 'awaiting_shipment' };
-  }
 
   return fields;
 }
@@ -771,12 +824,14 @@ async function syncOrderToFirestore(order) {
     const rawItemId = String(order.itemId || '').replace(/_u[0-9]+$/, '').trim();
     const rawOrderId = String(order.orderId || '').replace(/[\s-]/g, '').trim();
 
-    const fieldPaths = ['titulo', 'precio', 'fecha_compra', 'vendedor', 'foto_url', 'item_url', 'itemId', 'fecha_sincronizacion'];
+    const fieldPaths = ['titulo', 'precio', 'fecha_compra', 'vendedor', 'foto_url', 'item_url', 'itemId', 'fecha_sincronizacion', 'shipping_status'];
     const isCorruptedExisting = existingTracking && (
       existingTracking.startsWith('{') || 
       existingTracking.includes('EVENTFAMILY') ||
       existingTracking === rawItemId ||
-      existingTracking === rawOrderId
+      existingTracking === rawOrderId ||
+      /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(existingTracking) ||
+      !isValidTrackingNumber(existingTracking)
     );
     const safeOrderTracking = (order.tracking_usa || '').trim();
     if ((safeOrderTracking && safeOrderTracking !== existingTracking) || isCorruptedExisting) {

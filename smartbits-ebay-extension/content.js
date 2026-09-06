@@ -2,6 +2,13 @@
  * Smartbits - eBay Purchase History Extractor (Soporte multi-artículo con precios y trackings independientes)
  */
 
+(function() {
+  // Evitar re-declaración y duplicidad si el script se vuelve a inyectar en la misma pestaña
+  if (window.__SMARTBITS_EBAY_EXTRACTOR_LOADED__) {
+    return;
+  }
+  window.__SMARTBITS_EBAY_EXTRACTOR_LOADED__ = true;
+
 function cleanText(str) {
   return str ? str.replace(/\s+/g, ' ').trim() : '';
 }
@@ -98,12 +105,12 @@ function isValidTrackingNumber(str, excludedIds = []) {
   if (!str || typeof str !== 'string') return false;
   const clean = str.trim();
 
-  // Rechazar si coincide con algún itemId u orderId explícitamente excluido
+  // Rechazar si coincide exactamente con algún itemId u orderId explícitamente excluido
   if (excludedIds && excludedIds.length > 0) {
     for (const ex of excludedIds) {
       if (!ex) continue;
       const cleanEx = String(ex).replace(/[\s-]/g, '').trim();
-      if (cleanEx && (clean === cleanEx || clean.includes(cleanEx) || cleanEx.includes(clean))) {
+      if (cleanEx && clean.toUpperCase() === cleanEx.toUpperCase()) {
         return false;
       }
     }
@@ -153,9 +160,9 @@ function detectCourier(tracking) {
   if (!tracking || !isValidTrackingNumber(tracking)) return 'otro';
   const clean = tracking.replace(/[\s-]/g, '').toUpperCase();
   if (/^1Z[0-9A-Z]{16}$/i.test(clean)) return 'ups';
+  if (/^(?:7489[0-9]{16,22}|96[0-9]{18,22}|[0-9]{12}|[0-9]{15}|DT[0-9]{12})$/i.test(clean)) return 'fedex';
   if (/^(94|93|92|95|91|420|03|82|23)[0-9]{16,28}$/.test(clean) || /^[0-9]{20,24}$/.test(clean)) return 'usps';
   if (/^(ESUS|EEUS|UPAA|LVS)[0-9A-Z]+$/i.test(clean) || /^[A-Z]{2}[0-9]{9}US$/i.test(clean)) return 'usps';
-  if (/^[0-9]{12}$/.test(clean) || /^[0-9]{15}$/.test(clean) || /^7489[0-9]{16,22}$/.test(clean)) return 'fedex';
   if (/^[0-9]{10}$/.test(clean)) return 'dhl';
   return 'otro';
 }
@@ -293,7 +300,9 @@ function extractTrackingFromNode(node, itemId = '', orderId = '') {
       txt.includes('entregado') || 
       txt.includes('enviado') || 
       txt.includes('shipped') ||
-      txt.includes('delivery')
+      txt.includes('delivery') ||
+      txt.includes('order details') ||
+      txt.includes('detalles de la orden')
     ) {
       if (!trackingElements.includes(btn)) trackingElements.push(btn);
     }
@@ -342,8 +351,9 @@ function extractTrackingFromNode(node, itemId = '', orderId = '') {
 
     // C. Si el enlace apunta directamente a fedex.com
     if (href.includes('fedex.com')) {
-      const fedexHrefMatch = href.match(/(?:tracknumbers?|trknbr|trackId|tLabels)=([0-9]{12,15})/i) ||
-                             href.match(/\b([0-9]{12})\b/);
+      const fedexHrefMatch = href.match(/[?&#/](?:tracking_?numbers?|track_?numbers?|trknbr|trackId|tLabels|tracklist)=([0-9]{12,22})/i) ||
+                             href.match(/\b([0-9]{12})\b/) ||
+                             href.match(/\b([0-9]{15})\b/);
       if (fedexHrefMatch && isValidTrackingNumber(fedexHrefMatch[1], excluded)) {
         trackingNumber = fedexHrefMatch[1];
         break;
@@ -375,7 +385,8 @@ function extractTrackingFromNode(node, itemId = '', orderId = '') {
     const labelMatch = labelText.match(/\b(1Z[0-9A-Z]{16})\b/i) ||
                        labelText.match(/\b(9[1-5][0-9\s-]{18,26})\b/) ||
                        labelText.match(/\b(ESUS[0-9A-Za-z]{6,20})\b/i) ||
-                       labelText.match(/(?:fedex(?:[\s\w-]{0,35})?|tracking\s*(?:number|#|no\.?|id|code)?|guía|rastreo)[\s:#-]+([0-9]{12,15})\b/i);
+                       labelText.match(/(?:fedex|carrier\s*:\s*fedex|tracking|gu[ií]a|rastreo)[\s:#=-]+([0-9]{12,15})\b/i) ||
+                       labelText.match(/\b([0-9]{4}\s+[0-9]{4}\s+[0-9]{4})\b/);
     if (labelMatch) {
       const cleanMatch = (labelMatch[1] || labelMatch[0]).replace(/[\s-]/g, '');
       if (isValidTrackingNumber(cleanMatch, excluded)) {
@@ -400,17 +411,19 @@ function extractTrackingFromNode(node, itemId = '', orderId = '') {
       /\b(ESUS[0-9A-Za-z]{6,20}|EEUS[0-9A-Za-z]{6,20}|UPAA[0-9A-Za-z]{6,20})\b/i,
       // USPS Internacional
       /\b([A-Z]{2}[0-9]{9}US)\b/i,
-      // FedEx
-      /(?:fedex(?:[\s\w-]{0,35})?|carrier\s*:\s*fedex[^\d]{0,20})[\s:#-]+([0-9]{12,15})\b/i,
+      // FedEx con espacios estándar (ej: 8763 1669 7415)
+      /\b([0-9]{4}\s+[0-9]{4}\s+[0-9]{4})\b/,
+      // FedEx etiqueta explícita o prefijo
+      /(?:fedex(?:[\s\w-]{0,35})?|carrier\s*:\s*fedex[^\d]{0,20})[\s:#=-]+([0-9]{12,15})\b/i,
       /\b(7489[\s-]?[0-9\s-]{16,22})\b/,
-      // Etiqueta explícita de tracking que contenga al menos 4 dígitos
-      /(?:tracking\s*(?:number|#|id|no\.?|code)?|n[uú]mero\s*de\s*(?:seguimiento|gu[ií]a)|rastreo|gu[ií]a)[\s:#-]+([A-Za-z0-9\s-]{8,38})/i
+      // Etiqueta explícita de tracking con captura acotada (evita comer saltos de línea y palabras como Delivered on Tue)
+      /(?:tracking\s*(?:number|#|id|no\.?|code)?|n[uú]mero\s*de\s*(?:seguimiento|gu[ií]a)|rastreo|gu[ií]a)[\s:#=-]+([A-Za-z0-9_-]{8,36})\b/i
     ];
 
     for (const pattern of textPatterns) {
       const match = nodeText.match(pattern);
-      if (match && match[1]) {
-        const candidate = match[1].replace(/[\s-]/g, '');
+      if (match && (match[1] || match[0])) {
+        const candidate = (match[1] || match[0]).replace(/[\s-]/g, '');
         if (isValidTrackingNumber(candidate, excluded)) {
           trackingNumber = candidate;
           break;
@@ -418,14 +431,23 @@ function extractTrackingFromNode(node, itemId = '', orderId = '') {
       }
     }
 
-    // 3. Si la tarjeta menciona FedEx explícitamente y tiene un número de 12 dígitos
+    // 3. Si la tarjeta menciona FedEx explícitamente y tiene un número de 12 o 15 dígitos en cualquier parte
     if (!trackingNumber && /\bfedex\b/i.test(nodeText)) {
-      const fedexTextMatches = nodeText.matchAll(/(?:fedex[^\d]{0,30})([0-9]{12,15})\b/gi);
-      for (const m of fedexTextMatches) {
-        const cand = m[1];
+      const fedexCandidates = nodeText.match(/\b([0-9]{12}|[0-9]{15})\b/g) || [];
+      for (const cand of fedexCandidates) {
         if (isValidTrackingNumber(cand, excluded)) {
           trackingNumber = cand;
           break;
+        }
+      }
+      if (!trackingNumber) {
+        const spacedFedex = nodeText.match(/\b([0-9]{4}\s+[0-9]{4}\s+[0-9]{4})\b/g) || [];
+        for (const sf of spacedFedex) {
+          const cleanCand = sf.replace(/\s+/g, '');
+          if (isValidTrackingNumber(cleanCand, excluded)) {
+            trackingNumber = cleanCand;
+            break;
+          }
         }
       }
     }
@@ -472,14 +494,28 @@ function extractTrackingFromNode(node, itemId = '', orderId = '') {
       }
     }
 
-    // D. Si el HTML del card menciona FedEx y tiene 12 dígitos asociados
+    // D. Buscar etiquetas que crucen tags HTML (ej. Tracking number:</span> <span>876316697415</span>)
+    if (!trackingNumber) {
+      const crossTagMatch = rawHtml.match(/(?:tracking\s*(?:number|#|id|no\.?|code)?|shipmentTracking(?:Number)?|carrierTrackingNumber|deliveryTrackingNumber)(?:<[^>]+>|[\s"':=#-])+([A-Za-z0-9_-]{8,36})\b/i);
+      if (crossTagMatch && isValidTrackingNumber(crossTagMatch[1], excluded)) {
+        trackingNumber = crossTagMatch[1];
+      }
+    }
+
+    // E. Si el HTML del card menciona FedEx y tiene 12 o 15 dígitos asociados
     if (!trackingNumber && /\bfedex\b/i.test(rawHtml)) {
-      const htmlFedex = rawHtml.matchAll(/(?:fedex[^\d]{0,30})([0-9]{12,15})\b/gi);
-      for (const m of htmlFedex) {
-        const candidate = m[1];
-        if (isValidTrackingNumber(candidate, excluded)) {
-          trackingNumber = candidate;
-          break;
+      const fedexLinkMatch = rawHtml.match(/fedex\.com\/[^\s"']*?(?:[?&#/])([0-9]{12,15}|7489[0-9]{16,22})\b/i);
+      if (fedexLinkMatch && isValidTrackingNumber(fedexLinkMatch[1], excluded)) {
+        trackingNumber = fedexLinkMatch[1];
+      }
+
+      if (!trackingNumber) {
+        const htmlFedexDigits = rawHtml.match(/\b([0-9]{12}|[0-9]{15})\b/g) || [];
+        for (const cand of htmlFedexDigits) {
+          if (isValidTrackingNumber(cand, excluded)) {
+            trackingNumber = cand;
+            break;
+          }
         }
       }
     }
@@ -851,36 +887,18 @@ async function extractOrdersFromPage() {
         if (sellerMatch) seller = sellerMatch[1];
       }
 
-      // Detección de estado del envío en eBay (ej. "Awaiting shipment")
-      const awaitingShipmentRegex = /(?:awaiting[\s_-]*(?:shipment|dispatch)|pending[\s_-]*shipment|shipping[\s_-]*pending|not[\s_-]*yet[\s_-]*shipped|will[\s_-]*ship|order[\s_-]*placed|order[\s_-]*confirmed|esperando[\s_-]*(?:el[\s_-]*)?env[ií]o|pendiente[\s_-]*de[\s_-]*env[ií]o)/i;
+      // Detección simple de estado del envío en eBay (delivered / shipped / pendiente)
       const deliveredRegex = /\b(?:delivered|entregado)\b/i;
       const shippedRegex = /\b(?:shipped|in[\s_-]*transit|enviado|en[\s_-]*tr[aá]nsito)\b/i;
 
-      let cardAwaiting = awaitingShipmentRegex.test(fullText) || awaitingShipmentRegex.test(fullHtml);
       const isDelivered = deliveredRegex.test(fullText);
-      const isShipped = shippedRegex.test(fullText);
-
-      if (!cardAwaiting && orderWrapper) {
-        const statusEls = orderWrapper.querySelectorAll('[class*="status"], [class*="badge"], [data-testid*="status"], [aria-label], [title]');
-        for (const el of statusEls) {
-          const txt = `${el.innerText || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''}`;
-          if (awaitingShipmentRegex.test(txt)) {
-            cardAwaiting = true;
-            break;
-          }
-        }
-      }
-
-      // Si no tiene indicación de entregado ni de enviado, ni botón directo de TrackPackage:
-      if (!cardAwaiting && !isDelivered && !isShipped && !fullHtml.includes('TrackPackage')) {
-        cardAwaiting = true;
-      }
+      const isShipped = !isDelivered && shippedRegex.test(fullText);
 
       // 4. Tracking general de la orden (extraído EXCLUSIVAMENTE dentro del nodo de esta tarjeta)
       const orderTrackingInfo = extractTrackingFromNode(card, '', orderId);
 
-      // Si la orden aún no tiene tracking directo en la tarjeta, buscar en scripts solo si NO está esperando envío
-      if (!orderTrackingInfo.trackingNumber && orderId && !cardAwaiting) {
+      // Si la orden aún no tiene tracking directo en la tarjeta, buscar en scripts
+      if (!orderTrackingInfo.trackingNumber && orderId) {
         const scriptTrk = findTrackingInScripts(orderId, '');
         if (scriptTrk) {
           orderTrackingInfo.trackingNumber = scriptTrk;
@@ -966,8 +984,7 @@ async function extractOrdersFromPage() {
           const itemFullText = `${itemText}\n${fullText}`;
 
           const itemDelivered = isDelivered || deliveredRegex.test(itemFullText);
-          const itemShipped = isShipped || shippedRegex.test(itemFullText);
-          let itemAwaiting = cardAwaiting || awaitingShipmentRegex.test(itemFullText);
+          const itemShipped = !itemDelivered && (isShipped || shippedRegex.test(itemFullText));
 
           let itemTrackingInfo = extractTrackingFromNode(itemRow, itemId, orderId);
           let itemTrackingNumber = itemTrackingInfo.trackingNumber;
@@ -985,8 +1002,8 @@ async function extractOrdersFromPage() {
             }
           }
 
-          // Búsqueda en scripts usando orderId e itemId solo si no está en espera de envío
-          if (!itemTrackingNumber && orderId && !itemAwaiting) {
+          // Búsqueda en scripts usando orderId e itemId
+          if (!itemTrackingNumber && orderId) {
             const scriptTrk = findTrackingInScripts(orderId, itemId);
             if (scriptTrk) {
               itemTrackingNumber = scriptTrk;
@@ -994,21 +1011,9 @@ async function extractOrdersFromPage() {
             }
           }
 
-          if (!itemTrackingNumber && orderTrackingInfo.trackingNumber && !itemAwaiting) {
+          if (!itemTrackingNumber && orderTrackingInfo.trackingNumber) {
             itemTrackingNumber = orderTrackingInfo.trackingNumber;
             itemCourier = orderTrackingInfo.courier;
-          }
-
-          // Si el pedido está en espera de envío ("Awaiting shipment") y no hay botón explícito de TrackPackage en el DOM,
-          // garantizamos que quede limpio sin guías falsas o heredadas
-          if (itemAwaiting && !card.querySelector('a[href*="TrackPackage"], a[href*="track_number"], a[href*="tracking"]')) {
-            itemTrackingNumber = '';
-            itemCourier = 'otro';
-          }
-
-          // Si no tiene tracking y no ha sido entregado ni marcado como enviado, está en espera de envío
-          if (!itemTrackingNumber && !itemDelivered && !itemShipped) {
-            itemAwaiting = true;
           }
 
           // 5.4 PRECIO INDIVIDUAL DEL ARTÍCULO
@@ -1047,6 +1052,10 @@ async function extractOrdersFromPage() {
 
           const effectiveTrackHref = itemTrackingInfo.trackHref || orderTrackingInfo.trackHref || '';
 
+          const itemShippingStatus = itemDelivered 
+            ? 'delivered' 
+            : (itemShipped ? 'shipped' : 'pendiente');
+
           if (qty > 1) {
             for (let q = 1; q <= qty; q++) {
               const multiKey = `${orderId}_${itemId}_u${q}`;
@@ -1055,7 +1064,7 @@ async function extractOrdersFromPage() {
 
               cardOrders.push({
                 cardIndex,
-                itemIndex: itemIdx,
+                itemIndex: q - 1,
                 orderId,
                 itemId: `${itemId}_u${q}`,
                 uniqueKey: multiKey,
@@ -1068,9 +1077,8 @@ async function extractOrdersFromPage() {
                 tracking_usa: itemTrackingNumber,
                 courier_usa: itemCourier,
                 trackHref: effectiveTrackHref,
-                isAwaitingShipment: itemAwaiting && !itemTrackingNumber,
                 isDelivered: itemDelivered,
-                shipping_status: (itemAwaiting && !itemTrackingNumber) ? 'awaiting_shipment' : (itemDelivered ? 'delivered' : 'pendiente'),
+                shipping_status: itemShippingStatus,
                 estado: 'pendiente'
               });
             }
@@ -1094,9 +1102,8 @@ async function extractOrdersFromPage() {
               tracking_usa: itemTrackingNumber,
               courier_usa: itemCourier,
               trackHref: effectiveTrackHref,
-              isAwaitingShipment: itemAwaiting && !itemTrackingNumber,
               isDelivered: itemDelivered,
-              shipping_status: (itemAwaiting && !itemTrackingNumber) ? 'awaiting_shipment' : (itemDelivered ? 'delivered' : 'pendiente'),
+              shipping_status: itemShippingStatus,
               estado: 'pendiente'
             });
           }
@@ -1119,7 +1126,7 @@ async function extractOrdersFromPage() {
           let trackingNum = trkInfo.trackingNumber;
           let courier = trkInfo.courier;
 
-          if (!trackingNum && orderId && !cardAwaiting) {
+          if (!trackingNum && orderId) {
             const scriptTrk = findTrackingInScripts(orderId, '', title);
             if (scriptTrk) {
               trackingNum = scriptTrk;
@@ -1127,10 +1134,9 @@ async function extractOrdersFromPage() {
             }
           }
 
-          if (cardAwaiting && !card.querySelector('a[href*="TrackPackage"], a[href*="track_number"], a[href*="tracking"]')) {
-            trackingNum = '';
-            courier = 'otro';
-          }
+          const fallbackShippingStatus = isDelivered 
+            ? 'delivered' 
+            : (isShipped ? 'shipped' : 'pendiente');
 
           cardOrders.push({
             cardIndex,
@@ -1147,9 +1153,8 @@ async function extractOrdersFromPage() {
             tracking_usa: trackingNum,
             courier_usa: courier,
             trackHref: trkInfo.trackHref || '',
-            isAwaitingShipment: (cardAwaiting || (!trackingNum && !isDelivered && !isShipped)) && !trackingNum,
             isDelivered: isDelivered,
-            shipping_status: (cardAwaiting && !trackingNum) ? 'awaiting_shipment' : (isDelivered ? 'delivered' : 'pendiente'),
+            shipping_status: fallbackShippingStatus,
             estado: 'pendiente'
           });
         }
@@ -1246,8 +1251,18 @@ function autoCaptureTrackingOnTrackingPage() {
 
     if (!orderId) return;
 
-    // 2. Extraer tracking number y courier del DOM
-    const trkInfo = extractTrackingFromNode(document.body, '', orderId);
+    // 2. Extraer tracking number y courier del DOM o scripts
+    let trkInfo = extractTrackingFromNode(document.body, '', orderId);
+    if (!trkInfo || !trkInfo.trackingNumber) {
+      const scriptTrk = findTrackingInScripts(orderId, '');
+      if (scriptTrk) {
+        trkInfo = {
+          trackingNumber: scriptTrk,
+          courier: detectCourier(scriptTrk)
+        };
+      }
+    }
+
     if (trkInfo && trkInfo.trackingNumber && isValidTrackingNumber(trkInfo.trackingNumber)) {
       console.log(`[Smartbits] 📦 Guía capturada pasivamente en navegación (${orderId}): ${trkInfo.courier.toUpperCase()} ${trkInfo.trackingNumber}`);
       
@@ -1272,5 +1287,7 @@ if (document.readyState === 'loading') {
 } else {
   autoCaptureTrackingOnTrackingPage();
 }
+
+})();
 
 
