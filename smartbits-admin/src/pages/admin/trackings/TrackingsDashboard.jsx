@@ -69,17 +69,23 @@ export default function TrackingsDashboard() {
   }, []);
 
   // KPIs
+  const totalTodos = trackings.filter(t => t.estado !== 'ya_recogido').length;
   const totalSinPrealertar = trackings.filter(t => !t.prealertado && t.estado !== 'ya_recogido').length;
   const totalEnTransitoUsa = trackings.filter(t => t.estado === 'prealertado').length;
-  const totalEnMiami = trackings.filter(t => t.estado === 'en_miami').length;
-  const totalEnTransitoVzla = trackings.filter(t => t.estado === 'transito_vzla').length;
+  const totalCurrierVzla = trackings.filter(t => t.estado === 'en_miami' || t.estado === 'transito_vzla').length;
   const totalEnAgencia = trackings.filter(t => t.estado === 'disponible_agencia').length;
   const totalYaRecogidos = trackings.filter(t => t.estado === 'ya_recogido').length;
 
   // Filtrado
   const trackingsFiltrados = trackings.filter((t) => {
     // Filtro por Estado
-    if (filterEstado !== 'todos' && t.estado !== filterEstado) return false;
+    if (filterEstado === 'currier_vzla') {
+      if (t.estado !== 'en_miami' && t.estado !== 'transito_vzla') return false;
+    } else if (filterEstado === 'todos') {
+      if (t.estado === 'ya_recogido' && !searchTerm.trim()) return false;
+    } else if (filterEstado !== 'todos' && t.estado !== filterEstado) {
+      return false;
+    }
 
     // Filtro por Courier VZLA
     if (filterCourierVzla !== 'todos' && t.courier_vzla !== filterCourierVzla) return false;
@@ -186,7 +192,26 @@ export default function TrackingsDashboard() {
 
       {/* KPI CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* 1. Por Prealertar */}
+        {/* 1. Todos (Activos) */}
+        <button
+          onClick={() => setFilterEstado('todos')}
+          className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+            filterEstado === 'todos'
+              ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-400'
+              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Todos</span>
+            <Package className={`w-3.5 h-3.5 ${filterEstado === 'todos' ? 'text-slate-300' : 'text-slate-400'}`} />
+          </div>
+          <p className="text-2xl font-black mt-1">{totalTodos}</p>
+          <p className={`text-[10px] mt-0.5 ${filterEstado === 'todos' ? 'text-slate-300' : 'text-slate-500'}`}>
+            Envíos activos
+          </p>
+        </button>
+
+        {/* 2. Por Prealertar */}
         <button
           onClick={() => setFilterEstado(filterEstado === 'por_prealertar' ? 'todos' : 'por_prealertar')}
           className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -209,7 +234,7 @@ export default function TrackingsDashboard() {
           </p>
         </button>
 
-        {/* 2. En Tránsito USA */}
+        {/* 3. En Tránsito USA */}
         <button
           onClick={() => setFilterEstado(filterEstado === 'prealertado' ? 'todos' : 'prealertado')}
           className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -225,35 +250,19 @@ export default function TrackingsDashboard() {
           </p>
         </button>
 
-        {/* 3. En Miami */}
+        {/* 4. Currier Vzla (Agrupa Miami, Tránsito y Aduana VZLA) */}
         <button
-          onClick={() => setFilterEstado(filterEstado === 'en_miami' ? 'todos' : 'en_miami')}
+          onClick={() => setFilterEstado(filterEstado === 'currier_vzla' ? 'todos' : 'currier_vzla')}
           className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-            filterEstado === 'en_miami'
-              ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-2 ring-blue-400'
-              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-          }`}
-        >
-          <span className="text-[10px] font-bold uppercase tracking-wider">En Miami</span>
-          <p className="text-2xl font-black mt-1">{totalEnMiami}</p>
-          <p className={`text-[10px] mt-0.5 ${filterEstado === 'en_miami' ? 'text-blue-100' : 'text-slate-500'}`}>
-            Con guía VZLA
-          </p>
-        </button>
-
-        {/* 4. En Tránsito / Aduana */}
-        <button
-          onClick={() => setFilterEstado(filterEstado === 'transito_vzla' ? 'todos' : 'transito_vzla')}
-          className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-            filterEstado === 'transito_vzla'
+            filterEstado === 'currier_vzla'
               ? 'bg-purple-600 text-white border-purple-700 shadow-md ring-2 ring-purple-400'
               : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
           }`}
         >
-          <span className="text-[10px] font-bold uppercase tracking-wider">Vuelo / Aduana</span>
-          <p className="text-2xl font-black mt-1">{totalEnTransitoVzla}</p>
-          <p className={`text-[10px] mt-0.5 ${filterEstado === 'transito_vzla' ? 'text-purple-100' : 'text-slate-500'}`}>
-            Hacia Venezuela
+          <span className="text-[10px] font-bold uppercase tracking-wider">Currier Vzla</span>
+          <p className="text-2xl font-black mt-1">{totalCurrierVzla}</p>
+          <p className={`text-[10px] mt-0.5 ${filterEstado === 'currier_vzla' ? 'text-purple-100' : 'text-slate-500'}`}>
+            Miami / Vuelo / Aduana
           </p>
         </button>
 
@@ -275,19 +284,22 @@ export default function TrackingsDashboard() {
           </p>
         </button>
 
-        {/* 6. Ya Recogidos */}
+        {/* 6. Ya Recogidos (Terminado) */}
         <button
           onClick={() => setFilterEstado(filterEstado === 'ya_recogido' ? 'todos' : 'ya_recogido')}
           className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
             filterEstado === 'ya_recogido'
-              ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-400'
-              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+              ? 'bg-slate-700 text-white border-slate-800 shadow-md ring-2 ring-slate-400'
+              : 'bg-slate-100/70 border-slate-200/90 text-slate-500 hover:bg-slate-200/60 hover:text-slate-700 hover:border-slate-300'
           }`}
         >
-          <span className="text-[10px] font-bold uppercase tracking-wider">Ya Recogidos</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Ya Recogidos</span>
+            <CheckCircle2 className={`w-3.5 h-3.5 ${filterEstado === 'ya_recogido' ? 'text-slate-300' : 'text-slate-400'}`} />
+          </div>
           <p className="text-2xl font-black mt-1">{totalYaRecogidos}</p>
-          <p className={`text-[10px] mt-0.5 ${filterEstado === 'ya_recogido' ? 'text-emerald-100' : 'text-slate-500'}`}>
-            En taller Smartbits
+          <p className={`text-[10px] mt-0.5 ${filterEstado === 'ya_recogido' ? 'text-slate-300' : 'text-slate-400'}`}>
+            En taller / Terminado
           </p>
         </button>
       </div>
