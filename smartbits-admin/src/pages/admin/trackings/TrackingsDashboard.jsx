@@ -400,7 +400,18 @@ export default function TrackingsDashboard() {
             const estadoConfig = getEstadoConfig(item.estado);
             const courierUsa = getCourierUsaConfig(item.courier_usa);
             const courierVzla = getCourierVzlaConfig(item.courier_vzla);
-            const urlUsa = getTrackingUrlUsa(item.courier_usa, item.tracking_usa);
+            const isCorruptedUsa = Boolean(
+              item.tracking_usa && (
+                item.tracking_usa.startsWith('{') || 
+                item.tracking_usa.includes('EVENTFAMILY') ||
+                /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(item.tracking_usa) ||
+                (Array.isArray(item.items) && item.items.some(it => {
+                  const rawItId = String(it.id || '').replace(/^ebay_/, '').replace(/_u[0-9]+$/, '').trim();
+                  return rawItId && item.tracking_usa === rawItId;
+                }))
+              )
+            );
+            const urlUsa = !isCorruptedUsa ? getTrackingUrlUsa(item.courier_usa, item.tracking_usa) : null;
             const urlVzla = getTrackingUrlVzla(item.courier_vzla, item.tracking_vzla);
 
             return (
@@ -494,7 +505,7 @@ export default function TrackingsDashboard() {
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Tramo USA:</span>
                         <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
-                          {courierUsa.icon} {courierUsa.nombre}
+                          {courierUsa.icon} {isCorruptedUsa ? 'Por verificar' : courierUsa.nombre}
                         </span>
                       </div>
                       {urlUsa && (
@@ -510,12 +521,12 @@ export default function TrackingsDashboard() {
                       )}
                     </div>
                     <div className="font-mono text-sm font-bold text-slate-900 break-all select-all">
-                      {item.tracking_usa && (item.tracking_usa.startsWith('{') || item.tracking_usa.includes('EVENTFAMILY')) ? (
+                      {isCorruptedUsa ? (
                         <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 font-sans font-medium">
                           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                           <div>
-                            <p className="font-bold text-amber-800">Tracking no disponible / Código interno de eBay</p>
-                            <p className="text-[11px] text-amber-700 mt-0.5">eBay no expuso el número de guía de courier en la vista rápida. Haz clic en el lápiz ✏️ de arriba para ingresar el tracking real.</p>
+                            <p className="font-bold text-amber-800">Tracking pendiente / ID de eBay detectado ({item.tracking_usa})</p>
+                            <p className="text-[11px] text-amber-700 mt-0.5">Este registro tiene asignado el ID del ítem u orden de eBay. Se actualizará con la guía real del courier automáticamente al sincronizar.</p>
                           </div>
                         </div>
                       ) : (

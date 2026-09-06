@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 /**
  * Sincroniza o crea automáticamente un paquete en la colección `trackings`
@@ -50,10 +50,12 @@ export async function syncTrackingFromEbay(db, { ebayItem, inventoryItem, tipo =
   if (!courierUsa || courierUsa === 'otro') {
     if (/^1Z[0-9A-Z]{16}$/i.test(trackingUsaClean)) {
       courierUsa = 'ups';
-    } else if (/^(94|93|92|95|91|420|03|82|23)[0-9]{16,28}$/.test(trackingUsaClean) || /^[0-9]{20,24}$/.test(trackingUsaClean) || /^(ESUS|EEUS|UPAA|LVS)[0-9A-Z]+$/i.test(trackingUsaClean) || /^[A-Z]{2}[0-9]{9}US$/i.test(trackingUsaClean)) {
-      courierUsa = 'usps';
-    } else if (/^[0-9]{12}$/.test(trackingUsaClean) || /^[0-9]{15}$/.test(trackingUsaClean) || /^7489[0-9]{16,22}$/.test(trackingUsaClean)) {
+    } else if (/^7489[0-9]{16,22}$/.test(trackingUsaClean) || /^[0-9]{12}$/.test(trackingUsaClean) || /^[0-9]{15}$/.test(trackingUsaClean)) {
       courierUsa = 'fedex';
+    } else if (/^(94|93|92|95|91|420|03|82|23)[0-9]{16,28}$/.test(trackingUsaClean) || /^[0-9]{20,24}$/.test(trackingUsaClean)) {
+      courierUsa = 'usps';
+    } else if (/^(ESUS|EEUS|UPAA|LVS)[0-9A-Z]+$/i.test(trackingUsaClean) || /^[A-Z]{2}[0-9]{9}US$/i.test(trackingUsaClean)) {
+      courierUsa = 'usps';
     } else if (/^[0-9]{10}$/.test(trackingUsaClean)) {
       courierUsa = 'dhl';
     } else {
@@ -76,7 +78,57 @@ export async function syncTrackingFromEbay(db, { ebayItem, inventoryItem, tipo =
   };
 
   try {
-    // 1. Buscar si ya existe un paquete con este tracking_usa en Firestore
+    // 1. Verificar si este ítem ya estaba asignado a un paquete en `trackings` que tenía una guía corrupta (ej. Item ID o número de orden)
+    let corruptTrackDoc = null;
+    if (ebayItem.tracking_id) {
+      try {
+        const trkSnap = await getDoc(doc(db, 'trackings', ebayItem.tracking_id));
+        if (trkSnap.exists()) {
+          const trkData = trkSnap.data();
+          const trkUsa = String(trkData.tracking_usa || '').trim();
+          if (trkUsa === rawItemId || trkUsa === rawOrderId || /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(trkUsa) || trkUsa.startsWith('{')) {
+            corruptTrackDoc = { id: trkSnap.id, data: trkData };
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!corruptTrackDoc) {
+      // Búsqueda alternativa: revisar si en la colección trackings existe algún paquete con este ítem cuyo tracking_usa sea el Item ID
+      try {
+        const allTrkSnap = await getDocs(collection(db, 'trackings'));
+        for (const d of allTrkSnap.docs) {
+          const dData = d.data();
+          const dItems = Array.isArray(dData.items) ? dData.items : [];
+          if (dItems.some(it => it.id === itemId)) {
+            const trkUsa = String(dData.tracking_usa || '').trim();
+            if (trkUsa === rawItemId || trkUsa === rawOrderId || /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(trkUsa) || trkUsa.startsWith('{')) {
+              corruptTrackDoc = { id: d.id, data: dData };
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Si encontramos un paquete con guía corrupta asociada a este ítem, repararlo directamente
+    if (corruptTrackDoc) {
+      const currentItems = Array.isArray(corruptTrackDoc.data.items) ? corruptTrackDoc.data.items : [];
+      const alreadyInList = currentItems.some(i => i.id === itemId);
+      const updatedItems = alreadyInList ? currentItems : [...currentItems, itemToAdd];
+
+      await updateDoc(doc(db, 'trackings', corruptTrackDoc.id), {
+        tracking_usa: trackingUsaClean,
+        courier_usa: courierUsa,
+        items: updatedItems,
+        fecha_actualizacion: serverTimestamp()
+      });
+
+      console.log(`[Smartbits] 🔧 Tracking corrupto reparado con éxito en paquete ${corruptTrackDoc.id}: ${courierUsa.toUpperCase()} ${trackingUsaClean}`);
+      return { success: true, id: corruptTrackDoc.id, status: 'updated' };
+    }
+
+    // 2. Buscar si ya existe un paquete con este tracking_usa legítimo en Firestore (consolidación)
     const q = query(collection(db, 'trackings'), where('tracking_usa', '==', trackingUsaClean));
     const snap = await getDocs(q);
 
@@ -99,7 +151,7 @@ export async function syncTrackingFromEbay(db, { ebayItem, inventoryItem, tipo =
 
       return { success: true, id: existingDoc.id, status: 'updated' };
     } else {
-      // 2. No existe: crear un nuevo paquete en estado 'por_prealertar'
+      // 3. No existe: crear un nuevo paquete en estado 'por_prealertar'
       const newTrackingData = {
         tracking_usa: trackingUsaClean,
         courier_usa: courierUsa,

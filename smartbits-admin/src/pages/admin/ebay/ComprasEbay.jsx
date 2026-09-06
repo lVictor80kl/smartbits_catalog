@@ -534,11 +534,27 @@ export default function ComprasEbay() {
 
   // Sincronización masiva de trackings hacia el módulo de Envíos
   const handleSyncAllTrackingsToEnvios = async () => {
+    // 1. Limpiar compras_ebay que aún tengan Item IDs o Order IDs como tracking
+    for (const c of compras) {
+      const trk = (c.tracking_usa || '').trim();
+      const rawItemId = String(c.itemId || '').replace(/_u[0-9]+$/, '').trim();
+      const rawOrderId = String(c.orderId || '').replace(/[\s-]/g, '').trim();
+      const isBogus = (rawItemId && trk === rawItemId) || (rawOrderId && trk === rawOrderId) || /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(trk) || trk.startsWith('{');
+      if (isBogus && c.id) {
+        try {
+          await updateDoc(doc(db, 'compras_ebay', c.id), {
+            tracking_usa: '',
+            fecha_actualizacion: serverTimestamp()
+          });
+        } catch (_) {}
+      }
+    }
+
     const itemsWithTracking = compras.filter(c => {
       const trk = (c.tracking_usa || '').trim();
       const rawItemId = String(c.itemId || '').replace(/_u[0-9]+$/, '').trim();
       const rawOrderId = String(c.orderId || '').replace(/[\s-]/g, '').trim();
-      const isBogus = (rawItemId && trk === rawItemId) || (rawOrderId && trk === rawOrderId);
+      const isBogus = (rawItemId && trk === rawItemId) || (rawOrderId && trk === rawOrderId) || /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(trk);
       return trk.length > 0 && !trk.startsWith('{') && !trk.includes('EVENTFAMILY') && !isBogus && c.estado !== 'descartado';
     });
 
@@ -1018,6 +1034,17 @@ export default function ComprasEbay() {
     );
   });
 
+  const ultimaSincronizacion = useMemo(() => {
+    let latest = null;
+    compras.forEach(c => {
+      const dt = c.fecha_sincronizacion ? (c.fecha_sincronizacion.toDate ? c.fecha_sincronizacion.toDate() : new Date(c.fecha_sincronizacion)) : null;
+      if (dt && !isNaN(dt.getTime())) {
+        if (!latest || dt > latest) latest = dt;
+      }
+    });
+    return latest;
+  }, [compras]);
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header Principal */}
@@ -1031,8 +1058,14 @@ export default function ComprasEbay() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
                 Compras de eBay
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Sincronización, detección inteligente y conversión hacia Inventario y Envíos
+              <p className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-2">
+                <span>Sincronización, detección inteligente y conversión hacia Inventario y Envíos</span>
+                {ultimaSincronizacion && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                    <Clock className="w-3 h-3" />
+                    Última sinc.: {ultimaSincronizacion.toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -1470,7 +1503,17 @@ export default function ComprasEbay() {
                           );
                         }
 
-                        if (item.tracking_usa) {
+                        const rawItemId = String(item.itemId || '').replace(/_u[0-9]+$/, '').trim();
+                        const rawOrderId = String(item.orderId || '').replace(/[\s-]/g, '').trim();
+                        const isBogusTracking = item.tracking_usa && (
+                          item.tracking_usa === rawItemId ||
+                          item.tracking_usa === rawOrderId ||
+                          /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(item.tracking_usa) ||
+                          item.tracking_usa.startsWith('{') ||
+                          item.tracking_usa.includes('EVENTFAMILY')
+                        );
+
+                        if (item.tracking_usa && !isBogusTracking) {
                           const trk = trackings.find(t => (t.tracking_usa || '').trim().toUpperCase() === item.tracking_usa.trim().toUpperCase() || t.id === item.tracking_id);
                           return (
                             <div className="pt-1 flex flex-wrap items-center gap-2 text-xs">
@@ -1515,10 +1558,15 @@ export default function ComprasEbay() {
                         }
 
                         return (
-                          <div className="pt-1 flex items-center gap-2 text-xs">
+                          <div className="pt-1 flex flex-wrap items-center gap-2 text-xs">
+                            {isBogusTracking && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title="Se detectó el ID del artículo como tracking">
+                                ⚠️ ID de compra detectado (Pendiente de tracking)
+                              </span>
+                            )}
                             {item.shipping_status === 'awaiting_shipment' && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title="El vendedor en eBay aún no ha emitido la guía de envío">
-                                ⏳ Awaiting shipment
+                                ⏳ Awaiting tracking
                               </span>
                             )}
                             <button
