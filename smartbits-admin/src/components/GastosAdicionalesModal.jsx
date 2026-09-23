@@ -18,7 +18,8 @@ const TIPOS = [
 
 const generarId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-export default function GastosAdicionalesModal({ laptop, onClose }) {
+export default function GastosAdicionalesModal({ laptop, item, collectionName = 'laptops', onClose }) {
+  const currentItem = item || laptop;
   const { todasCuentas, cuentasBS = [], cuentasUSD = [], tasaCambio, loading: loadingCuentas } = useCuentasCaja();
 
   const [tipo, setTipo] = useState('envio');
@@ -27,13 +28,13 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
-  if (!laptop) return null;
+  if (!currentItem) return null;
 
-  const gastosExtra = getGastosExtraItems(laptop);
-  const totalExtraUsd = getGastosExtraTotal(laptop);
-  const costoBaseConComision = getCostoBaseConComision(laptop);
-  const legadosUsd = getLegadosExtrasUsd(laptop);
-  const precioVenta = Number(laptop.precio) || 0;
+  const gastosExtra = getGastosExtraItems(currentItem);
+  const totalExtraUsd = getGastosExtraTotal(currentItem);
+  const costoBaseConComision = getCostoBaseConComision(currentItem);
+  const legadosUsd = getLegadosExtrasUsd(currentItem);
+  const precioVenta = Number(currentItem.precio) || 0;
 
   const cuentaSel = todasCuentas.find(c => c.key === form.cuenta_key);
   const esBs = !yaRegistradoEnCaja && cuentaSel?.moneda === 'BS';
@@ -49,7 +50,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
   const recalcYActualizarBatch = (batch, nuevosGastos) => {
     const totalExtraNuevo = nuevosGastos.reduce((acc, g) => acc + (Number(g.monto_usd) || 0), 0);
     const nuevoCostoTotal = Math.round((costoBaseConComision + totalExtraNuevo) * 100) / 100;
-    batch.update(doc(db, 'laptops', laptop.id), {
+    batch.update(doc(db, collectionName, currentItem.id), {
       gastos_extra: nuevosGastos,
       gastos_extra_total_usd: totalExtraNuevo,
       costos_adicionales: 0,
@@ -75,7 +76,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
         : Math.round(montoNum * 100) / 100;
 
       const gastoId = generarId();
-      const nombreEquipo = `${laptop.marca || ''} ${laptop.modelo || ''}`.trim();
+      const nombreEquipo = currentItem.nombre || `${currentItem.marca || ''} ${currentItem.modelo || ''}`.trim();
       const tipoLabel = tipo === 'envio' ? 'Envío' : 'Gasto extra';
 
       const batch = writeBatch(db);
@@ -85,12 +86,19 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
         const movRef = doc(collection(db, 'compras_inventario'));
         movRefId = movRef.id;
 
+        const isComponent = collectionName === 'componentes';
+
         // 1. Movimiento formal en Finanzas (Historial de Movimientos)
         batch.set(movRef, {
           categoria: tipo === 'envio' ? 'envio' : 'gasto_extra',
           concepto: `${tipoLabel} (${form.descripcion.trim()}) — ${nombreEquipo}`,
-          laptop_id: laptop.id,
-          laptop_modelo: laptop.modelo || '',
+          ...(isComponent ? {
+            componente_id: currentItem.id,
+            componente_nombre: currentItem.nombre || '',
+          } : {
+            laptop_id: currentItem.id,
+            laptop_modelo: currentItem.modelo || '',
+          }),
           movimiento_gasto_id: gastoId,
           monto: montoUsd,
           monto_original: montoNum,
@@ -107,7 +115,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
         });
       }
 
-      // 3. Registro en la laptop + recálculo de costo total (y reducción de ganancia estimada)
+      // 3. Registro en el item + recálculo de costo total (y reducción de ganancia estimada)
       const nuevoGasto = {
         id: gastoId,
         movimiento_id: movRefId,
@@ -181,7 +189,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
               Gastos Adicionales / Envío
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              {laptop.marca} {laptop.modelo} — se descuentan de caja y suman al costo total del equipo.
+              {currentItem.nombre || `${currentItem.marca || ''} ${currentItem.modelo || ''}`.trim()} — se descuentan de caja y suman al costo total del equipo.
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
