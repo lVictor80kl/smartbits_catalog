@@ -15,7 +15,7 @@ import { useCuentasCaja } from '../../../utils/useCuentasCaja';
 import { getGastosExtraItems, getCostoBaseConComision } from '../../../utils/costos';
 
 export default function TrackingModal({ isOpen, onClose, trackingToEdit, initialData, onSaved }) {
-  const { todasCuentas, tasaCambio, loading: loadingCajas } = useCuentasCaja();
+  const { todasCuentas, cuentasBS = [], cuentasUSD = [], tasaCambio, loading: loadingCajas } = useCuentasCaja();
 
   // Estados de inventario para seleccionar ítems
   const [laptopsList, setLaptopsList] = useState([]);
@@ -868,7 +868,21 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, initial
                       onChange={handleChange}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
                     >
-                      {todasCuentas.map(c => (
+                      {cuentasBS.length > 0 && (
+                        <optgroup label="── Cuentas en Bolívares (BS) ──">
+                          {cuentasBS.map(c => (
+                            <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {cuentasUSD.length > 0 && (
+                        <optgroup label="── Cuentas en Dólares (USD) ──">
+                          {cuentasUSD.map(c => (
+                            <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {cuentasBS.length === 0 && cuentasUSD.length === 0 && todasCuentas.map(c => (
                         <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
                       ))}
                     </select>

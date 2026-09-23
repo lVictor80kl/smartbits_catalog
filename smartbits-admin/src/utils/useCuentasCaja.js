@@ -33,9 +33,17 @@ export function useCuentasCaja() {
     return () => unsub();
   }, []);
 
-  const todasCuentas = [
+  const listaCuentasRaw = [
     ...CUENTAS_FIJAS,
     ...cuentasDinamicas
+  ];
+
+  const cuentasBS = listaCuentasRaw.filter(c => c.moneda === 'BS');
+  const cuentasUSD = listaCuentasRaw.filter(c => c.moneda !== 'BS');
+
+  const todasCuentas = [
+    ...cuentasBS,
+    ...cuentasUSD
   ];
 
   const tasaCambio = Number(saldos.tasa_cambio) || 1;
@@ -69,7 +77,9 @@ export function useCuentasCaja() {
   return { 
     saldos, 
     cuentasDinamicas, 
-    todasCuentas, 
+    todasCuentas,
+    cuentasBS,
+    cuentasUSD,
     tasaCambio, 
     loading,
     agregarCuenta,

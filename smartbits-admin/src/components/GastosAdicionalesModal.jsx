@@ -19,10 +19,11 @@ const TIPOS = [
 const generarId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 export default function GastosAdicionalesModal({ laptop, onClose }) {
-  const { todasCuentas, tasaCambio, loading: loadingCuentas } = useCuentasCaja();
+  const { todasCuentas, cuentasBS = [], cuentasUSD = [], tasaCambio, loading: loadingCuentas } = useCuentasCaja();
 
   const [tipo, setTipo] = useState('envio');
   const [form, setForm] = useState({ descripcion: '', monto: '', cuenta_key: 'binance', tasa: '' });
+  const [yaRegistradoEnCaja, setYaRegistradoEnCaja] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
@@ -35,7 +36,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
   const precioVenta = Number(laptop.precio) || 0;
 
   const cuentaSel = todasCuentas.find(c => c.key === form.cuenta_key);
-  const esBs = cuentaSel?.moneda === 'BS';
+  const esBs = !yaRegistradoEnCaja && cuentaSel?.moneda === 'BS';
   const montoNum = parseFloat(form.monto) || 0;
   const tasaUsada = esBs ? (parseFloat(form.tasa) || tasaCambio) : null;
   const previewUsd = esBs ? (montoNum > 0 && tasaUsada > 0 ? montoNum / tasaUsada : 0) : montoNum;
@@ -64,7 +65,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
     e.preventDefault();
     if (!form.descripcion.trim()) return alert('Ingresa una descripción del gasto.');
     if (!(montoNum > 0)) return alert('Ingresa un monto válido.');
-    if (!form.cuenta_key) return alert('Selecciona la cuenta de caja a descontar.');
+    if (!yaRegistradoEnCaja && !form.cuenta_key) return alert('Selecciona la cuenta de caja a descontar.');
     if (esBs && !(tasaUsada > 0)) return alert('Ingresa una tasa de cambio válida.');
 
     setSaving(true);
@@ -73,52 +74,59 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
         ? Math.round((montoNum / tasaUsada) * 100) / 100
         : Math.round(montoNum * 100) / 100;
 
-      const movRef = doc(collection(db, 'compras_inventario'));
       const gastoId = generarId();
       const nombreEquipo = `${laptop.marca || ''} ${laptop.modelo || ''}`.trim();
       const tipoLabel = tipo === 'envio' ? 'Envío' : 'Gasto extra';
 
       const batch = writeBatch(db);
+      let movRefId = null;
 
-      // 1. Movimiento formal en Finanzas (Historial de Movimientos)
-      batch.set(movRef, {
-        categoria: tipo === 'envio' ? 'envio' : 'gasto_extra',
-        concepto: `${tipoLabel} (${form.descripcion.trim()}) — ${nombreEquipo}`,
-        laptop_id: laptop.id,
-        laptop_modelo: laptop.modelo || '',
-        movimiento_gasto_id: gastoId,
-        monto: montoUsd,
-        monto_original: montoNum,
-        moneda_original: esBs ? 'BS' : 'USD',
-        tasa_cambio: tasaUsada,
-        metodo_pago: form.cuenta_key,
-        fecha: serverTimestamp(),
-      });
+      if (!yaRegistradoEnCaja) {
+        const movRef = doc(collection(db, 'compras_inventario'));
+        movRefId = movRef.id;
 
-      // 2. Descuento inmediato de la cuenta de caja seleccionada
-      batch.update(doc(db, 'caja', 'saldos'), {
-        [form.cuenta_key]: increment(-montoNum),
-        updated_at: new Date(),
-      });
+        // 1. Movimiento formal en Finanzas (Historial de Movimientos)
+        batch.set(movRef, {
+          categoria: tipo === 'envio' ? 'envio' : 'gasto_extra',
+          concepto: `${tipoLabel} (${form.descripcion.trim()}) — ${nombreEquipo}`,
+          laptop_id: laptop.id,
+          laptop_modelo: laptop.modelo || '',
+          movimiento_gasto_id: gastoId,
+          monto: montoUsd,
+          monto_original: montoNum,
+          moneda_original: esBs ? 'BS' : 'USD',
+          tasa_cambio: tasaUsada,
+          metodo_pago: form.cuenta_key,
+          fecha: serverTimestamp(),
+        });
 
-      // 3. Registro en la laptop + recálculo de costo total
+        // 2. Descuento inmediato de la cuenta de caja seleccionada
+        batch.update(doc(db, 'caja', 'saldos'), {
+          [form.cuenta_key]: increment(-montoNum),
+          updated_at: new Date(),
+        });
+      }
+
+      // 3. Registro en la laptop + recálculo de costo total (y reducción de ganancia estimada)
       const nuevoGasto = {
         id: gastoId,
-        movimiento_id: movRef.id,
+        movimiento_id: movRefId,
         tipo,
         descripcion: form.descripcion.trim(),
-        cuenta_key: form.cuenta_key,
-        cuenta_label: cuentaSel?.label || form.cuenta_key,
+        cuenta_key: yaRegistradoEnCaja ? 'stock' : form.cuenta_key,
+        cuenta_label: yaRegistradoEnCaja ? 'Stock / Ya en caja' : (cuentaSel?.label || form.cuenta_key),
         moneda_original: esBs ? 'BS' : 'USD',
         monto_original: montoNum,
         tasa_cambio: tasaUsada,
         monto_usd: montoUsd,
+        ya_registrado_en_caja: yaRegistradoEnCaja,
         fecha: new Date().toISOString(),
       };
       recalcYActualizarBatch(batch, [...gastosExtra, nuevoGasto]);
 
       await batch.commit();
       setForm({ descripcion: '', monto: '', cuenta_key: form.cuenta_key, tasa: '' });
+      setYaRegistradoEnCaja(false);
     } catch (err) {
       console.error(err);
       alert('Error al registrar el gasto: ' + err.message);
@@ -127,19 +135,25 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
   };
 
   const handleEliminar = async (gasto) => {
-    if (!window.confirm(`¿Eliminar "${gasto.descripcion}"?\nSe revertirán ${fmtOriginal(gasto)} a la cuenta ${gasto.cuenta_label}.`)) return;
+    const confirmMsg = gasto.ya_registrado_en_caja
+      ? `¿Eliminar "${gasto.descripcion}"?\nEste gasto proviene de stock/caja previa, no modificará saldos de caja pero sí se restará del costo del equipo.`
+      : `¿Eliminar "${gasto.descripcion}"?\nSe revertirán ${fmtOriginal(gasto)} a la cuenta ${gasto.cuenta_label}.`;
+
+    if (!window.confirm(confirmMsg)) return;
 
     setDeletingId(gasto.id);
     try {
       const batch = writeBatch(db);
 
-      // 1. Revertir dinero a la caja
-      batch.update(doc(db, 'caja', 'saldos'), {
-        [gasto.cuenta_key]: increment(Number(gasto.monto_original) || 0),
-        updated_at: new Date(),
-      });
+      // 1. Revertir dinero a la caja SOLO si no era gasto ya registrado en caja previa
+      if (!gasto.ya_registrado_en_caja && gasto.cuenta_key && gasto.cuenta_key !== 'stock') {
+        batch.update(doc(db, 'caja', 'saldos'), {
+          [gasto.cuenta_key]: increment(Number(gasto.monto_original) || 0),
+          updated_at: new Date(),
+        });
+      }
 
-      // 2. Borrar el movimiento vinculado en finanzas
+      // 2. Borrar el movimiento vinculado en finanzas si existía
       if (gasto.movimiento_id) {
         batch.delete(doc(db, 'compras_inventario', gasto.movimiento_id));
       }
@@ -201,7 +215,14 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
                 <div key={g.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2.5">
                   <CheckCircle2 className={`w-4 h-4 shrink-0 ${g.tipo === 'envio' ? 'text-green-500' : 'text-blue-500'}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{g.descripcion}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{g.descripcion}</p>
+                      {g.ya_registrado_en_caja && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800 uppercase tracking-wider">
+                          Stock / Ya en Caja
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-slate-500 capitalize">
                       {g.tipo === 'envio' ? 'Envío' : 'Pago extra'} • {g.cuenta_label} • {fmtOriginal(g)}
                       {g.moneda_original === 'BS' && ` (≈${fmtUsd(g.monto_usd)})`}
@@ -211,7 +232,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
                     onClick={() => handleEliminar(g)}
                     disabled={deletingId !== null}
                     className="p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
-                    title="Eliminar gasto (revierte caja)"
+                    title={g.ya_registrado_en_caja ? "Eliminar gasto de stock (no afecta caja)" : "Eliminar gasto (revierte caja)"}
                   >
                     {deletingId === g.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                   </button>
@@ -223,6 +244,26 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
           {/* Formulario nuevo gasto */}
           <form onSubmit={handleAgregar} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Agregar nuevo pago</p>
+
+            {/* Checkbox: Gasto ya registrado en caja */}
+            <div className="bg-amber-50/80 border border-amber-200 rounded-lg p-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={yaRegistradoEnCaja}
+                  onChange={e => setYaRegistradoEnCaja(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <div className="text-xs">
+                  <span className="font-bold text-amber-900 block">
+                    Gasto ya registrado en caja (ej: SSD / RAM de stock previo)
+                  </span>
+                  <span className="text-amber-700 text-[11px] block mt-0.5">
+                    No restará dinero de la caja nuevamente para no duplicar el egreso, pero <strong>sí se sumará al costo del equipo y restará de la ganancia estimada</strong>.
+                  </span>
+                </div>
+              </label>
+            </div>
 
             {/* Tipo */}
             <div className="flex gap-2">
@@ -250,7 +291,7 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
               <label className="block text-xs font-bold text-slate-700 mb-1">Descripción</label>
               <input
                 type="text"
-                placeholder={tipo === 'envio' ? 'Ej: Envío Miami-Caracas' : 'Ej: RAM adicional 16GB'}
+                placeholder={tipo === 'envio' ? 'Ej: Envío Miami-Caracas' : 'Ej: SSD NVMe 1TB de stock'}
                 value={form.descripcion}
                 onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500"
@@ -297,33 +338,53 @@ export default function GastosAdicionalesModal({ laptop, onClose }) {
                 </div>
               ) : (
                 <div className="flex items-end">
-                  <p className="text-[11px] text-slate-400 pb-2">Se descontará de la cuenta al guardar.</p>
+                  <p className="text-[11px] text-slate-400 pb-2">
+                    {yaRegistradoEnCaja ? 'El monto en USD se sumará directo al costo del equipo.' : 'Se descontará de la cuenta al guardar.'}
+                  </p>
                 </div>
               )}
             </div>
 
             {/* Cuenta de caja */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Descontar de cuenta de caja</label>
-              <select
-                value={form.cuenta_key}
-                onChange={e => setForm(p => ({ ...p, cuenta_key: e.target.value, tasa: '' }))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-500"
-              >
-                {loadingCuentas && <option>Cargando cuentas...</option>}
-                {todasCuentas.map(c => (
-                  <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
-                ))}
-              </select>
-            </div>
+            {!yaRegistradoEnCaja && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Descontar de cuenta de caja</label>
+                <select
+                  value={form.cuenta_key}
+                  onChange={e => setForm(p => ({ ...p, cuenta_key: e.target.value, tasa: '' }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-500"
+                >
+                  {loadingCuentas && <option>Cargando cuentas...</option>}
+                  {cuentasBS.length > 0 && (
+                    <optgroup label="── Cuentas en Bolívares (BS) ──">
+                      {cuentasBS.map(c => (
+                        <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {cuentasUSD.length > 0 && (
+                    <optgroup label="── Cuentas en Dólares (USD) ──">
+                      {cuentasUSD.map(c => (
+                        <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {cuentasBS.length === 0 && cuentasUSD.length === 0 && todasCuentas.map(c => (
+                    <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={saving}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-60"
+              className={`w-full flex items-center justify-center gap-2 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-60 ${
+                yaRegistradoEnCaja ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
-              {saving ? 'Registrando...' : 'Registrar y descontar de caja'}
+              {saving ? 'Registrando...' : yaRegistradoEnCaja ? 'Registrar costo (sin restar de caja)' : 'Registrar y descontar de caja'}
             </button>
           </form>
         </div>

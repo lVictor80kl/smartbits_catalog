@@ -59,7 +59,7 @@ export default function EditLaptop() {
   const [pagosCompra, setPagosCompra] = useState([
     { metodoId: 'paypal', bancoNombre: 'PayPal', monto: '', comisionPct: 0 }
   ]);
-  const { todasCuentas } = useCuentasCaja();
+  const { todasCuentas, cuentasBS = [], cuentasUSD = [] } = useCuentasCaja();
 
   // Cargar datos actuales del equipo si estamos en modo edición
   useEffect(() => {
@@ -873,7 +873,25 @@ export default function EditLaptop() {
                         onChange={e => handlePagoChange(idx, 'metodoId', e.target.value)}
                         className="w-full px-2.5 py-1.5 border border-gray-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 font-medium"
                       >
-                        {todasCuentas.map(c => (
+                        {cuentasBS.length > 0 && (
+                          <optgroup label="── Cuentas en Bolívares (BS) ──">
+                            {cuentasBS.map(c => (
+                              <option key={c.key} value={c.key}>
+                                {c.label} ({c.moneda})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {cuentasUSD.length > 0 && (
+                          <optgroup label="── Cuentas en Dólares (USD) ──">
+                            {cuentasUSD.map(c => (
+                              <option key={c.key} value={c.key}>
+                                {c.label} ({c.moneda})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {cuentasBS.length === 0 && cuentasUSD.length === 0 && todasCuentas.map(c => (
                           <option key={c.key} value={c.key}>
                             {c.label} ({c.moneda})
                           </option>

@@ -10,6 +10,7 @@ export default function ComponentsDashboard() {
   const [deletingId, setDeletingId] = useState(null);
   const [filterDisp, setFilterDisp] = useState('Todas');
   const [filterTipo, setFilterTipo] = useState('Todos');
+  const [filterBorrador, setFilterBorrador] = useState('Todos');
   const [searchTerm, setSearchTerm] = useState('');
   const [priceSort, setPriceSort] = useState('asc');
   const [selectedIds, setSelectedIds] = useState([]);
@@ -73,9 +74,14 @@ export default function ComponentsDashboard() {
     .filter(c => {
       const matchDisp = filterDisp === 'Todas' || c.disponibilidad === filterDisp;
       const matchTipo = filterTipo === 'Todos' || c.tipo === filterTipo;
+      const matchBorrador = filterBorrador === 'Todos'
+        ? true
+        : filterBorrador === 'Borradores'
+          ? Boolean(c.borrador)
+          : !c.borrador;
       const matchSearch = (c.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (c.marca || '').toLowerCase().includes(searchTerm.toLowerCase());
-      return matchDisp && matchTipo && matchSearch;
+      return matchDisp && matchTipo && matchBorrador && matchSearch;
     })
     .sort((a, b) => {
       const dispOrder = { 'Disponible': 0, 'Coming soon': 1, 'No disponible': 2 };
@@ -93,6 +99,8 @@ export default function ComponentsDashboard() {
     Bateria: 'bg-amber-100 text-amber-700',
     Teclado: 'bg-purple-100 text-purple-700',
     Mouse: 'bg-pink-100 text-pink-700',
+    OTROS: 'bg-slate-100 text-slate-700',
+    Otros: 'bg-slate-100 text-slate-700',
   };
 
   return (
@@ -138,6 +146,19 @@ export default function ComponentsDashboard() {
                 className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
                 {tipos.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Estado</label>
+              <select
+                value={filterBorrador}
+                onChange={(e) => setFilterBorrador(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-medium"
+              >
+                <option value="Todos">Todos ({components.length})</option>
+                <option value="Publicados">Publicados ({components.filter(c => !c.borrador).length})</option>
+                <option value="Borradores">Borradores ({components.filter(c => Boolean(c.borrador)).length})</option>
               </select>
             </div>
 
@@ -235,7 +256,14 @@ export default function ComponentsDashboard() {
                           />
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900 line-clamp-1">{comp.nombre}</div>
+                          <div className="font-medium text-gray-900 line-clamp-1 flex items-center gap-2">
+                            <span>{comp.nombre}</span>
+                            {comp.borrador && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 uppercase tracking-wider">
+                                Borrador
+                              </span>
+                            )}
+                          </div>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoBadgeColors[comp.tipo] || 'bg-gray-100 text-gray-700'}`}>
                             {comp.tipo}
                           </span>
