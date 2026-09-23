@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, PackageSearch, X, Loader2 } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import ComponentCard from '../components/ComponentCard';
 import ComponentModal from '../components/ComponentModal';
@@ -13,8 +13,7 @@ export default function ComponentsCatalog() {
   const [selectedComponent, setSelectedComponent] = useState(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'componentes'), orderBy('creadoEn', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, 'componentes'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -28,10 +27,14 @@ export default function ComponentsCatalog() {
     return () => unsubscribe();
   }, []);
 
-  const tipos = ['Todos', 'RAM', 'SSD', 'Bateria', 'Teclado', 'Mouse'];
+  const tipos = ['Todos', 'RAM', 'SSD', 'Bateria', 'Teclado', 'Mouse', 'OTROS'];
 
   const filteredComponents = useMemo(() => {
     return components.filter(comp => {
+      // Cuando el componente está marcado como borrador no se debe publicar en el catálogo
+      const isDraft = comp.borrador === true || comp.borrador === 'true';
+      if (isDraft) return false;
+
       const searchWords = searchTerm.toLowerCase().split(' ').filter(w => w.trim() !== '');
       const matchSearch = searchWords.every(word => {
         const fullText = `${comp.nombre} ${comp.marca} ${comp.tipo}`.toLowerCase();
@@ -53,6 +56,11 @@ export default function ComponentsCatalog() {
       const weightA = getDispWeight(a.disponibilidad);
       const weightB = getDispWeight(b.disponibilidad);
       if (weightA !== weightB) return weightA - weightB;
+
+      const timeA = a.creadoEn?.toMillis ? a.creadoEn.toMillis() : (a.creadoEn?.seconds ? a.creadoEn.seconds * 1000 : 0);
+      const timeB = b.creadoEn?.toMillis ? b.creadoEn.toMillis() : (b.creadoEn?.seconds ? b.creadoEn.seconds * 1000 : 0);
+      if (timeA !== timeB && timeA > 0 && timeB > 0) return timeB - timeA;
+
       return Number(a.precio) - Number(b.precio);
     });
   }, [components, searchTerm, selectedTipo]);

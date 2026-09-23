@@ -5,6 +5,7 @@ const tipoBadgeColors = {
   SSD: 'bg-green-100 text-green-700 border-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
   Bateria: 'bg-amber-100 text-amber-700 border-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
   Otros: 'bg-purple-100 text-purple-700 border-purple-100 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800',
+  OTROS: 'bg-purple-100 text-purple-700 border-purple-100 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800',
 };
 
 const tipoTextColors = {
@@ -12,13 +13,17 @@ const tipoTextColors = {
   SSD: 'text-green-600 dark:text-green-400',
   Bateria: 'text-amber-600 dark:text-amber-400',
   Otros: 'text-purple-600 dark:text-purple-400',
+  OTROS: 'text-purple-600 dark:text-purple-400',
 };
 
 export default function ComponentCard({ component, onClick }) {
   const isAvailable = component.disponibilidad === "Disponible";
-  const image = component.imagenes && component.imagenes.length > 0
+  const rawImage = component.imagenes && component.imagenes.length > 0
     ? component.imagenes[0]
-    : (component.imagen || '/default-laptop.png');
+    : component.imagen;
+  const image = (rawImage && rawImage !== '/default-laptop.png')
+    ? rawImage
+    : '/default-component.png';
 
   return (
     <div
@@ -36,10 +41,10 @@ export default function ComponentCard({ component, onClick }) {
         </div>
 
         <img
-          src={getCloudinaryUrl(image, 'card') || '/default-laptop.png'}
+          src={getCloudinaryUrl(image, 'card') || '/default-component.png'}
           alt={component.nombre}
           loading="lazy"
-          onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
+          onError={(e) => { e.target.onerror = null; e.target.src = '/default-component.png'; }}
           className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110"
         />
       </div>

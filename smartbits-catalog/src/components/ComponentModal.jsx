@@ -13,6 +13,8 @@ const tipoIcons = {
   Bateria: BatteryFull,
   Teclado: Keyboard,
   Mouse: Mouse,
+  OTROS: Package,
+  Otros: Package,
 };
 
 function SpecItem({ icon: Icon, label, value }) {
@@ -35,9 +37,11 @@ export default function ComponentModal({ component, isOpen, onClose }) {
   const [isZoomed, setIsZoomed] = useState(false);
   const touchStartX = useRef(null);
 
-  const images = (component?.imagenes && component.imagenes.length > 0)
+  const rawImages = (component?.imagenes && component.imagenes.length > 0)
     ? component.imagenes
     : (component?.imagen ? [component.imagen] : []);
+  const validImages = rawImages.filter(img => img && img !== '/default-laptop.png');
+  const images = validImages.length > 0 ? validImages : ['/default-component.png'];
 
   const hasMultiple = images.length > 1;
 
@@ -148,6 +152,13 @@ export default function ComponentModal({ component, isOpen, onClose }) {
             {component.descripcion_personalizada && <SpecItem icon={Package} label="Descripción" value={component.descripcion_personalizada} />}
           </>
         );
+      case 'OTROS':
+      case 'Otros': {
+        const desc = component.descripcion || component.descripcion_personalizada;
+        return desc ? (
+          <SpecItem icon={Package} label="Descripción" value={desc} />
+        ) : null;
+      }
       default:
         return null;
     }
@@ -186,10 +197,10 @@ export default function ComponentModal({ component, isOpen, onClose }) {
                 >
                   <img
                     key={activeImageIndex}
-                    src={getCloudinaryUrl(images[activeImageIndex], 'full') || '/default-laptop.png'}
+                    src={getCloudinaryUrl(images[activeImageIndex], 'full') || '/default-component.png'}
                     alt={component.nombre}
                     loading="lazy"
-                    onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
+                    onError={(e) => { e.target.onerror = null; e.target.src = '/default-component.png'; }}
                     className="w-full h-full object-contain p-6 group-hover:scale-105 transition-all duration-700 ease-out animate-in fade-in duration-300"
                   />
                 </div>
@@ -235,7 +246,7 @@ export default function ComponentModal({ component, isOpen, onClose }) {
                         : 'border-brand-100 dark:border-brand-800 hover:border-brand-300 dark:hover:border-brand-600 opacity-60 hover:opacity-100'
                         }`}
                     >
-                      <img src={img} loading="lazy" onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
+                      <img src={img} loading="lazy" onError={(e) => { e.target.onerror = null; e.target.src = '/default-component.png'; }} className="w-full h-full object-contain" alt={`thumb-${idx}`} />
                     </button>
                   ))}
                 </div>
@@ -371,10 +382,10 @@ export default function ComponentModal({ component, isOpen, onClose }) {
           )}
 
           <img
-            src={images[activeImageIndex] || '/default-laptop.png'}
+            src={images[activeImageIndex] || '/default-component.png'}
             alt="Zoom"
             loading="lazy"
-            onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
+            onError={(e) => { e.target.onerror = null; e.target.src = '/default-component.png'; }}
             className="w-full h-full max-w-[95vw] max-h-[95vh] md:max-w-[85vw] md:max-h-[85vh] object-contain transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] animate-in fade-in duration-300"
             onClick={(e) => { e.stopPropagation(); setIsZoomed(false); }}
           />
