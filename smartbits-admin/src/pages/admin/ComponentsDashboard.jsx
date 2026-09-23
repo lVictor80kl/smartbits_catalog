@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { 
-  PlusCircle, Edit, Trash2, Loader2, FileText, MoreVertical, 
-  Flame, Copy, Banknote, X 
+import {
+  PlusCircle, Edit, Trash2, Loader2, FileText, MoreVertical,
+  Flame, Copy, Banknote, X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
@@ -22,7 +22,7 @@ export default function ComponentsDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [priceSort, setPriceSort] = useState('asc');
   const [selectedIds, setSelectedIds] = useState([]);
-  
+
   // Modales y menús
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
   const [gastosModalComponent, setGastosModalComponent] = useState(null);
@@ -180,14 +180,15 @@ export default function ComponentsDashboard() {
     .filter(c => {
       const matchDisp = filterDisp === 'Todas' || c.disponibilidad === filterDisp;
       const matchTipo = filterTipo === 'Todos' || c.tipo === filterTipo;
+      const isDraft = c.borrador === true || c.borrador === 'true';
       const matchBorrador = filterBorrador === 'Todos'
         ? true
         : filterBorrador === 'Borradores'
-          ? Boolean(c.borrador)
-          : !c.borrador;
+          ? isDraft
+          : !isDraft;
       const matchOferta = !filterOfertasOnly || Boolean(c.en_oferta);
       const matchSearch = (c.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (c.marca || '').toLowerCase().includes(searchTerm.toLowerCase());
+        (c.marca || '').toLowerCase().includes(searchTerm.toLowerCase());
       return matchDisp && matchTipo && matchBorrador && matchOferta && matchSearch;
     })
     .sort((a, b) => {
@@ -266,8 +267,8 @@ export default function ComponentsDashboard() {
                 className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all font-medium"
               >
                 <option value="Todos">Todos ({components.length})</option>
-                <option value="Publicados">Publicados ({components.filter(c => !c.borrador).length})</option>
-                <option value="Borradores">Borradores ({components.filter(c => Boolean(c.borrador)).length})</option>
+                <option value="Publicados">Publicados ({components.filter(c => !(c.borrador === true || c.borrador === 'true')).length})</option>
+                <option value="Borradores">Borradores ({components.filter(c => c.borrador === true || c.borrador === 'true').length})</option>
               </select>
             </div>
 
@@ -302,11 +303,10 @@ export default function ComponentsDashboard() {
               <button
                 type="button"
                 onClick={() => setFilterOfertasOnly(!filterOfertasOnly)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
-                  filterOfertasOnly
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${filterOfertasOnly
                     ? 'bg-orange-100 text-orange-800 border-orange-300'
                     : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                }`}
+                  }`}
               >
                 <Flame className={`w-3.5 h-3.5 ${filterOfertasOnly ? 'text-orange-600 fill-orange-500' : 'text-gray-400'}`} />
                 <span>Solo Ofertas</span>
@@ -352,8 +352,8 @@ export default function ComponentsDashboard() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredComponents.map(comp => (
-                  <tr 
-                    key={comp.id} 
+                  <tr
+                    key={comp.id}
                     className={`hover:bg-gray-50/60 transition-colors ${selectedIds.includes(comp.id) ? 'bg-purple-50/30' : ''}`}
                   >
                     <td className="px-6 py-4">
@@ -367,17 +367,23 @@ export default function ComponentsDashboard() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center p-1 shrink-0 border border-gray-200/60">
-                          <img
-                            src={comp.imagen || (comp.imagenes && comp.imagenes[0]) || '/default-laptop.png'}
-                            alt={comp.nombre}
-                            onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
-                            className="max-h-full max-w-full object-contain"
-                          />
+                          {(() => {
+                            const rawImg = comp.imagen || (comp.imagenes && comp.imagenes[0]);
+                            const finalSrc = (rawImg && rawImg !== '/default-laptop.png') ? rawImg : '/default-component.png';
+                            return (
+                              <img
+                                src={finalSrc}
+                                alt={comp.nombre}
+                                onError={(e) => { e.target.onerror = null; e.target.src = '/default-component.png'; }}
+                                className="max-h-full max-w-full object-contain"
+                              />
+                            );
+                          })()}
                         </div>
                         <div>
                           <div className="font-semibold text-gray-900 line-clamp-1 flex items-center gap-2">
                             <span>{comp.nombre}</span>
-                            {comp.borrador && (
+                            {(comp.borrador === true || comp.borrador === 'true') && (
                               <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300 uppercase tracking-wider">
                                 Borrador
                               </span>
@@ -425,32 +431,29 @@ export default function ComponentsDashboard() {
                     </td>
 
                     <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold ${
-                        (comp.unidades || 0) > 5
+                      <span className={`inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold ${(comp.unidades || 0) > 5
                           ? 'bg-green-100 text-green-700'
                           : (comp.unidades || 0) > 0
                             ? 'bg-amber-100 text-amber-700'
                             : 'bg-red-100 text-red-700'
-                      }`}>
+                        }`}>
                         {comp.unidades ?? 0}
                       </span>
                     </td>
 
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        comp.disponibilidad === 'Disponible'
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${comp.disponibilidad === 'Disponible'
                           ? 'bg-green-100 text-green-700'
                           : comp.disponibilidad === 'Coming soon'
                             ? 'bg-amber-100 text-amber-700'
                             : 'bg-red-100 text-red-700'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          comp.disponibilidad === 'Disponible' 
-                            ? 'bg-emerald-500' 
-                            : comp.disponibilidad === 'Coming soon' 
-                              ? 'bg-amber-500' 
+                        }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${comp.disponibilidad === 'Disponible'
+                            ? 'bg-emerald-500'
+                            : comp.disponibilidad === 'Coming soon'
+                              ? 'bg-amber-500'
                               : 'bg-rose-500'
-                        }`} />
+                          }`} />
                         {comp.disponibilidad}
                       </span>
                     </td>
@@ -479,11 +482,10 @@ export default function ComponentsDashboard() {
                           <button
                             type="button"
                             onClick={(e) => toggleActionMenu(comp, e)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl border transition-all ${
-                              activeMenu?.id === comp.id
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-xl border transition-all ${activeMenu?.id === comp.id
                                 ? 'bg-purple-50 text-purple-700 border-purple-300 shadow-2xs ring-2 ring-purple-500/20'
                                 : 'text-gray-700 bg-white hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-2xs'
-                            }`}
+                              }`}
                             title="Menú de opciones"
                           >
                             <span className="hidden md:inline font-bold">Opciones</span>
@@ -646,11 +648,10 @@ export default function ComponentsDashboard() {
                 closeActionMenu();
                 setModalOferta({ open: true, item: comp });
               }}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-semibold transition-colors text-left ${
-                activeMenu.comp.en_oferta
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-semibold transition-colors text-left ${activeMenu.comp.en_oferta
                   ? 'bg-orange-50 text-orange-800 hover:bg-orange-100'
                   : 'hover:bg-orange-50 text-gray-700 hover:text-orange-700'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <Flame className={`w-4 h-4 shrink-0 ${activeMenu.comp.en_oferta ? 'text-orange-600 fill-orange-500' : 'text-orange-500'}`} />

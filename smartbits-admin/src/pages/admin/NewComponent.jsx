@@ -362,566 +362,566 @@ export default function NewComponent() {
             </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-            <div className="space-y-6">
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-gray-400" />
-                  Fotos del Componente
-                </h3>
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-gray-400" />
+                    Fotos del Componente
+                  </h3>
 
-                <div className="space-y-4">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id="foto-input"
-                  />
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {imagePreviews.map((preview, index) => (
-                      <div key={index} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-gray-200 group">
-                        <img src={preview} alt={`Preview ${index}`} className="w-full h-full object-contain bg-gray-50 p-1" />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
-                          title="Eliminar imagen"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-
-                    <label
-                      htmlFor="foto-input"
-                      className="flex flex-col items-center justify-center aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                    >
-                      <Plus className="w-6 h-6 text-gray-400 mb-1" />
-                      <span className="text-[10px] font-medium text-gray-600">Añadir Fotos</span>
-                    </label>
-                  </div>
-
-                  {imageFiles.length > 0 && (
-                    <p className="text-[10px] text-gray-500 italic">
-                      {imageFiles.length} foto{imageFiles.length !== 1 ? 's' : ''} seleccionada{imageFiles.length !== 1 ? 's' : ''}.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <h3 className="font-semibold text-gray-900 mb-4">Estado Visual</h3>
-
-                <div className="space-y-6">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <label className="font-medium text-gray-700">Estado Visual</label>
-                      <span className="font-bold text-gray-900">{formData.estadoPantalla}/10</span>
-                    </div>
+                  <div className="space-y-4">
                     <input
-                      type="range"
-                      name="estadoPantalla"
-                      min="1" max="10" step="1"
-                      value={formData.estadoPantalla}
-                      onChange={handleSliderChange}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFileChange}
+                      className="hidden"
+                      id="foto-input"
                     />
-                  </div>
 
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <label className="font-medium text-gray-700">Estado Funcional</label>
-                      <span className="font-bold text-gray-900">{formData.estadoCarcasa}/10</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      {imagePreviews.map((preview, index) => (
+                        <div key={index} className="relative aspect-[4/3] rounded-lg overflow-hidden border border-gray-200 group">
+                          <img src={preview} alt={`Preview ${index}`} className="w-full h-full object-contain bg-gray-50 p-1" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
+                            title="Eliminar imagen"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+
+                      <label
+                        htmlFor="foto-input"
+                        className="flex flex-col items-center justify-center aspect-[4/3] rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                      >
+                        <Plus className="w-6 h-6 text-gray-400 mb-1" />
+                        <span className="text-[10px] font-medium text-gray-600">Añadir Fotos</span>
+                      </label>
                     </div>
-                    <input
-                      type="range"
-                      name="estadoCarcasa"
-                      min="1" max="10" step="1"
-                      value={formData.estadoCarcasa}
-                      onChange={handleSliderChange}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                    />
+
+                    {imageFiles.length > 0 && (
+                      <p className="text-[10px] text-gray-500 italic">
+                        {imageFiles.length} foto{imageFiles.length !== 1 ? 's' : ''} seleccionada{imageFiles.length !== 1 ? 's' : ''}.
+                      </p>
+                    )}
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="md:col-span-2 space-y-6">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="font-semibold text-gray-900 mb-4">Estado Visual</h3>
 
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <h3 className="font-semibold text-gray-900 mb-4">Información General</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                    <select
-                      name="tipo"
-                      value={formData.tipo}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    >
-                      <option value="RAM">RAM</option>
-                      <option value="SSD">SSD</option>
-                      <option value="Bateria">Batería</option>
-                      <option value="Teclado">Teclado</option>
-                      <option value="Mouse">Mouse</option>
-                      <option value="OTROS">OTROS</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                    <input
-                      type="text" name="nombre" required
-                      value={formData.nombre} onChange={handleChange}
-                      placeholder="Ej. Memoria RAM DDR4"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
-                    <input
-                      type="text" name="marca"
-                      value={formData.marca} onChange={handleChange}
-                      placeholder="Ej. Kingston"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Precio Venta Catálogo ($USD)</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span className="text-gray-500 sm:text-sm">$</span>
+                  <div className="space-y-6">
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <label className="font-medium text-gray-700">Estado Visual</label>
+                        <span className="font-bold text-gray-900">{formData.estadoPantalla}/10</span>
                       </div>
                       <input
-                        type="number" name="precio" required min="0"
-                        value={formData.precio} onChange={handleChange}
-                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        type="range"
+                        name="estadoPantalla"
+                        min="1" max="10" step="1"
+                        value={formData.estadoPantalla}
+                        onChange={handleSliderChange}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <label className="font-medium text-gray-700">Estado Funcional</label>
+                        <span className="font-bold text-gray-900">{formData.estadoCarcasa}/10</span>
+                      </div>
+                      <input
+                        type="range"
+                        name="estadoCarcasa"
+                        min="1" max="10" step="1"
+                        value={formData.estadoCarcasa}
+                        onChange={handleSliderChange}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unidades Disponibles</label>
-                    <input
-                      type="number" name="unidades" min="0"
-                      value={formData.unidades} onChange={handleChange}
-                      placeholder="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Disponibilidad</label>
-                    <select
-                      name="disponibilidad" value={formData.disponibilidad} onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-medium"
-                    >
-                      <option value="Disponible">Disponible</option>
-                      <option value="Coming soon">Coming soon (Próximamente)</option>
-                      <option value="No disponible">No disponible</option>
-                    </select>
-                  </div>
-
-                  <div className="sm:col-span-2 bg-amber-50/60 p-3.5 rounded-xl border border-amber-200">
-                    <label className="flex items-center gap-3 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        name="borrador"
-                        checked={formData.borrador}
-                        onChange={e => setFormData(prev => ({ ...prev, borrador: e.target.checked }))}
-                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                      />
-                      <div>
-                        <span className="text-sm font-bold text-amber-950">Guardar como Borrador</span>
-                        <p className="text-xs text-amber-800/80 mt-0.5">
-                          Si está marcado como borrador, <strong>no se publicará</strong> en la página de catálogo de componentes.
-                        </p>
-                      </div>
-                    </label>
-                  </div>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <h3 className="font-semibold text-gray-900 mb-4">Especificaciones por Tipo</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="md:col-span-2 space-y-6">
 
-                  {formData.tipo === 'RAM' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Generación</label>
-                        <select
-                          name="generacion"
-                          value={formData.generacion} onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        >
-                          <option value="" disabled>Seleccionar...</option>
-                          <option value="DDR3">DDR3</option>
-                          <option value="DDR4">DDR4</option>
-                          <option value="DDR5">DDR5</option>
-                          <option value="LPDDR4">LPDDR4</option>
-                          <option value="LPDDR5">LPDDR5</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Velocidad</label>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="font-semibold text-gray-900 mb-4">Información General</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                      <select
+                        name="tipo"
+                        value={formData.tipo}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="RAM">RAM</option>
+                        <option value="SSD">SSD</option>
+                        <option value="Bateria">Batería</option>
+                        <option value="Teclado">Teclado</option>
+                        <option value="Mouse">Mouse</option>
+                        <option value="OTROS">OTROS</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                      <input
+                        type="text" name="nombre" required
+                        value={formData.nombre} onChange={handleChange}
+                        placeholder="Ej. Memoria RAM DDR4"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                      <input
+                        type="text" name="marca"
+                        value={formData.marca} onChange={handleChange}
+                        placeholder="Ej. Kingston"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Precio Venta Catálogo ($USD)</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <span className="text-gray-500 sm:text-sm">$</span>
+                        </div>
                         <input
-                          type="text" name="velocidad"
-                          value={formData.velocidad} onChange={handleChange}
-                          placeholder="Ej. 3200 MHz"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          type="number" name="precio" required min="0"
+                          value={formData.precio} onChange={handleChange}
+                          className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad</label>
-                        <select
-                          name="capacidad"
-                          value={formData.capacidad} onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        >
-                          <option value="" disabled>Seleccionar...</option>
-                          <option value="2 Gb">2 Gb</option>
-                          <option value="4 Gb">4 Gb</option>
-                          <option value="8 Gb">8 Gb</option>
-                          <option value="16 Gb">16 Gb</option>
-                          <option value="32 Gb">32 Gb</option>
-                          <option value="64 Gb">64 Gb</option>
-                        </select>
-                      </div>
-                    </>
-                  )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Unidades Disponibles</label>
+                      <input
+                        type="number" name="unidades" min="0"
+                        value={formData.unidades} onChange={handleChange}
+                        placeholder="0"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Disponibilidad</label>
+                      <select
+                        name="disponibilidad" value={formData.disponibilidad} onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                      >
+                        <option value="Disponible">Disponible</option>
+                        <option value="Coming soon">Coming soon (Próximamente)</option>
+                        <option value="No disponible">No disponible</option>
+                      </select>
+                    </div>
 
-                  {formData.tipo === 'SSD' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad</label>
-                        <select
-                          name="capacidad"
-                          value={formData.capacidad} onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        >
-                          <option value="" disabled>Seleccionar...</option>
-                          <option value="128 Gb">128 Gb</option>
-                          <option value="256 Gb">256 Gb</option>
-                          <option value="512 Gb">512 Gb</option>
-                          <option value="1 Tb">1 Tb</option>
-                          <option value="2 Tb">2 Tb</option>
-                          <option value="4 Tb">4 Tb</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Interfaz</label>
-                        <select
-                          name="interfaz"
-                          value={formData.interfaz} onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        >
-                          <option value="" disabled>Seleccionar...</option>
-                          <option value="SATA III">SATA III</option>
-                          <option value="NVMe">NVMe</option>
-                          <option value="PCIe 3.0">PCIe 3.0</option>
-                          <option value="PCIe 4.0">PCIe 4.0</option>
-                          <option value="USB 3.0">USB 3.0</option>
-                          <option value="USB 3.1">USB 3.1</option>
-                          <option value="M.2">M.2</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de SSD</label>
-                        <select
-                          name="tipo_ssd"
-                          value={formData.tipo_ssd} onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        >
-                          <option value="" disabled>Seleccionar...</option>
-                          <option value="Interno">Interno</option>
-                          <option value="Externo">Externo</option>
-                          <option value="M.2 NVMe">M.2 NVMe</option>
-                          <option value="2.5&quot; SATA">2.5" SATA</option>
-                          <option value="M.2 SATA">M.2 SATA</option>
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  {formData.tipo === 'Bateria' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad</label>
+                    <div className="sm:col-span-2 bg-amber-50/60 p-3.5 rounded-xl border border-amber-200">
+                      <label className="flex items-center gap-3 cursor-pointer select-none">
                         <input
-                          type="text" name="capacidad_bateria"
-                          value={formData.capacidad_bateria} onChange={handleChange}
-                          placeholder="Ej. 4000 mAh"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          type="checkbox"
+                          name="borrador"
+                          checked={formData.borrador}
+                          onChange={e => setFormData(prev => ({ ...prev, borrador: e.target.checked }))}
+                          className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
                         />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Ciclos de Carga</label>
-                        <input
-                          type="text" name="ciclo"
-                          value={formData.ciclo} onChange={handleChange}
-                          placeholder="Ej. 300 ciclos"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        />
-                      </div>
-                    </>
-                  )}
+                        <div>
+                          <span className="text-sm font-bold text-amber-950">Guardar como Borrador</span>
+                          <p className="text-xs text-amber-800/80 mt-0.5">
+                            Si está marcado como borrador, <strong>no se publicará</strong> en la página de catálogo de componentes.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
 
-                  {(formData.tipo === 'Teclado' || formData.tipo === 'Mouse') && (
-                    <>
-                      <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Conexión</label>
-                        <select
-                          name="bluetooth"
-                          value={formData.bluetooth} onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        >
-                          <option value="" disabled>Seleccionar...</option>
-                          <option value="USB">USB (Cable)</option>
-                          <option value="Bluetooth">Bluetooth</option>
-                          <option value="USB + Bluetooth">USB + Bluetooth</option>
-                          <option value="2.4 GHz">Inalámbrico 2.4 GHz</option>
-                        </select>
-                      </div>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="font-semibold text-gray-900 mb-4">Especificaciones por Tipo</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                    {formData.tipo === 'RAM' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Generación</label>
+                          <select
+                            name="generacion"
+                            value={formData.generacion} onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="" disabled>Seleccionar...</option>
+                            <option value="DDR3">DDR3</option>
+                            <option value="DDR4">DDR4</option>
+                            <option value="DDR5">DDR5</option>
+                            <option value="LPDDR4">LPDDR4</option>
+                            <option value="LPDDR5">LPDDR5</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Velocidad</label>
+                          <input
+                            type="text" name="velocidad"
+                            value={formData.velocidad} onChange={handleChange}
+                            placeholder="Ej. 3200 MHz"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad</label>
+                          <select
+                            name="capacidad"
+                            value={formData.capacidad} onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="" disabled>Seleccionar...</option>
+                            <option value="2 Gb">2 Gb</option>
+                            <option value="4 Gb">4 Gb</option>
+                            <option value="8 Gb">8 Gb</option>
+                            <option value="16 Gb">16 Gb</option>
+                            <option value="32 Gb">32 Gb</option>
+                            <option value="64 Gb">64 Gb</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {formData.tipo === 'SSD' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad</label>
+                          <select
+                            name="capacidad"
+                            value={formData.capacidad} onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="" disabled>Seleccionar...</option>
+                            <option value="128 Gb">128 Gb</option>
+                            <option value="256 Gb">256 Gb</option>
+                            <option value="512 Gb">512 Gb</option>
+                            <option value="1 Tb">1 Tb</option>
+                            <option value="2 Tb">2 Tb</option>
+                            <option value="4 Tb">4 Tb</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Interfaz</label>
+                          <select
+                            name="interfaz"
+                            value={formData.interfaz} onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="" disabled>Seleccionar...</option>
+                            <option value="SATA III">SATA III</option>
+                            <option value="NVMe">NVMe</option>
+                            <option value="PCIe 3.0">PCIe 3.0</option>
+                            <option value="PCIe 4.0">PCIe 4.0</option>
+                            <option value="USB 3.0">USB 3.0</option>
+                            <option value="USB 3.1">USB 3.1</option>
+                            <option value="M.2">M.2</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de SSD</label>
+                          <select
+                            name="tipo_ssd"
+                            value={formData.tipo_ssd} onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="" disabled>Seleccionar...</option>
+                            <option value="Interno">Interno</option>
+                            <option value="Externo">Externo</option>
+                            <option value="M.2 NVMe">M.2 NVMe</option>
+                            <option value="2.5&quot; SATA">2.5" SATA</option>
+                            <option value="M.2 SATA">M.2 SATA</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {formData.tipo === 'Bateria' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad</label>
+                          <input
+                            type="text" name="capacidad_bateria"
+                            value={formData.capacidad_bateria} onChange={handleChange}
+                            placeholder="Ej. 4000 mAh"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Ciclos de Carga</label>
+                          <input
+                            type="text" name="ciclo"
+                            value={formData.ciclo} onChange={handleChange}
+                            placeholder="Ej. 300 ciclos"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {(formData.tipo === 'Teclado' || formData.tipo === 'Mouse') && (
+                      <>
+                        <div className="sm:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Conexión</label>
+                          <select
+                            name="bluetooth"
+                            value={formData.bluetooth} onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="" disabled>Seleccionar...</option>
+                            <option value="USB">USB (Cable)</option>
+                            <option value="Bluetooth">Bluetooth</option>
+                            <option value="USB + Bluetooth">USB + Bluetooth</option>
+                            <option value="2.4 GHz">Inalámbrico 2.4 GHz</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                          <textarea
+                            name="descripcion_personalizada"
+                            value={formData.descripcion_personalizada} onChange={handleChange}
+                            placeholder="Ej: Teclado mecánico RGB, Mouse ergonómico..."
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {formData.tipo === 'OTROS' && (
                       <div className="sm:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                         <textarea
-                          name="descripcion_personalizada"
-                          value={formData.descripcion_personalizada} onChange={handleChange}
-                          placeholder="Ej: Teclado mecánico RGB, Mouse ergonómico..."
-                          rows={3}
+                          name="descripcion"
+                          value={formData.descripcion}
+                          onChange={handleChange}
+                          placeholder="Describe aquí las características o especificaciones del componente..."
+                          rows={4}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
                         />
                       </div>
-                    </>
-                  )}
+                    )}
 
-                  {formData.tipo === 'OTROS' && (
                     <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Otros Detalles</label>
                       <textarea
-                        name="descripcion"
-                        value={formData.descripcion}
+                        name="otros"
+                        value={formData.otros}
                         onChange={handleChange}
-                        placeholder="Describe aquí las características o especificaciones del componente..."
-                        rows={4}
+                        placeholder="Información adicional del componente..."
+                        rows={3}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
                       />
                     </div>
-                  )}
+                  </div>
+                </div>
 
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Otros Detalles</label>
+                {/* Sección de Costos y Finanzas de Compra */}
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-emerald-500" />
+                    Datos de Compra y Métodos de Pago
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Compra</label>
+                      <input
+                        type="date"
+                        name="fecha_compra"
+                        value={formData.fecha_compra}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Costo de Compra Total (USD)</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="costo_compra"
+                          min="0"
+                          value={formData.costo_compra !== '' ? formData.costo_compra : (sumaPagosMonto > 0 ? sumaPagosMonto : '')}
+                          onChange={handleChange}
+                          placeholder={sumaPagosMonto > 0 ? sumaPagosMonto.toFixed(2) : "0.00"}
+                          className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-semibold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Desglose de Métodos de Pago de Compra */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Desglose de Pago de Compra (Bancos y Comisiones)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddPago}
+                        className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Agregar Método de Pago
+                      </button>
+                    </div>
+
+                    {pagosCompra.map((pago, idx) => {
+                      const montoNum = parseFloat(pago.monto) || 0;
+                      const comisionMonto = montoNum * ((pago.comisionPct || 0) / 100);
+                      return (
+                        <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white p-2.5 rounded-lg border border-gray-200">
+                          <div className="flex-1">
+                            <select
+                              value={pago.metodoId}
+                              onChange={e => handlePagoChange(idx, 'metodoId', e.target.value)}
+                              className="w-full px-2.5 py-1.5 border border-gray-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 font-medium"
+                            >
+                              {cuentasBS.length > 0 && (
+                                <optgroup label="── Cuentas en Bolívares (BS) ──">
+                                  {cuentasBS.map(c => (
+                                    <option key={c.key} value={c.key}>
+                                      {c.label} ({c.moneda})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {cuentasUSD.length > 0 && (
+                                <optgroup label="── Cuentas en Dólares (USD) ──">
+                                  {cuentasUSD.map(c => (
+                                    <option key={c.key} value={c.key}>
+                                      {c.label} ({c.moneda})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {cuentasBS.length === 0 && cuentasUSD.length === 0 && todasCuentas.map(c => (
+                                <option key={c.key} value={c.key}>
+                                  {c.label} ({c.moneda})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="relative w-full sm:w-36">
+                            <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">$</span>
+                            <input
+                              type="number" step="0.01" min="0" placeholder="Monto"
+                              value={pago.monto}
+                              onChange={e => handlePagoChange(idx, 'monto', e.target.value)}
+                              className="w-full pl-6 pr-2 py-1.5 border border-gray-300 rounded text-sm font-semibold focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div className="w-full sm:w-36 text-xs text-gray-500 flex items-center justify-between sm:justify-end gap-1 px-1">
+                            <span>Comisión ({pago.comisionPct}%):</span>
+                            <span className="font-bold text-gray-700">+${comisionMonto.toFixed(2)}</span>
+                          </div>
+
+                          {pagosCompra.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePago(idx)}
+                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-200 text-xs text-slate-600">
+                      <span>Suma Pagos: <strong className="text-slate-900">${sumaPagosMonto.toFixed(2)}</strong></span>
+                      <span>Total Comisiones: <strong className="text-amber-600">+${totalComisiones.toFixed(2)}</strong></span>
+                      <span className="font-bold text-slate-800 text-sm">Costo + Comisión: ${costoTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Observaciones de la compra */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Observaciones de Compra
+                      <span className="text-xs font-normal text-gray-400 ml-2">(interno — ej. lote, proveedor, tienda)</span>
+                    </label>
                     <textarea
-                      name="otros"
-                      value={formData.otros}
+                      name="observaciones_compra"
+                      value={formData.observaciones_compra}
                       onChange={handleChange}
-                      placeholder="Información adicional del componente..."
-                      rows={3}
+                      placeholder='Ej. "Comprado por paquete de 5 unidades en eBay / Amazon..."'
+                      rows={2}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
                     />
                   </div>
-                </div>
-              </div>
 
-              {/* Sección de Costos y Finanzas de Compra */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-emerald-500" />
-                  Datos de Compra y Métodos de Pago
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Compra</label>
-                    <input
-                      type="date"
-                      name="fecha_compra"
-                      value={formData.fecha_compra}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Costo de Compra Total (USD)</label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        name="costo_compra"
-                        min="0"
-                        value={formData.costo_compra !== '' ? formData.costo_compra : (sumaPagosMonto > 0 ? sumaPagosMonto : '')}
-                        onChange={handleChange}
-                        placeholder={sumaPagosMonto > 0 ? sumaPagosMonto.toFixed(2) : "0.00"}
-                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-semibold"
-                      />
+                  {/* Resumen de Costos y Ganancia */}
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-blue-50 rounded-lg p-3.5 border border-blue-100">
+                      <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Costo Total Compra</p>
+                      <p className="text-xl font-black text-blue-800">${costoTotal.toFixed(2)}</p>
+                      <p className="text-[10px] text-blue-500 mt-0.5">Costo base + Comisiones</p>
                     </div>
-                  </div>
-                </div>
 
-                {/* Desglose de Métodos de Pago de Compra */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                      Desglose de Pago de Compra (Bancos y Comisiones)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleAddPago}
-                      className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Agregar Método de Pago
-                    </button>
-                  </div>
+                    <div className="bg-purple-50 rounded-lg p-3.5 border border-purple-100">
+                      <p className="text-xs font-bold text-purple-600 uppercase tracking-wider mb-1">Precio Venta Catálogo</p>
+                      <p className="text-xl font-black text-purple-800">${precioVenta.toFixed(2)}</p>
+                      <p className="text-[10px] text-purple-500 mt-0.5">Precio al público</p>
+                    </div>
 
-                  {pagosCompra.map((pago, idx) => {
-                    const montoNum = parseFloat(pago.monto) || 0;
-                    const comisionMonto = montoNum * ((pago.comisionPct || 0) / 100);
-                    return (
-                      <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white p-2.5 rounded-lg border border-gray-200">
-                        <div className="flex-1">
-                          <select
-                            value={pago.metodoId}
-                            onChange={e => handlePagoChange(idx, 'metodoId', e.target.value)}
-                            className="w-full px-2.5 py-1.5 border border-gray-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 font-medium"
-                          >
-                            {cuentasBS.length > 0 && (
-                              <optgroup label="── Cuentas en Bolívares (BS) ──">
-                                {cuentasBS.map(c => (
-                                  <option key={c.key} value={c.key}>
-                                    {c.label} ({c.moneda})
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {cuentasUSD.length > 0 && (
-                              <optgroup label="── Cuentas en Dólares (USD) ──">
-                                {cuentasUSD.map(c => (
-                                  <option key={c.key} value={c.key}>
-                                    {c.label} ({c.moneda})
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {cuentasBS.length === 0 && cuentasUSD.length === 0 && todasCuentas.map(c => (
-                              <option key={c.key} value={c.key}>
-                                {c.label} ({c.moneda})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="relative w-full sm:w-36">
-                          <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">$</span>
-                          <input
-                            type="number" step="0.01" min="0" placeholder="Monto"
-                            value={pago.monto}
-                            onChange={e => handlePagoChange(idx, 'monto', e.target.value)}
-                            className="w-full pl-6 pr-2 py-1.5 border border-gray-300 rounded text-sm font-semibold focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div className="w-full sm:w-36 text-xs text-gray-500 flex items-center justify-between sm:justify-end gap-1 px-1">
-                          <span>Comisión ({pago.comisionPct}%):</span>
-                          <span className="font-bold text-gray-700">+${comisionMonto.toFixed(2)}</span>
-                        </div>
-
-                        {pagosCompra.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePago(idx)}
-                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-200 text-xs text-slate-600">
-                    <span>Suma Pagos: <strong className="text-slate-900">${sumaPagosMonto.toFixed(2)}</strong></span>
-                    <span>Total Comisiones: <strong className="text-amber-600">+${totalComisiones.toFixed(2)}</strong></span>
-                    <span className="font-bold text-slate-800 text-sm">Costo + Comisión: ${costoTotal.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Observaciones de la compra */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Observaciones de Compra
-                    <span className="text-xs font-normal text-gray-400 ml-2">(interno — ej. lote, proveedor, tienda)</span>
-                  </label>
-                  <textarea
-                    name="observaciones_compra"
-                    value={formData.observaciones_compra}
-                    onChange={handleChange}
-                    placeholder='Ej. "Comprado por paquete de 5 unidades en eBay / Amazon..."'
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
-                  />
-                </div>
-
-                {/* Resumen de Costos y Ganancia */}
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="bg-blue-50 rounded-lg p-3.5 border border-blue-100">
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Costo Total Compra</p>
-                    <p className="text-xl font-black text-blue-800">${costoTotal.toFixed(2)}</p>
-                    <p className="text-[10px] text-blue-500 mt-0.5">Costo base + Comisiones</p>
-                  </div>
-
-                  <div className="bg-purple-50 rounded-lg p-3.5 border border-purple-100">
-                    <p className="text-xs font-bold text-purple-600 uppercase tracking-wider mb-1">Precio Venta Catálogo</p>
-                    <p className="text-xl font-black text-purple-800">${precioVenta.toFixed(2)}</p>
-                    <p className="text-[10px] text-purple-500 mt-0.5">Precio al público</p>
-                  </div>
-
-                  <div className={`${gananciaEstimada >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'} rounded-lg p-3.5 border`}>
-                    <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${gananciaEstimada >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      Ganancia Estimada
-                    </p>
-                    <p className={`text-xl font-black ${gananciaEstimada >= 0 ? 'text-emerald-800' : 'text-red-800'}`}>
-                      ${gananciaEstimada.toFixed(2)}
-                    </p>
-                    <p className={`text-[10px] mt-0.5 ${gananciaEstimada >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      Precio Venta − Costo
-                    </p>
+                    <div className={`${gananciaEstimada >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'} rounded-lg p-3.5 border`}>
+                      <p className={`text-xs font-bold uppercase tracking-wider mb-1 ${gananciaEstimada >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        Ganancia Estimada
+                      </p>
+                      <p className={`text-xl font-black ${gananciaEstimada >= 0 ? 'text-emerald-800' : 'text-red-800'}`}>
+                        ${gananciaEstimada.toFixed(2)}
+                      </p>
+                      <p className={`text-[10px] mt-0.5 ${gananciaEstimada >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                        Precio Venta − Costo
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex justify-end pt-4 gap-3">
-            <Link
-              to="/admin/components"
-              className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </Link>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 min-w-[180px] disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-500/20"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-sm">{uploadProgress || 'Procesando...'}</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Guardar Componente
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+            <div className="flex justify-end pt-4 gap-3">
+              <Link
+                to="/admin/components"
+                className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </Link>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 min-w-[180px] disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-500/20"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">{uploadProgress || 'Procesando...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Guardar Componente
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </>
       )}
     </div>

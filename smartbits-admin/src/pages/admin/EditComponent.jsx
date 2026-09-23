@@ -60,7 +60,8 @@ export default function EditComponent() {
 
         if (compSnap.exists()) {
           const data = compSnap.data();
-          const imgs = data.imagenes || (data.imagen ? [data.imagen] : []);
+          const imgs = (data.imagenes || (data.imagen ? [data.imagen] : []))
+            .filter(img => img && !img.includes('default-') && !img.includes('Components.png'));
           setFormData({
             tipo: data.tipo || 'RAM',
             nombre: data.nombre || '',
@@ -72,7 +73,7 @@ export default function EditComponent() {
             estadoPantalla: data.estado?.pantalla ?? 10,
             estadoCarcasa: data.estado?.carcasa ?? 9,
             otros: data.otros || '',
-            borrador: Boolean(data.borrador),
+            borrador: data.borrador === true || data.borrador === 'true',
             fecha_compra: data.fecha_compra || '',
             costo_compra: data.costo_compra !== undefined ? String(data.costo_compra) : (data.costo_total !== undefined ? String(data.costo_total) : ''),
             observaciones_compra: data.observaciones_compra || '',
