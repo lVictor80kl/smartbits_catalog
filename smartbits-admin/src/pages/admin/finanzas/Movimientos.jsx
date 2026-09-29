@@ -617,6 +617,27 @@ export default function Movimientos() {
           } catch (syncErr) {
             console.error('Error sincronizando laptop tras borrado:', syncErr);
           }
+        } else if (item.componente_id) {
+          try {
+            const compRef = doc(db, 'componentes', item.componente_id);
+            const compSnap = await getDoc(compRef);
+            if (compSnap.exists()) {
+              const compData = compSnap.data();
+              const restantes = (Array.isArray(compData.gastos_extra) ? compData.gastos_extra : [])
+                .filter(g => g.movimiento_id !== item.id);
+              const totalExtraNuevo = restantes.reduce((acc, g) => acc + (Number(g.monto_usd) || 0), 0);
+              const nuevoCostoTotal = getCostoBaseConComision(compData) + totalExtraNuevo + getLegadosExtrasUsd(compData);
+              await updateDoc(compRef, {
+                gastos_extra: restantes,
+                gastos_extra_total_usd: totalExtraNuevo,
+                costo_total: Math.round(nuevoCostoTotal * 100) / 100,
+                ganancia_estimada: Math.round(((Number(compData.precio) || 0) - nuevoCostoTotal) * 100) / 100,
+                updated_at: serverTimestamp(),
+              });
+            }
+          } catch (syncErr) {
+            console.error('Error sincronizando componente tras borrado:', syncErr);
+          }
         }
       } else if (item.tipo_mov === 'venta') {
         if (item.metodo_pago && (item.monto || item.monto_original)) {

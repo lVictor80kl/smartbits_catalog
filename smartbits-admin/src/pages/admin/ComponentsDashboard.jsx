@@ -9,6 +9,7 @@ import {
 import { Link } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
 import OfertaModal from '../../components/OfertaModal';
+import { tieneEnvioPagado, tienePagoExtra } from '../../utils/costos';
 
 export default function ComponentsDashboard() {
   const [components, setComponents] = useState([]);
@@ -26,6 +27,7 @@ export default function ComponentsDashboard() {
   // Modales y menús
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
   const [gastosModalComponent, setGastosModalComponent] = useState(null);
+  const [bulkGastosModalOpen, setBulkGastosModalOpen] = useState(false);
   const [modalOferta, setModalOferta] = useState({ open: false, item: null });
   const [activeMenu, setActiveMenu] = useState(null);
 
@@ -389,7 +391,7 @@ export default function ComponentsDashboard() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoBadgeColors[comp.tipo] || 'bg-gray-100 text-gray-700'}`}>
                               {comp.tipo}
                             </span>
@@ -397,6 +399,24 @@ export default function ComponentsDashboard() {
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-orange-100 text-orange-800 border border-orange-300 uppercase tracking-wider">
                                 <Flame className="w-2.5 h-2.5 text-orange-600 fill-orange-500" />
                                 {comp.etiqueta_oferta?.trim() || 'Oferta'}
+                              </span>
+                            )}
+                            {tieneEnvioPagado(comp) && (
+                              <span
+                                className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-1"
+                                title="Envío pagado y registrado"
+                              >
+                                <Banknote className="w-3 h-3" />
+                                Envío
+                              </span>
+                            )}
+                            {tienePagoExtra(comp) && (
+                              <span
+                                className="text-[10px] font-bold text-blue-800 bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-1"
+                                title="Gasto extra registrado"
+                              >
+                                <Banknote className="w-3 h-3" />
+                                Extra
                               </span>
                             )}
                           </div>
@@ -514,6 +534,15 @@ export default function ComponentsDashboard() {
 
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
+              onClick={() => setBulkGastosModalOpen(true)}
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+              title="Agregar gastos de envío o extras a los seleccionados"
+            >
+              <Banknote className="w-3.5 h-3.5" />
+              <span>Extras</span>
+            </button>
+
+            <button
               onClick={() => handleDuplicateComponents(selectedIds)}
               disabled={duplicatingId !== null}
               className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
@@ -547,11 +576,18 @@ export default function ComponentsDashboard() {
       )}
 
       {/* 5. Modal de Gastos Adicionales / Envío Reutilizado */}
-      {gastosModalComponent && (
+      {(gastosModalComponent || bulkGastosModalOpen) && (
         <GastosAdicionalesModal
-          item={components.find(c => c.id === gastosModalComponent.id) || gastosModalComponent}
+          items={bulkGastosModalOpen ? components.filter(c => selectedIds.includes(c.id)) : undefined}
+          item={!bulkGastosModalOpen ? (components.find(c => c.id === gastosModalComponent?.id) || gastosModalComponent) : undefined}
           collectionName="componentes"
-          onClose={() => setGastosModalComponent(null)}
+          onClose={() => {
+            setGastosModalComponent(null);
+            setBulkGastosModalOpen(false);
+          }}
+          onSuccess={() => {
+            setSelectedIds([]);
+          }}
         />
       )}
 

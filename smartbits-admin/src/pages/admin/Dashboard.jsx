@@ -43,6 +43,7 @@ export default function Dashboard() {
   // Modales
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
   const [gastosModalLaptop, setGastosModalLaptop] = useState(null);
+  const [bulkGastosModalOpen, setBulkGastosModalOpen] = useState(false);
   const [modalOferta, setModalOferta] = useState({ 
     open: false, laptop: null, en_oferta: false, precio_oferta: '', etiqueta_oferta: '', saving: false 
   });
@@ -1133,6 +1134,11 @@ export default function Dashboard() {
                             Envío
                           </span>
                         )}
+                        {tienePagoExtra(laptop) && (
+                          <span className="text-[9px] font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded">
+                            Extra
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1454,11 +1460,18 @@ export default function Dashboard() {
                   <div>
                     <div className="flex items-center justify-between text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">
                       <span>{laptop.marca || 'Genérica'}</span>
-                      {tieneEnvioPagado(laptop) && (
-                        <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[9px] font-bold">
-                          Envío Pagado
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {tieneEnvioPagado(laptop) && (
+                          <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[9px] font-bold">
+                            Envío
+                          </span>
+                        )}
+                        {tienePagoExtra(laptop) && (
+                          <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-[9px] font-bold">
+                            Extra
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <h4 className="font-bold text-gray-900 text-sm line-clamp-1 group-hover:text-brand-700 transition-colors" title={laptop.modelo}>
                       {laptop.modelo}
@@ -1537,6 +1550,15 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
+              onClick={() => setBulkGastosModalOpen(true)}
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+              title="Agregar gastos de envío o extras a los seleccionados"
+            >
+              <Banknote className="w-3.5 h-3.5" />
+              <span>Extras</span>
+            </button>
+
+            <button
               onClick={() => handleDuplicateLaptops(selectedIds)}
               disabled={duplicatingId !== null}
               className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
@@ -1570,10 +1592,18 @@ export default function Dashboard() {
       )}
 
       {/* 6. Modal de Gastos Adicionales / Envíos */}
-      {gastosModalLaptop && (
+      {(gastosModalLaptop || bulkGastosModalOpen) && (
         <GastosAdicionalesModal
-          laptop={laptops.find(l => l.id === gastosModalLaptop.id) || gastosModalLaptop}
-          onClose={() => setGastosModalLaptop(null)}
+          items={bulkGastosModalOpen ? laptops.filter(l => selectedIds.includes(l.id)) : undefined}
+          laptop={!bulkGastosModalOpen ? (laptops.find(l => l.id === gastosModalLaptop?.id) || gastosModalLaptop) : undefined}
+          collectionName="laptops"
+          onClose={() => {
+            setGastosModalLaptop(null);
+            setBulkGastosModalOpen(false);
+          }}
+          onSuccess={() => {
+            setSelectedIds([]);
+          }}
         />
       )}
 
