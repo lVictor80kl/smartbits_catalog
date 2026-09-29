@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CUENTAS_FIJAS, parseDecimalInput } from '../../../utils/useCuentasCaja';
+import TasasCambioModal from '../../../components/TasasCambioModal';
+import TasasChipsSelector from '../../../components/TasasChipsSelector';
 
 
 export default function PanelPrincipal({ onNavigateTab }) {
@@ -152,6 +154,21 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
   // --- CÁLCULOS MATEMÁTICOS POST-CORTE ---
   const tasaCambio = Number(caja.tasa_cambio) || Number(corte?.tasa_cambio_corte) || 1;
+  const tasaActivaKey = caja.tasas?.tasa_predeterminada || 'binance_usdt';
+  const getTasaActivaBadge = () => {
+    switch (tasaActivaKey) {
+      case 'bcv_eur':
+        return { label: 'Euro', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+      case 'bcv_usd':
+        return { label: 'Dólar', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+      case 'custom':
+        return { label: 'Custom', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+      case 'binance_usdt':
+      default:
+        return { label: 'Binance', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+    }
+  };
+  const tasaBadge = getTasaActivaBadge();
 
   // Cuenta/moneda seleccionada para el gasto operativo
   const cuentaGasto = todasCuentas.find(c => c.key === modalGasto.metodo_pago);
@@ -911,14 +928,17 @@ export default function PanelPrincipal({ onNavigateTab }) {
             <h3 className="font-bold text-slate-800 text-base">Saldos de Caja por Cuenta</h3>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Tasa de cambio interactiva */}
+            {/* Tasa de cambio interactiva con badge de fuente activa */}
             <button
               onClick={() => setModalTasa({ open: true, nuevaTasa: tasaCambio.toString(), saving: false })}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors border border-slate-200"
-              title="Click para cambiar la tasa de cambio global"
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all border border-slate-200 hover:border-slate-300 shadow-2xs active:scale-95 cursor-pointer"
+              title="Click para ver y cambiar tasas (BCV, Binance, Custom)"
             >
               <Edit3 className="w-3.5 h-3.5 text-brand-600" />
               <span>Tasa: <strong className="text-slate-900 font-black">Bs {tasaCambio.toFixed(2)}</strong>/$</span>
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shadow-2xs ${tasaBadge.color}`}>
+                {tasaBadge.label}
+              </span>
             </button>
 
             {/* Botón Añadir Cuenta */}
@@ -1250,6 +1270,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
                       Usar guardada (Bs {tasaCambio.toFixed(2)})
                     </button>
                   </div>
+                  <TasasChipsSelector 
+                    valorActual={modalGasto.tasa} 
+                    onSeleccionar={(t) => setModalGasto(p => ({ ...p, tasa: t.toString() }))} 
+                  />
                 </div>
               )}
 
@@ -1374,6 +1398,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
                       Usar guardada (Bs {tasaCambio.toFixed(2)})
                     </button>
                   </div>
+                  <TasasChipsSelector 
+                    valorActual={modalVenta.tasa} 
+                    onSeleccionar={(t) => setModalVenta(p => ({ ...p, tasa: t.toString() }))} 
+                  />
                 </div>
               )}
 
@@ -1485,6 +1513,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
                       Usar guardada (Bs {tasaCambio.toFixed(2)})
                     </button>
                   </div>
+                  <TasasChipsSelector 
+                    valorActual={modalRetiro.tasa} 
+                    onSeleccionar={(t) => setModalRetiro(p => ({ ...p, tasa: t.toString() }))} 
+                  />
                 </div>
               )}
 
@@ -1608,6 +1640,10 @@ export default function PanelPrincipal({ onNavigateTab }) {
                       Usar guardada (Bs {tasaCambio.toFixed(2)})
                     </button>
                   </div>
+                  <TasasChipsSelector 
+                    valorActual={modalAporte.tasa} 
+                    onSeleccionar={(t) => setModalAporte(p => ({ ...p, tasa: t.toString() }))} 
+                  />
                 </div>
               )}
 
@@ -1750,6 +1786,18 @@ export default function PanelPrincipal({ onNavigateTab }) {
                       Usar guardada (Bs {tasaCambio.toFixed(2)})
                     </button>
                   </div>
+                  <TasasChipsSelector 
+                    valorActual={modalTransfer.tasa_cambio} 
+                    onSeleccionar={(t) => {
+                      setModalTransfer(p => {
+                        const up = { ...p, tasa_cambio: t.toString() };
+                        if (up.monto_origen) {
+                          up.monto_destino = syncDestinoDesdeTasa(up, up.monto_origen, t.toString());
+                        }
+                        return up;
+                      });
+                    }} 
+                  />
                 </div>
               )}
 
@@ -1880,62 +1928,11 @@ export default function PanelPrincipal({ onNavigateTab }) {
         </div>
       )}
 
-      {/* MODAL: CAMBIAR TASA DE CAMBIO GLOBAL */}
-      {modalTasa.open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-              <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center text-brand-600">
-                <Edit3 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Tasa de Cambio Global</h3>
-                <p className="text-xs text-slate-500">Convierte las cuentas en Bolívares a USD</p>
-              </div>
-            </div>
-
-            <form onSubmit={handleGuardarTasa} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nueva Tasa Referencial (Bs / USD) *</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">Bs</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={modalTasa.nuevaTasa}
-                    onChange={e => setModalTasa(p => ({ ...p, nuevaTasa: e.target.value }))}
-                    className="w-full pl-9 pr-3 py-2.5 border border-brand-300 rounded-lg text-lg font-black text-slate-900 focus:ring-2 focus:ring-brand-500"
-                    required
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
-                Esta tasa se aplicará globalmente a toda la caja, reportes mensuales y conversiones en vivo de cuentas en Bolívares.
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setModalTasa(p => ({ ...p, open: false }))}
-                  className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalTasa.saving}
-                  className="flex-1 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs disabled:opacity-50"
-                >
-                  {modalTasa.saving ? 'Guardando...' : 'Guardar Tasa'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* MODAL: CAMBIAR TASA DE CAMBIO GLOBAL (BCV, BINANCE, CUSTOM) */}
+      <TasasCambioModal
+        isOpen={modalTasa.open}
+        onClose={() => setModalTasa(p => ({ ...p, open: false }))}
+      />
 
       {/* MODAL UNIFICADO: GESTIÓN DE CUENTA (ENGRANAJE) */}
       {modalGestionCuenta.open && (

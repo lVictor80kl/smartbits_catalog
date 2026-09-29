@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Download, Loader2, Plus, X, Check, Clock, Ban } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, Plus, X, Check, Clock, Ban, TrendingUp } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useCuentasCaja, parseDecimalInput } from '../../utils/useCuentasCaja';
+import TasasCambioModal from '../../components/TasasCambioModal';
+import TasasChipsSelector from '../../components/TasasChipsSelector';
 
 export default function DeliveryNote() {
   const { id } = useParams();
@@ -46,7 +48,24 @@ export default function DeliveryNote() {
     direccion: '',
   });
 
-  const { todasCuentas, tasaCambio } = useCuentasCaja();
+  const { todasCuentas, tasaCambio, tasas } = useCuentasCaja();
+  const [modalTasasOpen, setModalTasasOpen] = useState(false);
+
+  const tasaActivaKey = tasas?.tasa_predeterminada || 'binance_usdt';
+  const getTasaActivaBadge = () => {
+    switch (tasaActivaKey) {
+      case 'bcv_eur':
+        return { label: 'Euro', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+      case 'bcv_usd':
+        return { label: 'Dólar', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+      case 'custom':
+        return { label: 'Custom', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+      case 'binance_usdt':
+      default:
+        return { label: 'Binance', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+    }
+  };
+  const tasaBadge = getTasaActivaBadge();
 
   // Payment methods (dynamic with finance account key)
   const [pagos, setPagos] = useState([
@@ -657,9 +676,18 @@ export default function DeliveryNote() {
               Tasa de cambio (Bs por $) {tienePagosEnBs && <span className="text-red-600 font-bold">* Obligatoria para pagos en Bs</span>}
             </label>
             {tasaCambio > 0 && (
-              <span className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded font-semibold">
-                Tasa predeterminada Finanzas: {formatMonto(tasaCambio)} Bs/$
-              </span>
+              <button
+                type="button"
+                onClick={() => setModalTasasOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-amber-900 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-lg font-bold border border-amber-300 transition-all active:scale-95 cursor-pointer shadow-2xs"
+                title="Click para abrir el panel de tasas y cambiar la tasa activa"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-amber-800" />
+                <span>Tasa predeterminada Finanzas: {formatMonto(tasaCambio)} Bs/$</span>
+                <span className={`text-[10px] font-black uppercase px-1.5 py-0.2 rounded-full border ${tasaBadge.color}`}>
+                  {tasaBadge.label}
+                </span>
+              </button>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -681,12 +709,16 @@ export default function DeliveryNote() {
               <button
                 type="button"
                 onClick={() => setTasa(String(tasaCambio))}
-                className="text-xs text-amber-800 underline hover:text-amber-900 font-medium ml-2"
+                className="text-xs text-amber-800 underline hover:text-amber-900 font-medium ml-2 cursor-pointer"
               >
                 Usar tasa de Finanzas
               </button>
             )}
           </div>
+          <TasasChipsSelector 
+            valorActual={tasa} 
+            onSeleccionar={(t) => setTasa(String(t))} 
+          />
           {tasaRequeridaFaltante ? (
             <p className="text-xs text-red-600 font-semibold mt-1">
               ⚠️ Tienes métodos de pago en Bolívares. Es obligatorio indicar la tasa para calcular la conversión y actualizar la caja.
@@ -1003,6 +1035,12 @@ export default function DeliveryNote() {
           </div>
         </div>
       )}
+
+      {/* Modal para actualizar y cambiar tasas */}
+      <TasasCambioModal
+        isOpen={modalTasasOpen}
+        onClose={() => setModalTasasOpen(false)}
+      />
     </div>
   );
 }

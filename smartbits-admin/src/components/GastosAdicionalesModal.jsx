@@ -4,6 +4,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useCuentasCaja } from '../utils/useCuentasCaja';
+import TasasChipsSelector from './TasasChipsSelector';
 import {
   getGastosExtraItems, getGastosExtraTotal, getLegadosExtrasUsd, getCostoBaseConComision,
 } from '../utils/costos';
@@ -610,6 +611,10 @@ export default function GastosAdicionalesModal({
                       Guardada
                     </button>
                   </div>
+                  <TasasChipsSelector 
+                    valorActual={form.tasa} 
+                    onSeleccionar={(t) => setForm(p => ({ ...p, tasa: t.toString() }))} 
+                  />
                 </div>
               ) : (
                 <div className="flex items-end">

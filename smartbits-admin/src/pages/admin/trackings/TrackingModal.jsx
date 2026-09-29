@@ -13,6 +13,7 @@ import {
 } from '../../../utils/couriers';
 import { useCuentasCaja } from '../../../utils/useCuentasCaja';
 import { getGastosExtraItems, getCostoBaseConComision } from '../../../utils/costos';
+import TasasChipsSelector from '../../../components/TasasChipsSelector';
 
 export default function TrackingModal({ isOpen, onClose, trackingToEdit, initialData, onSaved }) {
   const { todasCuentas, cuentasBS = [], cuentasUSD = [], tasaCambio, loading: loadingCajas } = useCuentasCaja();
@@ -913,6 +914,10 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, initial
                         value={formData.flete_tasa || tasaCambio}
                         onChange={handleChange}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+                      />
+                      <TasasChipsSelector 
+                        valorActual={formData.flete_tasa || tasaCambio} 
+                        onSeleccionar={(t) => setFormData(p => ({ ...p, flete_tasa: t.toString() }))} 
                       />
                     </div>
                   )}

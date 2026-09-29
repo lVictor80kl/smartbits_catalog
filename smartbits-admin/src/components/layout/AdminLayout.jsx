@@ -5,8 +5,9 @@ import {
   Package, Wrench, DollarSign, Menu, X, ExternalLink, Truck, ShoppingBag 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { fetchTasasVenezolanas } from '../../services/tasasCambioService';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -15,6 +16,60 @@ export default function AdminLayout() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [pendientesEbay, setPendientesEbay] = useState(0);
+
+  // Auto-actualizar tasas de cambio en vivo cada vez que se abre el panel de administración
+  // (a no ser que esté seleccionada la tasa personalizada como activa)
+  useEffect(() => {
+    let cancel = false;
+
+    const autoSyncTasas = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'caja', 'saldos'));
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const tasasData = data.tasas || {};
+        const predeterminada = tasasData.tasa_predeterminada || 'binance_usdt';
+
+        // Si la tasa activa es la Personalizada (Custom), NO se sobreescribe
+        if (predeterminada === 'custom') {
+          console.log('[Tasas Admin] Tasa personalizada activa. Se omite actualización automática.');
+          return;
+        }
+
+        const res = await fetchTasasVenezolanas();
+        if (cancel) return;
+
+        const cleanTasas = {
+          bcv_usd: res.bcv_usd ?? tasasData.bcv_usd ?? null,
+          bcv_eur: res.bcv_eur ?? tasasData.bcv_eur ?? null,
+          binance_usdt: res.binance_usdt ?? tasasData.binance_usdt ?? null,
+          custom: tasasData.custom ?? null,
+          tasa_predeterminada: predeterminada,
+          updated_at: res.updated_at || new Date().toISOString(),
+          fuentes: res.fuentes || {}
+        };
+
+        const nuevaTasaEfectiva = cleanTasas[predeterminada];
+        const payload = {
+          tasas: cleanTasas,
+          updated_at: new Date()
+        };
+
+        if (nuevaTasaEfectiva && nuevaTasaEfectiva > 0) {
+          payload.tasa_cambio = nuevaTasaEfectiva;
+        }
+
+        await updateDoc(doc(db, 'caja', 'saldos'), payload);
+        console.log(`[Tasas Admin] Tasa ${predeterminada} actualizada automáticamente a: Bs ${nuevaTasaEfectiva}`);
+      } catch (err) {
+        console.warn('[Tasas Admin] No se pudo auto-actualizar tasas al iniciar:', err.message);
+      }
+    };
+
+    autoSyncTasas();
+
+    return () => { cancel = true; };
+  }, []);
 
   // Escuchar compras de eBay pendientes de inventario
   useEffect(() => {

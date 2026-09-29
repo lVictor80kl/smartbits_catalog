@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, updateDoc, addDoc, collection, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { Wallet, DollarSign, Plus, AlertTriangle, RefreshCw, Settings, X, Save, History, Landmark } from 'lucide-react';
+import { Wallet, DollarSign, Plus, AlertTriangle, RefreshCw, Settings, X, Save, History, Landmark, TrendingUp } from 'lucide-react';
 
 import { CUENTAS_FIJAS, parseDecimalInput } from '../../../utils/useCuentasCaja';
+import TasasCambioModal from '../../../components/TasasCambioModal';
 
 const EXCLUIR_KEYS = ['tasa_cambio', 'updated_at', 'caja_envios', 'ventas_no_asignadas', '_cuentas_dinamicas', '_nombres_personalizados'];
 
 export default function ResumenCaja() {
   const [saldos, setSaldos] = useState({});
   const [loading, setLoading] = useState(true);
+  const [modalTasasOpen, setModalTasasOpen] = useState(false);
 
   // Modal: Nueva Cuenta
   const [modalNueva, setModalNueva] = useState({ open: false, nombre: '', moneda: 'USD' });
@@ -35,6 +37,21 @@ export default function ResumenCaja() {
 
   // -------- Calculos --------
   const tasaCambio = Number(saldos.tasa_cambio) || 1;
+  const tasaActivaKey = saldos.tasas?.tasa_predeterminada || 'binance_usdt';
+  const getTasaActivaBadge = () => {
+    switch (tasaActivaKey) {
+      case 'bcv_eur':
+        return { label: 'Euro', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+      case 'bcv_usd':
+        return { label: 'Dólar', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+      case 'custom':
+        return { label: 'Custom', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+      case 'binance_usdt':
+      default:
+        return { label: 'Binance', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+    }
+  };
+  const tasaBadge = getTasaActivaBadge();
 
   const nombresCustom = saldos._nombres_personalizados || {};
   const cuentasFijasConNombres = CUENTAS_FIJAS.map(c => ({
@@ -176,16 +193,22 @@ export default function ResumenCaja() {
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
           <p className="text-amber-700 text-xs font-bold uppercase tracking-wider mb-1">Total Cuentas Bs (en USD)</p>
           <h2 className="text-2xl font-black text-amber-800">${totalBSenUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}</h2>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-xs text-amber-600">Tasa:</span>
-            <input
-              type="number"
-              defaultValue={saldos.tasa_cambio || ''}
-              onBlur={e => handleTasa(e.target.value)}
-              placeholder="Bs/USD"
-              className="w-24 px-2 py-1 border border-amber-200 rounded-lg text-sm font-bold text-amber-800 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-            <span className="text-xs text-amber-500">Bs/$</span>
+          <div className="flex flex-wrap items-center gap-2 mt-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-amber-800 font-bold">Tasa: Bs {tasaCambio.toFixed(2)}/$</span>
+              <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded-full border shadow-2xs ${tasaBadge.color}`}>
+                {tasaBadge.label}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalTasasOpen(true)}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-amber-200/80 hover:bg-amber-300 px-2.5 py-1 rounded-lg transition-colors border border-amber-300/60 shadow-xs cursor-pointer"
+              title="Consultar BCV Dólar, BCV Euro, Binance P2P y fijar tasa activa"
+            >
+              <TrendingUp className="w-3 h-3 text-amber-800" />
+              <span>Ver Tasas</span>
+            </button>
           </div>
         </div>
       </div>
@@ -376,6 +399,12 @@ export default function ResumenCaja() {
           </div>
         </div>
       )}
+
+      {/* Modal de Tasas de Cambio en Venezuela */}
+      <TasasCambioModal 
+        isOpen={modalTasasOpen} 
+        onClose={() => setModalTasasOpen(false)} 
+      />
 
     </div>
   );

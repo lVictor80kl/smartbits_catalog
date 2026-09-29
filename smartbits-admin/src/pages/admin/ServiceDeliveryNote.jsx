@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Download, Loader2, Plus, X } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, Plus, X, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCuentasCaja, parseDecimalInput } from '../../utils/useCuentasCaja';
+import TasasChipsSelector from '../../components/TasasChipsSelector';
+import TasasCambioModal from '../../components/TasasCambioModal';
 
 export default function ServiceDeliveryNote() {
   const noteRef = useRef(null);
@@ -36,7 +38,9 @@ export default function ServiceDeliveryNote() {
     direccion: '',
   });
 
-  const { todasCuentas, tasaCambio } = useCuentasCaja();
+  const { todasCuentas, tasaCambio, getTasaActivaBadge } = useCuentasCaja();
+  const [modalTasasOpen, setModalTasasOpen] = useState(false);
+  const tasaBadge = getTasaActivaBadge ? getTasaActivaBadge() : { label: 'Dólar', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' };
 
   const [pagos, setPagos] = useState([
     { metodo: 'Efectivo $', cuentaKey: 'efectivo', monto: '' }
@@ -447,9 +451,18 @@ export default function ServiceDeliveryNote() {
               Tasa de cambio (Bs por $) {tienePagosEnBs && <span className="text-red-600 font-bold">* Obligatoria para pagos en Bs</span>}
             </label>
             {tasaCambio > 0 && (
-              <span className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded font-semibold">
-                Tasa predeterminada Finanzas: {formatMonto(tasaCambio)} Bs/$
-              </span>
+              <button
+                type="button"
+                onClick={() => setModalTasasOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-amber-900 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-lg font-bold border border-amber-300 transition-all active:scale-95 cursor-pointer shadow-2xs"
+                title="Click para abrir el panel de tasas y cambiar la tasa activa"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-amber-800" />
+                <span>Tasa predeterminada Finanzas: {formatMonto(tasaCambio)} Bs/$</span>
+                <span className={`text-[10px] font-black uppercase px-1.5 py-0.2 rounded-full border ${tasaBadge.color}`}>
+                  {tasaBadge.label}
+                </span>
+              </button>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -477,6 +490,10 @@ export default function ServiceDeliveryNote() {
               </button>
             )}
           </div>
+          <TasasChipsSelector 
+            valorActual={tasa} 
+            onSeleccionar={(t) => setTasa(String(t))} 
+          />
           {tasaRequeridaFaltante ? (
             <p className="text-xs text-red-600 font-semibold mt-1">
               ⚠️ Tienes métodos de pago en Bolívares. Es obligatorio indicar la tasa para calcular la conversión y actualizar la caja.
@@ -673,6 +690,12 @@ export default function ServiceDeliveryNote() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Tasas de Cambio */}
+      <TasasCambioModal
+        isOpen={modalTasasOpen}
+        onClose={() => setModalTasasOpen(false)}
+      />
     </div>
   );
 }

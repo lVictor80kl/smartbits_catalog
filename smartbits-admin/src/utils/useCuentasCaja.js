@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { 
+  fetchTasasVenezolanas, 
+  sanitizarNumeroTasa, 
+  TIPO_TASA 
+} from '../services/tasasCambioService';
 
 export const CUENTAS_FIJAS = [
   { key: 'efectivo', label: 'Efectivo ($)', moneda: 'USD' },
@@ -60,7 +65,20 @@ export function useCuentasCaja() {
     ...cuentasBS
   ];
 
+  // Configuración de tasas con retrocompatibilidad
+  const rawTasas = saldos.tasas || {};
+  const tasaPredeterminada = rawTasas.tasa_predeterminada || TIPO_TASA.BINANCE;
   const tasaCambio = Number(saldos.tasa_cambio) || 1;
+
+  const tasas = {
+    bcv_usd: sanitizarNumeroTasa(rawTasas.bcv_usd) || null,
+    bcv_eur: sanitizarNumeroTasa(rawTasas.bcv_eur) || null,
+    binance_usdt: sanitizarNumeroTasa(rawTasas.binance_usdt) || null,
+    custom: sanitizarNumeroTasa(rawTasas.custom) || (tasaCambio > 1 ? tasaCambio : null),
+    tasa_predeterminada: tasaPredeterminada,
+    updated_at: rawTasas.updated_at || null,
+    fuente: rawTasas.fuente || null
+  };
 
   // Helper para añadir una cuenta nueva
   const agregarCuenta = async ({ nombre, moneda, saldoInicial = 0 }) => {
@@ -109,12 +127,78 @@ export function useCuentasCaja() {
     });
   };
 
-  // Helper para actualizar la tasa de cambio global
+  // Sincroniza las tasas online desde DolarApi y CriptoYa con reintentos y seguridad
+  const sincronizarTasasOnline = async () => {
+    const res = await fetchTasasVenezolanas();
+    const cleanTasas = {
+      bcv_usd: res.bcv_usd ?? tasas.bcv_usd ?? null,
+      bcv_eur: res.bcv_eur ?? tasas.bcv_eur ?? null,
+      binance_usdt: res.binance_usdt ?? tasas.binance_usdt ?? null,
+      custom: tasas.custom ?? null,
+      tasa_predeterminada: tasaPredeterminada || TIPO_TASA.BINANCE,
+      updated_at: res.updated_at || new Date().toISOString(),
+      fuentes: res.fuentes || {}
+    };
+
+    // Determinar la tasa activa efectiva para retrocompatibilidad
+    let tasaEfectiva = cleanTasas[tasaPredeterminada];
+    if (!tasaEfectiva || tasaEfectiva <= 0) {
+      tasaEfectiva = cleanTasas.binance_usdt || cleanTasas.bcv_usd || tasaCambio;
+    }
+
+    const payload = {
+      tasas: cleanTasas,
+      updated_at: new Date()
+    };
+
+    if (tasaEfectiva > 0) {
+      payload.tasa_cambio = tasaEfectiva;
+    }
+
+    await updateDoc(doc(db, 'caja', 'saldos'), payload);
+    return { res, updatedTasas: cleanTasas, tasaEfectiva };
+  };
+
+  // Fija qué tasa es la predeterminada en el sistema (bcv_usd, bcv_eur, binance_usdt, custom)
+  const fijarTasaPredeterminada = async (claveTasa) => {
+    if (!Object.values(TIPO_TASA).includes(claveTasa)) {
+      throw new Error('Tipo de tasa no reconocido.');
+    }
+    const valorSeleccionado = tasas[claveTasa];
+    const payload = {
+      'tasas.tasa_predeterminada': claveTasa,
+      updated_at: new Date()
+    };
+    if (valorSeleccionado && valorSeleccionado > 0) {
+      payload.tasa_cambio = valorSeleccionado;
+    }
+    await updateDoc(doc(db, 'caja', 'saldos'), payload);
+  };
+
+  // Actualiza el valor de la tasa Custom / Manual acordada
+  const actualizarTasaCustom = async (nuevoValor) => {
+    const valorSanitizado = sanitizarNumeroTasa(nuevoValor);
+    if (!valorSanitizado || valorSanitizado <= 0) {
+      throw new Error('Ingresa un valor de tasa válido.');
+    }
+    const payload = {
+      'tasas.custom': valorSanitizado,
+      updated_at: new Date()
+    };
+    if (tasaPredeterminada === TIPO_TASA.CUSTOM) {
+      payload.tasa_cambio = valorSanitizado;
+    }
+    await updateDoc(doc(db, 'caja', 'saldos'), payload);
+  };
+
+  // Helper para actualizar la tasa de cambio global (mantiene retrocompatibilidad asignando a custom)
   const actualizarTasaCambio = async (nuevaTasa) => {
     const tasaNum = parseDecimalInput(nuevaTasa);
     if (isNaN(tasaNum) || tasaNum <= 0) throw new Error('Tasa de cambio inválida.');
     await updateDoc(doc(db, 'caja', 'saldos'), {
       tasa_cambio: tasaNum,
+      'tasas.custom': tasaNum,
+      'tasas.tasa_predeterminada': TIPO_TASA.CUSTOM,
       updated_at: new Date()
     });
   };
@@ -131,11 +215,16 @@ export function useCuentasCaja() {
     cuentasBS,
     cuentasUSD,
     tasaCambio, 
+    tasas,
     loading,
     agregarCuenta,
     renombrarCuenta,
     eliminarCuenta,
     actualizarTasaCambio,
+    actualizarTasaCustom,
+    fijarTasaPredeterminada,
+    sincronizarTasasOnline,
     isCuentaBs
   };
 }
+
