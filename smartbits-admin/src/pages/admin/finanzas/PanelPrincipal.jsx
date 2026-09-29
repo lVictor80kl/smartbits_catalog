@@ -7,20 +7,12 @@ import { calcularDiferencial, derivarTasaReal, calcularDestino } from '../../../
 import { 
   TrendingUp, TrendingDown, Users, Wallet, ArrowRightLeft, PlusCircle, 
   Settings, AlertTriangle, ShieldCheck, DollarSign, Landmark, RefreshCw,
-  Clock, CheckCircle, Package, Layers, ArrowDownRight, ArrowUpRight, Plus, Edit3
+  Clock, CheckCircle, Package, Layers, ArrowDownRight, ArrowUpRight, Plus, Edit3,
+  X, Pencil, Trash2, SlidersHorizontal, ArrowLeft
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { CUENTAS_FIJAS, parseDecimalInput } from '../../../utils/useCuentasCaja';
 
-const CUENTAS_FIJAS = [
-  { key: 'efectivo', label: 'Efectivo', moneda: 'USD' },
-  { key: 'zelle', label: 'Zelle', moneda: 'USD' },
-  { key: 'binance', label: 'Binance (USDT)', moneda: 'USD' },
-  { key: 'zinli', label: 'Zinli', moneda: 'USD' },
-  { key: 'bancamiga', label: 'Bancamiga', moneda: 'USD' },
-  { key: 'paypal', label: 'PayPal', moneda: 'USD' },
-  { key: 'venezuela', label: 'Banco Venezuela', moneda: 'BS' },
-  { key: 'bolivares_bs', label: 'Otros Bs', moneda: 'BS' },
-];
 
 export default function PanelPrincipal({ onNavigateTab }) {
   const { corte, loading: loadingCorte, tieneCorte } = useCorteContable();
@@ -46,8 +38,21 @@ export default function PanelPrincipal({ onNavigateTab }) {
   });
   const [modalVenta, setModalVenta] = useState({ open: false, concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '', costo: '', saving: false });
   
-  // Modal de ajuste de caja
-  const [modalAjuste, setModalAjuste] = useState({ open: false, cuentaKey: '', cuentaLabel: '', saldoActual: 0, nuevoSaldo: '', ajustador: 'Ysmael', motivo: '', saving: false });
+  // Modal unificado de gestión de cuenta (Renombrar, Ajustar Saldo, Borrar)
+  const [modalGestionCuenta, setModalGestionCuenta] = useState({
+    open: false,
+    cuentaKey: '',
+    cuentaLabel: '',
+    moneda: 'USD',
+    saldo: 0,
+    esDinamica: false,
+    vistaActiva: 'menu', // 'menu' | 'renombrar' | 'ajuste' | 'eliminar'
+    nuevoNombre: '',
+    nuevoSaldo: '',
+    ajustador: 'Ysmael',
+    motivo: '',
+    saving: false
+  });
 
   // Modal: Nueva Cuenta Personalizada / Banco
   const [modalNuevaCuenta, setModalNuevaCuenta] = useState({ open: false, nombre: '', moneda: 'USD', saldoInicial: '', saving: false });
@@ -137,8 +142,13 @@ export default function PanelPrincipal({ onNavigateTab }) {
     : `Bs ${Number(v || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // --- Cuentas Dinámicas + Fijas ---
+  const nombresCustom = caja._nombres_personalizados || {};
+  const cuentasFijasConNombres = CUENTAS_FIJAS.map(c => ({
+    ...c,
+    label: nombresCustom[c.key] || c.label
+  }));
   const cuentasDinamicas = caja._cuentas_dinamicas || [];
-  const todasCuentas = [...CUENTAS_FIJAS, ...cuentasDinamicas];
+  const todasCuentas = [...cuentasFijasConNombres, ...cuentasDinamicas];
 
   // --- CÁLCULOS MATEMÁTICOS POST-CORTE ---
   const tasaCambio = Number(caja.tasa_cambio) || Number(corte?.tasa_cambio_corte) || 1;
@@ -540,14 +550,63 @@ export default function PanelPrincipal({ onNavigateTab }) {
     }
   };
 
-  // 4. Ajuste Manual Auditado
-  const handleConfirmarAjuste = async () => {
-    const { cuentaKey, cuentaLabel, saldoActual, nuevoSaldo, ajustador, motivo } = modalAjuste;
-    if (!motivo.trim()) return alert("El motivo del ajuste es obligatorio.");
-    const nuevoNum = Number(nuevoSaldo);
-    if (isNaN(nuevoNum)) return alert("Monto inválido.");
+  // 4. Abrir Gestión de Cuenta Unificada (Engranaje)
+  const openGestionCuenta = (c, saldo) => {
+    const esDinamica = c.key.startsWith('dinamica_');
+    setModalGestionCuenta({
+      open: true,
+      cuentaKey: c.key,
+      cuentaLabel: c.label,
+      moneda: c.moneda,
+      saldo: saldo,
+      esDinamica,
+      vistaActiva: 'menu',
+      nuevoNombre: c.label,
+      nuevoSaldo: saldo.toString(),
+      ajustador: 'Ysmael',
+      motivo: '',
+      saving: false
+    });
+  };
 
-    setModalAjuste(p => ({ ...p, saving: true }));
+  // 4a. Renombrar Cuenta
+  const handleGestionRenombrar = async (e) => {
+    e.preventDefault();
+    const { cuentaKey, nuevoNombre, esDinamica } = modalGestionCuenta;
+    if (!nuevoNombre.trim()) return alert("Ingresa un nombre válido.");
+    setModalGestionCuenta(p => ({ ...p, saving: true }));
+    try {
+      const trimmed = nuevoNombre.trim();
+      if (esDinamica) {
+        const nuevasDinamicas = cuentasDinamicas.map(c => c.key === cuentaKey ? { ...c, label: trimmed } : c);
+        await updateDoc(doc(db, 'caja', 'saldos'), {
+          _cuentas_dinamicas: nuevasDinamicas,
+          updated_at: new Date()
+        });
+      } else {
+        const custom = caja._nombres_personalizados || {};
+        await updateDoc(doc(db, 'caja', 'saldos'), {
+          _nombres_personalizados: { ...custom, [cuentaKey]: trimmed },
+          updated_at: new Date()
+        });
+      }
+      setModalGestionCuenta(p => ({ ...p, open: false, saving: false }));
+      alert("✅ Nombre de la cuenta actualizado.");
+    } catch (err) {
+      console.error(err);
+      alert("Error al renombrar cuenta: " + err.message);
+      setModalGestionCuenta(p => ({ ...p, saving: false }));
+    }
+  };
+
+  // 4b. Ajuste Manual Auditado
+  const handleGestionAjuste = async (e) => {
+    e.preventDefault();
+    const { cuentaKey, cuentaLabel, saldo: saldoActual, nuevoSaldo, ajustador, motivo } = modalGestionCuenta;
+    if (!motivo.trim()) return alert("El motivo del ajuste es obligatorio.");
+    const nuevoNum = parseDecimalInput(nuevoSaldo);
+
+    setModalGestionCuenta(p => ({ ...p, saving: true }));
     const diferencia = nuevoNum - saldoActual;
 
     try {
@@ -561,16 +620,38 @@ export default function PanelPrincipal({ onNavigateTab }) {
         saldo_anterior: saldoActual,
         saldo_nuevo: nuevoNum,
         diferencia,
-        ajustador,
-        motivo,
+        ajustador: ajustador || 'Ysmael',
+        motivo: motivo.trim(),
         fecha: serverTimestamp()
       });
-      setModalAjuste({ open: false, cuentaKey: '', cuentaLabel: '', saldoActual: 0, nuevoSaldo: '', ajustador: 'Ysmael', motivo: '', saving: false });
-      alert("Ajuste registrado en historial de auditoría.");
+      setModalGestionCuenta(p => ({ ...p, open: false, saving: false }));
+      alert("✅ Ajuste registrado en historial de auditoría.");
     } catch (err) {
       console.error(err);
       alert("Error: " + err.message);
-      setModalAjuste(p => ({ ...p, saving: false }));
+      setModalGestionCuenta(p => ({ ...p, saving: false }));
+    }
+  };
+
+  // 4c. Eliminar Cuenta Personalizada
+  const handleGestionEliminar = async () => {
+    const { cuentaKey, cuentaLabel, esDinamica } = modalGestionCuenta;
+    if (!esDinamica) {
+      return alert("Esta es una cuenta base del sistema y no puede eliminarse para proteger la integridad contable.");
+    }
+    setModalGestionCuenta(p => ({ ...p, saving: true }));
+    try {
+      const nuevasDinamicas = cuentasDinamicas.filter(c => c.key !== cuentaKey);
+      await updateDoc(doc(db, 'caja', 'saldos'), {
+        _cuentas_dinamicas: nuevasDinamicas,
+        updated_at: new Date()
+      });
+      setModalGestionCuenta(p => ({ ...p, open: false, saving: false }));
+      alert(`✅ Cuenta "${cuentaLabel}" eliminada correctamente.`);
+    } catch (err) {
+      console.error(err);
+      alert("Error al eliminar cuenta: " + err.message);
+      setModalGestionCuenta(p => ({ ...p, saving: false }));
     }
   };
 
@@ -581,7 +662,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
     if (!nombre.trim()) return alert("Ingresa un nombre para la cuenta.");
     const safeKey = 'dinamica_' + nombre.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now().toString().slice(-4);
     const nueva = { key: safeKey, label: nombre.trim(), moneda: moneda || 'USD' };
-    const saldoNum = Number(saldoInicial) || 0;
+    const saldoNum = parseDecimalInput(saldoInicial);
 
     setModalNuevaCuenta(p => ({ ...p, saving: true }));
     try {
@@ -603,8 +684,8 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // 6. Cambiar Tasa de Cambio Global
   const handleGuardarTasa = async (e) => {
     e.preventDefault();
-    const tasaNum = Number(modalTasa.nuevaTasa);
-    if (isNaN(tasaNum) || tasaNum <= 0) return alert("Ingresa una tasa de cambio válida.");
+    const tasaNum = parseDecimalInput(modalTasa.nuevaTasa);
+    if (isNaN(tasaNum) || tasaNum <= 0) return alert("Ingresa una tasa de cambio válida (ej. 95.50).");
 
     setModalTasa(p => ({ ...p, saving: true }));
     try {
@@ -859,46 +940,94 @@ export default function PanelPrincipal({ onNavigateTab }) {
         </div>
 
         {showSaldos && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-            {todasCuentas.map(c => {
-              const saldo = Number(caja[c.key]) || 0;
-              const saldoUSD = c.moneda === 'BS' && tasaCambio > 0 ? saldo / tasaCambio : saldo;
-              const esDinamica = c.key.startsWith('dinamica_');
-              return (
-                <div key={c.key} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between group hover:border-slate-300 transition-colors relative">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-medium text-slate-500 block truncate max-w-[130px]">{c.label}</span>
-                      {esDinamica && (
-                        <span className="text-[10px] bg-brand-50 text-brand-700 font-bold px-1.5 py-0.2 rounded border border-brand-100">Nueva</span>
-                      )}
+          <div className="space-y-4 pt-1">
+            {/* BLOQUE CUENTAS EN DÓLARES (USD) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 uppercase tracking-wider">
+                  <DollarSign className="w-3.5 h-3.5" /> Cuentas en Dólares (USD)
+                </span>
+                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                  Total: {fmt(totalCajaUSD, 'USD')}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {todasUSD.map(c => {
+                  const saldo = Number(caja[c.key]) || 0;
+                  const esDinamica = c.key.startsWith('dinamica_');
+                  return (
+                    <div key={c.key} className="p-3.5 rounded-xl bg-emerald-50/20 border border-emerald-100/80 flex items-center justify-between group hover:border-emerald-300 hover:shadow-xs transition-all relative">
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-xs font-bold text-slate-700 truncate max-w-[130px]" title={c.label}>
+                            {c.label}
+                          </span>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.2 rounded border border-emerald-200">
+                            USD
+                          </span>
+                        </div>
+                        <span className={`text-base font-black ${saldo < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                          {fmt(saldo, 'USD')}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => openGestionCuenta(c, saldo)}
+                        title="Opciones de cuenta"
+                        className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/60 rounded-lg transition-colors"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
                     </div>
-                    <span className={`text-base font-black ${saldo < 0 ? 'text-red-600' : 'text-slate-800'}`}>
-                      {fmt(saldo, c.moneda)}
-                    </span>
-                    {c.moneda === 'BS' && tasaCambio > 0 && (
-                      <span className="text-[11px] text-slate-400 block font-medium">≈ {fmt(saldoUSD, 'USD')}</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalAjuste({
-                      open: true,
-                      cuentaKey: c.key,
-                      cuentaLabel: c.label,
-                      saldoActual: saldo,
-                      nuevoSaldo: saldo.toString(),
-                      ajustador: 'Ysmael',
-                      motivo: '',
-                      saving: false
-                    })}
-                    title="Ajuste manual auditado"
-                    className="p-1.5 text-slate-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* BLOQUE CUENTAS EN BOLÍVARES (BS) */}
+            <div className="pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-amber-700 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Landmark className="w-3.5 h-3.5" /> Cuentas en Bolívares (BS)
+                </span>
+                <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  Total: {fmt(todasBS.reduce((acc, c) => acc + (Number(caja[c.key]) || 0), 0), 'BS')} (≈ {fmt(totalCajaBSenUSD, 'USD')})
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {todasBS.map(c => {
+                  const saldo = Number(caja[c.key]) || 0;
+                  const saldoUSD = tasaCambio > 0 ? saldo / tasaCambio : 0;
+                  const esDinamica = c.key.startsWith('dinamica_');
+                  return (
+                    <div key={c.key} className="p-3.5 rounded-xl bg-amber-50/20 border border-amber-100/80 flex items-center justify-between group hover:border-amber-300 hover:shadow-xs transition-all relative">
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-xs font-bold text-slate-700 truncate max-w-[130px]" title={c.label}>
+                            {c.label}
+                          </span>
+                          <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.2 rounded border border-amber-200">
+                            BS
+                          </span>
+                        </div>
+                        <span className={`text-base font-black ${saldo < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                          {fmt(saldo, 'BS')}
+                        </span>
+                        {tasaCambio > 0 && (
+                          <span className="text-[11px] text-amber-600 block font-semibold">≈ {fmt(saldoUSD, 'USD')}</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => openGestionCuenta(c, saldo)}
+                        title="Opciones de cuenta"
+                        className="p-1.5 text-slate-400 hover:text-amber-800 hover:bg-amber-100/60 rounded-lg transition-colors"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1129,11 +1258,18 @@ export default function PanelPrincipal({ onNavigateTab }) {
                 <select
                   value={modalGasto.metodo_pago}
                   onChange={e => setModalGasto(p => ({ ...p, metodo_pago: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
-                  ))}
+                  <optgroup label="💵 Cuentas en Dólares (USD)">
+                    {todasUSD.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🇻🇪 Cuentas en Bolívares (BS)">
+                    {todasBS.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </optgroup>
                   <option value="">No descontar (manual)</option>
                 </select>
               </div>
@@ -1188,11 +1324,18 @@ export default function PanelPrincipal({ onNavigateTab }) {
                 <select
                   value={modalVenta.metodo_pago}
                   onChange={e => setModalVenta(p => ({ ...p, metodo_pago: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
-                  ))}
+                  <optgroup label="💵 Cuentas en Dólares (USD)">
+                    {todasUSD.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🇻🇪 Cuentas en Bolívares (BS)">
+                    {todasBS.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -1350,11 +1493,18 @@ export default function PanelPrincipal({ onNavigateTab }) {
                 <select
                   value={modalRetiro.cuenta_salida}
                   onChange={e => setModalRetiro(p => ({ ...p, cuenta_salida: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
-                  ))}
+                  <optgroup label="💵 Cuentas en Dólares (USD)">
+                    {todasUSD.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🇻🇪 Cuentas en Bolívares (BS)">
+                    {todasBS.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -1466,11 +1616,18 @@ export default function PanelPrincipal({ onNavigateTab }) {
                 <select
                   value={modalAporte.cuenta_destino}
                   onChange={e => setModalAporte(p => ({ ...p, cuenta_destino: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
-                  ))}
+                  <optgroup label="💵 Cuentas en Dólares (USD)">
+                    {todasUSD.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🇻🇪 Cuentas en Bolívares (BS)">
+                    {todasBS.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -1513,11 +1670,18 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   <select
                     value={modalTransfer.cuenta_origen}
                     onChange={e => setModalTransfer(p => ({ ...p, cuenta_origen: e.target.value }))}
-                    className="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-medium"
+                    className="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold"
                   >
-                    {todasCuentas.map(c => (
-                      <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
-                    ))}
+                    <optgroup label="💵 Cuentas en Dólares (USD)">
+                      {todasUSD.map(c => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="🇻🇪 Cuentas en Bolívares (BS)">
+                      {todasBS.map(c => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
                 <div>
@@ -1525,11 +1689,18 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   <select
                     value={modalTransfer.cuenta_destino}
                     onChange={e => setModalTransfer(p => ({ ...p, cuenta_destino: e.target.value }))}
-                    className="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-medium"
+                    className="w-full border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold"
                   >
-                    {todasCuentas.map(c => (
-                      <option key={c.key} value={c.key}>{c.label} ({c.moneda})</option>
-                    ))}
+                    <optgroup label="💵 Cuentas en Dólares (USD)">
+                      {todasUSD.map(c => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="🇻🇪 Cuentas en Bolívares (BS)">
+                      {todasBS.map(c => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
               </div>
@@ -1610,90 +1781,6 @@ export default function PanelPrincipal({ onNavigateTab }) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: AJUSTE MANUAL AUDITADO */}
-      {modalAjuste.open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Ajuste Manual Auditado</h3>
-                <p className="text-xs text-slate-500">Cuenta: {modalAjuste.cuentaLabel}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Saldo Actual</label>
-                <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700">
-                  {modalAjuste.saldoActual.toFixed(2)}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nuevo Saldo</label>
-                <input
-                  type="number" step="0.01"
-                  value={modalAjuste.nuevoSaldo}
-                  onChange={e => setModalAjuste(p => ({ ...p, nuevoSaldo: e.target.value }))}
-                  className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-amber-400"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">¿Quién realiza el ajuste?</label>
-              <div className="flex gap-2">
-                {['Ysmael', 'Victor'].map(nombre => (
-                  <label key={nombre} className={`flex-1 py-1.5 text-center rounded-lg border-2 cursor-pointer font-bold text-xs ${
-                    modalAjuste.ajustador === nombre ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500'
-                  }`}>
-                    <input
-                      type="radio" value={nombre}
-                      checked={modalAjuste.ajustador === nombre}
-                      onChange={() => setModalAjuste(p => ({ ...p, ajustador: nombre }))}
-                      className="hidden"
-                    />
-                    {nombre}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Motivo del ajuste *</label>
-              <textarea
-                rows={2}
-                placeholder="Ej: Corrección por compra de inventario no asentada..."
-                value={modalAjuste.motivo}
-                onChange={e => setModalAjuste(p => ({ ...p, motivo: e.target.value }))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs resize-none"
-                required
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setModalAjuste(p => ({ ...p, open: false }))}
-                className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmarAjuste}
-                disabled={modalAjuste.saving}
-                className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs disabled:opacity-50"
-              >
-                {modalAjuste.saving ? 'Guardando...' : 'Confirmar Ajuste'}
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -1846,6 +1933,310 @@ export default function PanelPrincipal({ onNavigateTab }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL UNIFICADO: GESTIÓN DE CUENTA (ENGRANAJE) */}
+      {modalGestionCuenta.open && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+            
+            {/* Cabecera de la Cuenta */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${modalGestionCuenta.moneda === 'BS' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  {modalGestionCuenta.moneda === 'BS' ? <Landmark className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-base font-bold text-slate-900">{modalGestionCuenta.cuentaLabel}</h3>
+                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${modalGestionCuenta.moneda === 'BS' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                      {modalGestionCuenta.moneda}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Saldo registrado: <strong className="text-slate-800">{fmt(modalGestionCuenta.saldo, modalGestionCuenta.moneda)}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalGestionCuenta(p => ({ ...p, open: false }))}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* VISTA 1: MENÚ DE OPCIONES (3 OPCIONES) */}
+            {modalGestionCuenta.vistaActiva === 'menu' && (
+              <div className="space-y-2.5 py-1">
+                {/* Opción 1: Editar Nombre */}
+                <button
+                  type="button"
+                  onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'renombrar' }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 hover:border-brand-400 hover:bg-brand-50/40 flex items-center justify-between transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Pencil className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">Editar Nombre</h4>
+                      <p className="text-[11px] text-slate-500">Personaliza la etiqueta de esta cuenta</p>
+                    </div>
+                  </div>
+                  <span className="text-slate-400 text-xs font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+                </button>
+
+                {/* Opción 2: Ajuste de Saldo Auditado */}
+                <button
+                  type="button"
+                  onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'ajuste' }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/40 flex items-center justify-between transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <SlidersHorizontal className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">Ajuste de Saldo (Auditado)</h4>
+                      <p className="text-[11px] text-slate-500">Cuadre manual con registro obligatorio de motivo</p>
+                    </div>
+                  </div>
+                  <span className="text-slate-400 text-xs font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+                </button>
+
+                {/* Opción 3: Borrar Cuenta */}
+                {modalGestionCuenta.esDinamica ? (
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'eliminar' }))}
+                    className="w-full p-3 rounded-xl border border-red-200/80 hover:border-red-400 hover:bg-red-50/40 flex items-center justify-between transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-red-50 text-red-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Trash2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-red-700">Eliminar Cuenta</h4>
+                        <p className="text-[11px] text-red-500">Quitar esta cuenta personalizada de la caja</p>
+                      </div>
+                    </div>
+                    <span className="text-red-400 text-xs font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+                  </button>
+                ) : (
+                  <div className="w-full p-3 rounded-xl border border-slate-100 bg-slate-50/60 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-slate-200/60 text-slate-400 flex items-center justify-center">
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold text-slate-500">Cuenta Base del Sistema</h4>
+                          <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded font-semibold">Fija</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">No eliminable para preservar el histórico contable</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, open: false }))}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* VISTA 2: FORMULARIO RENOMBRAR */}
+            {modalGestionCuenta.vistaActiva === 'renombrar' && (
+              <form onSubmit={handleGestionRenombrar} className="space-y-4 py-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'menu' }))}
+                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Volver
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <span>Cambiar nombre de la cuenta</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Nuevo Nombre</label>
+                  <input
+                    type="text"
+                    value={modalGestionCuenta.nuevoNombre}
+                    onChange={e => setModalGestionCuenta(p => ({ ...p, nuevoNombre: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-brand-500"
+                    placeholder="Ej: Bancamiga BS"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'menu' }))}
+                    className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={modalGestionCuenta.saving}
+                    className="flex-1 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs disabled:opacity-50"
+                  >
+                    {modalGestionCuenta.saving ? 'Guardando...' : 'Guardar Nombre'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* VISTA 3: FORMULARIO AJUSTE DE SALDO */}
+            {modalGestionCuenta.vistaActiva === 'ajuste' && (
+              <form onSubmit={handleGestionAjuste} className="space-y-3 py-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'menu' }))}
+                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Volver
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <span>Ajuste manual auditado</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <span className="text-slate-500 block">Saldo Actual:</span>
+                    <span className="font-bold text-slate-800">{fmt(modalGestionCuenta.saldo, modalGestionCuenta.moneda)}</span>
+                  </div>
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                    <span className="text-amber-800 block">Diferencia:</span>
+                    <span className="font-bold text-amber-900">
+                      {fmt((parseDecimalInput(modalGestionCuenta.nuevoSaldo) || 0) - modalGestionCuenta.saldo, modalGestionCuenta.moneda)}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nuevo Saldo Real ({modalGestionCuenta.moneda === 'BS' ? 'Bolívares' : 'Dólares'}) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">
+                      {modalGestionCuenta.moneda === 'BS' ? 'Bs' : '$'}
+                    </span>
+                    <input
+                      type="text"
+                      value={modalGestionCuenta.nuevoSaldo}
+                      onChange={e => setModalGestionCuenta(p => ({ ...p, nuevoSaldo: e.target.value }))}
+                      className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 text-right focus:ring-2 focus:ring-amber-500"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Ajustado por *</label>
+                  <select
+                    value={modalGestionCuenta.ajustador}
+                    onChange={e => setModalGestionCuenta(p => ({ ...p, ajustador: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold bg-white"
+                  >
+                    <option value="Ysmael">Ysmael</option>
+                    <option value="Victor">Víctor</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Motivo del Ajuste (Obligatorio) *</label>
+                  <textarea
+                    rows={2}
+                    value={modalGestionCuenta.motivo}
+                    onChange={e => setModalGestionCuenta(p => ({ ...p, motivo: e.target.value }))}
+                    placeholder="Ej: Cuadre de caja física / conciliación bancaria"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'menu' }))}
+                    className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={modalGestionCuenta.saving}
+                    className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs disabled:opacity-50"
+                  >
+                    {modalGestionCuenta.saving ? 'Guardando...' : 'Confirmar Ajuste'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* VISTA 4: CONFIRMACIÓN ELIMINAR */}
+            {modalGestionCuenta.vistaActiva === 'eliminar' && (
+              <div className="space-y-4 py-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'menu' }))}
+                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Volver
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-red-600">Eliminar cuenta</span>
+                </div>
+
+                <p className="text-xs text-slate-600">
+                  ¿Estás seguro de que deseas eliminar la cuenta <strong>"{modalGestionCuenta.cuentaLabel}"</strong>?
+                </p>
+
+                {modalGestionCuenta.saldo !== 0 && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                    <strong>Advertencia:</strong> Esta cuenta tiene un saldo registrado de <strong>{fmt(modalGestionCuenta.saldo, modalGestionCuenta.moneda)}</strong>. Al eliminarla, dejará de formar parte de la caja.
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'menu' }))}
+                    className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGestionEliminar}
+                    disabled={modalGestionCuenta.saving}
+                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs disabled:opacity-50"
+                  >
+                    {modalGestionCuenta.saving ? 'Eliminando...' : 'Sí, Eliminar Cuenta'}
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}

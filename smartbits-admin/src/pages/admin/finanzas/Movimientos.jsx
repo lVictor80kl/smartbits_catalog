@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
+import { useCuentasCaja, parseDecimalInput } from '../../../utils/useCuentasCaja';
 import { calcularDiferencial, derivarTasaReal, calcularDestino } from '../../../utils/diferencialCambiario';
 import { getCostoBaseConComision, getLegadosExtrasUsd } from '../../../utils/costos';
 import { 
@@ -20,27 +21,13 @@ const METODO_TO_CAJA_KEY = {
   'Transferencia': 'venezuela',
 };
 
-const CUENTAS_FIJAS = [
-  { key: 'efectivo', label: 'Efectivo (USD)', moneda: 'USD' },
-  { key: 'zelle', label: 'Zelle (USD)', moneda: 'USD' },
-  { key: 'binance', label: 'Binance USDT (USD)', moneda: 'USD' },
-  { key: 'zinli', label: 'Zinli (USD)', moneda: 'USD' },
-  { key: 'bancamiga', label: 'Bancamiga (USD)', moneda: 'USD' },
-  { key: 'paypal', label: 'PayPal (USD)', moneda: 'USD' },
-  { key: 'venezuela', label: 'Banco Venezuela (Bs)', moneda: 'BS' },
-  { key: 'bolivares_bs', label: 'Otros Bs (Bs)', moneda: 'BS' },
-];
-
 export default function Movimientos() {
   const { corte, loading: loadingCorte } = useCorteContable();
+  const { todasCuentas, cuentasUSD, cuentasBS, tasaCambio: tasaHook } = useCuentasCaja();
 
   // Tipo de operación en formulario: 'gasto_op' | 'retiro' | 'transferencia'
   const [tipoOperacion, setTipoOperacion] = useState('gasto_op');
   const [saving, setSaving] = useState(false);
-
-  // Cuentas dinámicas desde Firestore
-  const [cuentasDinamicas, setCuentasDinamicas] = useState([]);
-  const [tasaCaja, setTasaCaja] = useState(1);
 
   // Formulario Gasto Operativo
   const [formGasto, setFormGasto] = useState({
@@ -105,28 +92,23 @@ export default function Movimientos() {
   const [deleteModal, setDeleteModal] = useState({ open: false, item: null, processing: false });
   const [editModal, setEditModal] = useState({ open: false, item: null, processing: false, data: {} });
 
-  // Escuchar cuentas dinámicas de caja
-  useEffect(() => {
-    const unsubCaja = onSnapshot(doc(db, 'caja', 'saldos'), snap => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setCuentasDinamicas(data._cuentas_dinamicas || []);
-        setTasaCaja(Number(data.tasa_cambio) || 1);
-      }
-    });
-    return () => unsubCaja();
-  }, []);
+  const tasaCambio = Number(tasaHook) || Number(corte?.tasa_cambio_corte) || 1;
 
-  const todasCuentas = [
-    ...CUENTAS_FIJAS,
-    ...cuentasDinamicas.map(c => ({
-      key: c.key,
-      label: `${c.label} (${c.moneda})`,
-      moneda: c.moneda
-    }))
-  ];
-
-  const tasaCambio = Number(tasaCaja) || Number(corte?.tasa_cambio_corte) || 1;
+  const renderAccountOptions = (allowEmpty = false, emptyLabel = "Seleccionar cuenta") => (
+    <>
+      {allowEmpty && <option value="">{emptyLabel}</option>}
+      <optgroup label="Cuentas en Dólares (USD)">
+        {todasCuentas.filter(c => c.moneda !== 'BS').map(c => (
+          <option key={c.key} value={c.key}>{c.label}</option>
+        ))}
+      </optgroup>
+      <optgroup label="Cuentas en Bolívares (BS)">
+        {todasCuentas.filter(c => c.moneda === 'BS').map(c => (
+          <option key={c.key} value={c.key}>{c.label}</option>
+        ))}
+      </optgroup>
+    </>
+  );
 
   // Cuenta/moneda seleccionada para el gasto operativo
   const cuentaFormGasto = todasCuentas.find(c => c.key === formGasto.metodo_pago);
@@ -296,28 +278,55 @@ export default function Movimientos() {
       }
 
       const enriched = rawIngresos.map(ing => {
-        if (ing.metodo_pago) return ing;
-
         const matchingVenta = (ing.laptopId && ventasMap[`laptop_${ing.laptopId}`]) ||
                               (ing.id_venta_detalle && ventasMap[ing.id_venta_detalle]) ||
                               (ing.componenteId && ventasMap[`comp_${ing.componenteId}`]);
 
+        let updatedMetodo = ing.metodo_pago;
+        let monedaOriginal = ing.moneda_original;
+        let montoOriginal = ing.monto_original;
+        let tasaCambioDoc = ing.tasa_cambio;
+
         if (matchingVenta && matchingVenta.metodos_pago) {
           const cuentas = matchingVenta.metodos_pago.map(p => p.cuentaKey || METODO_TO_CAJA_KEY[p.metodo] || p.metodo || 'efectivo');
-          const metodoKey = Array.from(new Set(cuentas)).join(', ');
-          
-          try {
-            updateDoc(doc(db, 'historico_ingresos', ing.id), { metodo_pago: metodoKey }).catch(() => {});
-          } catch (e) {}
+          updatedMetodo = Array.from(new Set(cuentas)).join(', ');
 
-          return { ...ing, metodo_pago: metodoKey, metodos_pago: matchingVenta.metodos_pago };
+          // If moneda_original wasn't recorded, inspect matchingVenta payments
+          if (!monedaOriginal) {
+            const bsPayment = matchingVenta.metodos_pago.find(p => {
+              const acc = todasCuentas.find(c => c.key === p.cuentaKey);
+              const mName = (p.metodo || '').toLowerCase();
+              return acc?.moneda === 'BS' || p.moneda === 'BS' || mName.includes('pago') || mName.includes('bs') || mName.includes('bancamiga') || mName.includes('transferencia');
+            });
+            if (bsPayment) {
+              monedaOriginal = 'BS';
+              montoOriginal = bsPayment.monto || (matchingVenta.tasa_venta ? bsPayment.montoUSD * matchingVenta.tasa_venta : null);
+              tasaCambioDoc = matchingVenta.tasa_venta || null;
+            }
+          }
         }
 
-        const fallbackKey = ing.metodo_pago || 'efectivo';
-        try {
-          updateDoc(doc(db, 'historico_ingresos', ing.id), { metodo_pago: fallbackKey }).catch(() => {});
-        } catch (e) {}
-        return { ...ing, metodo_pago: fallbackKey };
+        // Auto backfill Firestore document if missing fields
+        if ((!ing.metodo_pago && updatedMetodo) || (!ing.moneda_original && monedaOriginal)) {
+          const updates = {};
+          if (!ing.metodo_pago && updatedMetodo) updates.metodo_pago = updatedMetodo;
+          if (!ing.moneda_original && monedaOriginal) {
+            updates.moneda_original = monedaOriginal;
+            if (montoOriginal) updates.monto_original = montoOriginal;
+            if (tasaCambioDoc) updates.tasa_cambio = tasaCambioDoc;
+          }
+          if (Object.keys(updates).length > 0) {
+            updateDoc(doc(db, 'historico_ingresos', ing.id), updates).catch(() => {});
+          }
+        }
+
+        return {
+          ...ing,
+          metodo_pago: updatedMetodo || ing.metodo_pago || 'efectivo',
+          moneda_original: monedaOriginal || ing.moneda_original || 'USD',
+          monto_original: montoOriginal !== undefined ? montoOriginal : (ing.monto_original || ing.monto),
+          tasa_cambio: tasaCambioDoc || ing.tasa_cambio
+        };
       });
 
       setIngresos(enriched);
@@ -343,12 +352,12 @@ export default function Movimientos() {
     try {
       if (tipoOperacion === 'gasto_op') {
         if (!formGasto.monto || !formGasto.concepto) throw new Error("Completa todos los campos requeridos.");
-        const montoNum = Number(formGasto.monto);
-        if (isNaN(montoNum) || montoNum <= 0) throw new Error("Monto inválido");
+        const montoNum = parseDecimalInput(formGasto.monto);
+        if (montoNum <= 0) throw new Error("Monto inválido");
 
         const cuentaSeleccionada = todasCuentas.find(c => c.key === formGasto.metodo_pago);
         const esBs = cuentaSeleccionada?.moneda === 'BS';
-        const tasaUsada = esBs ? (Number(formGasto.tasa) || tasaCambio) : 1;
+        const tasaUsada = esBs ? (parseDecimalInput(formGasto.tasa) || tasaCambio) : 1;
         const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
         await addDoc(collection(db, 'gastos_operativos'), {
@@ -373,12 +382,12 @@ export default function Movimientos() {
       } 
       else if (tipoOperacion === 'retiro') {
         if (!formRetiro.monto || !formRetiro.concepto) throw new Error("Completa todos los campos requeridos.");
-        const montoNum = Number(formRetiro.monto);
-        if (isNaN(montoNum) || montoNum <= 0) throw new Error("Monto inválido");
+        const montoNum = parseDecimalInput(formRetiro.monto);
+        if (montoNum <= 0) throw new Error("Monto inválido");
 
         const cuentaSeleccionada = todasCuentas.find(c => c.key === formRetiro.cuenta_salida);
         const esBs = cuentaSeleccionada?.moneda === 'BS';
-        const tasaUsada = esBs ? (Number(formRetiro.tasa) || tasaCambio) : 1;
+        const tasaUsada = esBs ? (parseDecimalInput(formRetiro.tasa) || tasaCambio) : 1;
         const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
         await addDoc(collection(db, 'gastos_personales'), {
@@ -405,12 +414,12 @@ export default function Movimientos() {
       }
       else if (tipoOperacion === 'aporte_capital') {
         if (!formAporte.monto || !formAporte.concepto) throw new Error("Completa todos los campos requeridos.");
-        const montoNum = Number(formAporte.monto);
-        if (isNaN(montoNum) || montoNum <= 0) throw new Error("Monto inválido");
+        const montoNum = parseDecimalInput(formAporte.monto);
+        if (montoNum <= 0) throw new Error("Monto inválido");
 
         const cuentaSeleccionada = todasCuentas.find(c => c.key === formAporte.cuenta_destino);
         const esBs = cuentaSeleccionada?.moneda === 'BS';
-        const tasaUsada = esBs ? (Number(formAporte.tasa) || tasaCambio) : 1;
+        const tasaUsada = esBs ? (parseDecimalInput(formAporte.tasa) || tasaCambio) : 1;
         const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
         await addDoc(collection(db, 'aportes_socios'), {
@@ -436,26 +445,26 @@ export default function Movimientos() {
       else if (tipoOperacion === 'transferencia') {
         if (!formTransfer.monto_origen) throw new Error("Ingresa el monto a transferir.");
         if (formTransfer.cuenta_origen === formTransfer.cuenta_destino) throw new Error("Las cuentas origen y destino deben ser distintas.");
-        const montoSale = Number(formTransfer.monto_origen);
+        const montoSale = parseDecimalInput(formTransfer.monto_origen);
         const monedaOrigen = monedaTransOrigen;
         const monedaDestino = monedaTransDestino;
         const cambioDivisa = monedaOrigen !== monedaDestino;
         const montoLlega = (() => {
-          const destinoManual = Number(formTransfer.monto_destino);
+          const destinoManual = parseDecimalInput(formTransfer.monto_destino);
           if (destinoManual && destinoManual > 0) return destinoManual;
           if (cambioDivisa) {
             return calcularDestino({
               montoOrigen: montoSale,
-              tasa: Number(formTransfer.tasa_cambio) || tasaCambio,
+              tasa: parseDecimalInput(formTransfer.tasa_cambio) || tasaCambio,
               monedaOrigen,
               monedaDestino
             });
           }
           return montoSale;
         })();
-        if (isNaN(montoSale) || montoSale <= 0 || isNaN(montoLlega) || montoLlega <= 0) throw new Error("Montos inválidos");
+        if (montoSale <= 0 || montoLlega <= 0) throw new Error("Montos inválidos");
 
-        const tasaReal = cambioDivisa ? (Number(formTransfer.tasa_cambio) || tasaCambio) : null;
+        const tasaReal = cambioDivisa ? (parseDecimalInput(formTransfer.tasa_cambio) || tasaCambio) : null;
         const tasaReferencia = tasaCambio;
         const diferencialUsd = calcularDiferencial({
           montoOrigen: montoSale,
@@ -490,8 +499,8 @@ export default function Movimientos() {
       }
       else if (tipoOperacion === 'reembolso') {
         if (!formReembolso.monto || !formReembolso.concepto) throw new Error("Completa todos los campos requeridos.");
-        const montoNum = Number(formReembolso.monto);
-        if (isNaN(montoNum) || montoNum <= 0) throw new Error("Monto inválido");
+        const montoNum = parseDecimalInput(formReembolso.monto);
+        if (montoNum <= 0) throw new Error("Monto inválido");
 
         await addDoc(collection(db, 'reembolsos'), {
           categoria: formReembolso.categoria,
@@ -807,12 +816,9 @@ export default function Movimientos() {
                 <select
                   value={formGasto.metodo_pago}
                   onChange={e => setFormGasto(p => ({ ...p, metodo_pago: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white font-medium"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label}</option>
-                  ))}
-                  <option value="">No descontar (Manual)</option>
+                  {renderAccountOptions(true, "No descontar (Manual)")}
                 </select>
               </div>
             </div>
@@ -895,11 +901,9 @@ export default function Movimientos() {
                 <select
                   value={formRetiro.cuenta_salida}
                   onChange={e => setFormRetiro(p => ({ ...p, cuenta_salida: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white font-medium"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label}</option>
-                  ))}
+                  {renderAccountOptions()}
                 </select>
               </div>
             </div>
@@ -982,11 +986,9 @@ export default function Movimientos() {
                 <select
                   value={formAporte.cuenta_destino}
                   onChange={e => setFormAporte(p => ({ ...p, cuenta_destino: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white font-medium"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label}</option>
-                  ))}
+                  {renderAccountOptions()}
                 </select>
               </div>
             </div>
@@ -1000,11 +1002,9 @@ export default function Movimientos() {
                 <select
                   value={formTransfer.cuenta_origen}
                   onChange={e => setFormTransfer(p => ({ ...p, cuenta_origen: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white font-medium"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label}</option>
-                  ))}
+                  {renderAccountOptions()}
                 </select>
               </div>
 
@@ -1013,11 +1013,9 @@ export default function Movimientos() {
                 <select
                   value={formTransfer.cuenta_destino}
                   onChange={e => setFormTransfer(p => ({ ...p, cuenta_destino: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white font-medium"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label}</option>
-                  ))}
+                  {renderAccountOptions()}
                 </select>
               </div>
 
@@ -1105,11 +1103,9 @@ export default function Movimientos() {
                 <select
                   value={formReembolso.cuenta_destino}
                   onChange={e => setFormReembolso(p => ({ ...p, cuenta_destino: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 bg-white font-medium"
                 >
-                  {todasCuentas.map(c => (
-                    <option key={c.key} value={c.key}>{c.label}</option>
-                  ))}
+                  {renderAccountOptions()}
                 </select>
               </div>
             </div>

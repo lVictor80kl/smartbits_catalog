@@ -2,11 +2,20 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, getDocs, doc, updateDoc, deleteDoc, increment, deleteField } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
-import { useCuentasCaja } from '../../../utils/useCuentasCaja';
+import { useCuentasCaja, parseDecimalInput } from '../../../utils/useCuentasCaja';
 import { 
   Search, Download, Edit2, Trash2, Printer, X, Save, AlertTriangle, 
   Loader2, Plus, CreditCard, User, Laptop, RefreshCw, FileText
 } from 'lucide-react';
+
+const METODOS_PAGO_OPCIONES = [
+  { grupo: 'Divisas (USD)', metodos: ['Zelle', 'USDT', 'Efectivo', 'Zinli', 'PayPal', 'Banesco Panamá'] },
+  { grupo: 'Bolívares (BS)', metodos: ['Pago Móvil', 'Transferencia', 'Punto de Venta', 'Bancamiga (BS)', 'Banesco (BS)', 'Venezuela (BS)', 'Mercantil (BS)'] }
+];
+
+const METODOS_BS_DEFAULT = [
+  'Pago Móvil', 'Transferencia', 'Punto de Venta', 'Bancamiga (BS)', 'Banesco (BS)', 'Venezuela (BS)', 'Mercantil (BS)'
+];
 
 const METODO_TO_CAJA_KEY = {
   'Zelle': 'zelle',
@@ -17,11 +26,16 @@ const METODO_TO_CAJA_KEY = {
   'PayPal': 'paypal',
   'Pago Móvil': 'venezuela',
   'Transferencia': 'venezuela',
+  'Punto de Venta': 'venezuela',
+  'Bancamiga (BS)': 'dinamica_bancamiga_bs',
+  'Banesco (BS)': 'dinamica_banesco_bs',
+  'Venezuela (BS)': 'venezuela',
+  'Mercantil (BS)': 'dinamica_mercantil_bs'
 };
 
 export default function VentasNotas() {
   const { corte, loading: loadingCorte } = useCorteContable();
-  const { todasCuentas } = useCuentasCaja();
+  const { todasCuentas, cuentasUSD, cuentasBS, tasaCambio } = useCuentasCaja();
 
   const [ventas, setVentas] = useState([]);
   const [laptopsDisponibles, setLaptopsDisponibles] = useState([]);
@@ -208,31 +222,134 @@ export default function VentasNotas() {
     }
   };
 
+  // --- HELPERS EDICIÓN PAGOS ---
+  const isPagoBs = (pago) => {
+    if (!pago) return false;
+    if (pago.cuentaKey) {
+      const c = todasCuentas.find(acc => acc.key === pago.cuentaKey);
+      if (c) return c.moneda === 'BS';
+    }
+    if (pago.moneda === 'BS') return true;
+    return METODOS_BS_DEFAULT.includes(pago.metodo);
+  };
+
   // --- ABRIR MODAL EDICIÓN PAGOS ---
   const openEditPagos = (item) => {
+    const effectiveTasa = parseDecimalInput(item.tasa_cambio) || parseDecimalInput(item.tasa_venta) || parseDecimalInput(tasaCambio) || 1;
     const metodos = JSON.parse(JSON.stringify(item.metodos_pago || []));
+
     if (metodos.length === 0) {
-      metodos.push({ metodo: 'Zelle', montoUSD: item.precio_venta_usd || 0 });
+      metodos.push({
+        metodo: 'Efectivo',
+        cuentaKey: 'efectivo',
+        montoUSD: item.precio_venta_usd || 0,
+        monto: item.precio_venta_usd || 0,
+        moneda: 'USD'
+      });
+    } else {
+      metodos.forEach(p => {
+        const esBs = isPagoBs(p);
+        p.moneda = esBs ? 'BS' : 'USD';
+        if (!p.cuentaKey) {
+          p.cuentaKey = METODO_TO_CAJA_KEY[p.metodo] || (esBs ? 'venezuela' : 'efectivo');
+        }
+        if (esBs) {
+          if (!p.monto && p.montoUSD) {
+            p.monto = (parseDecimalInput(p.montoUSD) * effectiveTasa).toFixed(2);
+          }
+        }
+      });
     }
-    setEditPagoModal({ open: true, item, metodosPago: metodos, processing: false });
+
+    setEditPagoModal({ 
+      open: true, 
+      item, 
+      metodosPago: metodos, 
+      tasaModal: item.tasa_cambio || item.tasa_venta || tasaCambio || '',
+      processing: false 
+    });
+  };
+
+  const updatePagoMetodo = (index, nuevoMetodo) => {
+    const list = [...editPagoModal.metodosPago];
+    const esBs = METODOS_BS_DEFAULT.includes(nuevoMetodo);
+    const cuentasDisponibles = esBs ? cuentasBS : cuentasUSD;
+    const cuentaDefault = cuentasDisponibles.length > 0 ? cuentasDisponibles[0].key : '';
+    const currentTasa = parseDecimalInput(editPagoModal.tasaModal) || 1;
+
+    let montoBs = list[index].monto || '';
+    let montoUSD = list[index].montoUSD || '';
+
+    if (esBs && !montoBs && montoUSD) {
+      montoBs = (parseDecimalInput(montoUSD) * currentTasa).toFixed(2);
+    } else if (!esBs && !montoUSD && montoBs) {
+      montoUSD = (parseDecimalInput(montoBs) / currentTasa).toFixed(2);
+    }
+
+    list[index] = {
+      ...list[index],
+      metodo: nuevoMetodo,
+      cuentaKey: cuentaDefault,
+      moneda: esBs ? 'BS' : 'USD',
+      monto: montoBs,
+      montoUSD: montoUSD
+    };
+    setEditPagoModal(p => ({ ...p, metodosPago: list }));
+  };
+
+  const updatePagoMonto = (index, valor) => {
+    const list = [...editPagoModal.metodosPago];
+    const currentTasa = parseDecimalInput(editPagoModal.tasaModal) || 0;
+    const p = list[index];
+    const esBs = p.moneda === 'BS';
+
+    if (esBs) {
+      p.monto = valor;
+      const numBs = parseDecimalInput(valor);
+      p.montoUSD = currentTasa > 0 ? (numBs / currentTasa).toFixed(2) : '0.00';
+    } else {
+      p.montoUSD = valor;
+      p.monto = valor;
+    }
+    setEditPagoModal(prev => ({ ...prev, metodosPago: list }));
+  };
+
+  const updateModalTasa = (nuevaTasa) => {
+    const tasaNum = parseDecimalInput(nuevaTasa);
+    const list = editPagoModal.metodosPago.map(p => {
+      if (p.moneda === 'BS' && tasaNum > 0) {
+        const numBs = parseDecimalInput(p.monto);
+        return { ...p, montoUSD: (numBs / tasaNum).toFixed(2) };
+      }
+      return p;
+    });
+    setEditPagoModal(prev => ({ ...prev, tasaModal: nuevaTasa, metodosPago: list }));
   };
 
   const handleSavePagos = async () => {
-    const { item, metodosPago } = editPagoModal;
+    const { item, metodosPago, tasaModal } = editPagoModal;
+    const tienePagoBs = metodosPago.some(p => p.moneda === 'BS');
+    const tasaNum = parseDecimalInput(tasaModal);
+
+    if (tienePagoBs && (!tasaNum || tasaNum <= 0)) {
+      alert("Debes ingresar una tasa de cambio válida (ej: 95.50) para pagos en Bolívares.");
+      return;
+    }
+
     setEditPagoModal(p => ({ ...p, processing: true }));
 
     try {
       const cajaNetos = {};
       let nuevoTotalVentaUSD = 0;
 
-      // 1. Revertir pagos anteriores
+      // 1. Revertir pagos anteriores en caja
       const oldMetodos = item.metodos_pago || [];
       for (const pago of oldMetodos) {
         const cuenta = pago.cuentaKey || METODO_TO_CAJA_KEY[pago.metodo] || 'efectivo';
         if (cuenta) {
           const cuentaObj = todasCuentas.find(c => c.key === cuenta);
-          const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : (pago.metodo === 'Pago Móvil' || pago.metodo === 'Transferencia');
-          const montoVal = esBs ? (Number(pago.monto) || 0) : (Number(pago.montoUSD) || 0);
+          const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : isPagoBs(pago);
+          const montoVal = esBs ? (parseDecimalInput(pago.monto) || 0) : (parseDecimalInput(pago.montoUSD) || 0);
           if (montoVal > 0) {
             cajaNetos[cuenta] = (cajaNetos[cuenta] || 0) - montoVal;
           }
@@ -240,18 +357,33 @@ export default function VentasNotas() {
       }
 
       // 2. Aplicar nuevos pagos
-      metodosPago.forEach(p => {
-        const mUSD = parseFloat(p.montoUSD) || 0;
-        nuevoTotalVentaUSD += mUSD;
-        const cuenta = p.cuentaKey || METODO_TO_CAJA_KEY[p.metodo] || 'efectivo';
-        if (cuenta) {
-          const cuentaObj = todasCuentas.find(c => c.key === cuenta);
-          const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : (p.metodo === 'Pago Móvil' || p.metodo === 'Transferencia');
-          const montoVal = esBs ? (Number(p.monto) || 0) : mUSD;
-          if (montoVal > 0) {
-            cajaNetos[cuenta] = (cajaNetos[cuenta] || 0) + montoVal;
-          }
+      const metodosLimpios = metodosPago.map(p => {
+        const esBs = p.moneda === 'BS';
+        let mUSD = 0;
+        let mBs = 0;
+
+        if (esBs) {
+          mBs = parseDecimalInput(p.monto) || 0;
+          mUSD = tasaNum > 0 ? parseFloat((mBs / tasaNum).toFixed(2)) : 0;
+        } else {
+          mUSD = parseDecimalInput(p.montoUSD) || 0;
+          mBs = mUSD;
         }
+        nuevoTotalVentaUSD += mUSD;
+
+        const cuenta = p.cuentaKey || (esBs ? 'venezuela' : 'efectivo');
+        const montoVal = esBs ? mBs : mUSD;
+        if (cuenta && montoVal > 0) {
+          cajaNetos[cuenta] = (cajaNetos[cuenta] || 0) + montoVal;
+        }
+
+        return {
+          metodo: p.metodo,
+          cuentaKey: cuenta,
+          moneda: esBs ? 'BS' : 'USD',
+          monto: mBs,
+          montoUSD: mUSD
+        };
       });
 
       // 3. Actualizar caja
@@ -265,23 +397,46 @@ export default function VentasNotas() {
 
       // 4. Actualizar venta
       const costoTotal = item.costo_total || 0;
-      const nuevaGanancia = nuevoTotalVentaUSD - costoTotal;
+      const nuevaGanancia = parseFloat((nuevoTotalVentaUSD - costoTotal).toFixed(2));
 
       await updateDoc(doc(db, 'ventas', item.id), {
-        metodos_pago: metodosPago,
-        precio_venta_usd: nuevoTotalVentaUSD,
-        ganancia: nuevaGanancia
+        metodos_pago: metodosLimpios,
+        precio_venta_usd: parseFloat(nuevoTotalVentaUSD.toFixed(2)),
+        ganancia: nuevaGanancia,
+        tasa_cambio: tasaNum || null,
+        tasa_venta: tasaNum || null
       });
 
       if (item.laptopId) {
         await updateDoc(doc(db, 'laptops', item.laptopId), {
-          metodos_pago: metodosPago,
-          precio_final_venta: nuevoTotalVentaUSD
+          metodos_pago: metodosLimpios,
+          precio_final_venta: parseFloat(nuevoTotalVentaUSD.toFixed(2)),
+          tasa_venta: tasaNum || null
         });
       }
 
+      // 5. Actualizar historico_ingresos si existe
+      try {
+        const qH = query(collection(db, 'historico_ingresos'), where('referencia_id', '==', item.id));
+        const snapH = await getDocs(qH);
+        const primerPagoBs = metodosLimpios.find(p => p.moneda === 'BS');
+        const hUpdates = {
+          monto: parseFloat(nuevoTotalVentaUSD.toFixed(2)),
+          monto_original: primerPagoBs ? primerPagoBs.monto : parseFloat(nuevoTotalVentaUSD.toFixed(2)),
+          moneda_original: primerPagoBs ? 'BS' : 'USD',
+          tasa_cambio: tasaNum || null,
+          metodo_pago: metodosLimpios[0]?.metodo || '',
+          cuenta: metodosLimpios[0]?.cuentaKey || ''
+        };
+        for (const docH of snapH.docs) {
+          await updateDoc(doc(db, 'historico_ingresos', docH.id), hUpdates);
+        }
+      } catch (errH) {
+        console.warn("No se pudo actualizar historico_ingresos:", errH);
+      }
+
       setEditPagoModal({ open: false, item: null, metodosPago: [], processing: false });
-      alert("Métodos de pago actualizados y caja cuadrada.");
+      alert("Métodos de pago actualizados y caja cuadrada correctamente.");
       fetchData();
     } catch (err) {
       console.error(err);
@@ -304,8 +459,8 @@ export default function VentasNotas() {
         const cuenta = pago.cuentaKey || METODO_TO_CAJA_KEY[pago.metodo] || 'efectivo';
         if (cuenta) {
           const cuentaObj = todasCuentas.find(c => c.key === cuenta);
-          const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : (pago.metodo === 'Pago Móvil' || pago.metodo === 'Transferencia');
-          const montoVal = esBs ? (Number(pago.monto) || 0) : (Number(pago.montoUSD) || 0);
+          const esBs = cuentaObj ? cuentaObj.moneda === 'BS' : isPagoBs(pago);
+          const montoVal = esBs ? (parseDecimalInput(pago.monto) || 0) : (parseDecimalInput(pago.montoUSD) || 0);
           if (montoVal > 0) {
             cajaUpdates[cuenta] = increment(-montoVal);
           }
@@ -325,6 +480,17 @@ export default function VentasNotas() {
             fecha_venta: deleteField()
           });
         } catch (e) { console.warn(e); }
+      }
+
+      // Borrar historico_ingresos asociado si existe
+      try {
+        const qH = query(collection(db, 'historico_ingresos'), where('referencia_id', '==', item.id));
+        const snapH = await getDocs(qH);
+        for (const docH of snapH.docs) {
+          await deleteDoc(doc(db, 'historico_ingresos', docH.id));
+        }
+      } catch (eH) {
+        console.warn("No se pudo eliminar historico_ingresos asociado:", eH);
       }
 
       await deleteDoc(doc(db, 'ventas', item.id));
@@ -707,85 +873,158 @@ export default function VentasNotas() {
       {/* MODAL: EDITAR MÉTODOS DE PAGO */}
       {editPagoModal.open && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-emerald-600" />
-                Editar Métodos de Pago
+                Editar Métodos de Pago y Cuentas
               </h3>
               <button onClick={() => setEditPagoModal({ open: false, item: null, metodosPago: [], processing: false })} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              {editPagoModal.metodosPago.map((pago, index) => (
-                <div key={index} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                  <select
-                    value={pago.metodo}
-                    onChange={e => {
-                      const list = [...editPagoModal.metodosPago];
-                      list[index].metodo = e.target.value;
-                      setEditPagoModal(p => ({ ...p, metodosPago: list }));
-                    }}
-                    className="flex-1 px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                  >
-                    <option value="Zelle">Zelle</option>
-                    <option value="USDT">USDT / Binance</option>
-                    <option value="Efectivo">Efectivo</option>
-                    <option value="Pago Móvil">Pago Móvil</option>
-                    <option value="Transferencia">Transferencia</option>
-                    <option value="Zinli">Zinli</option>
-                    <option value="PayPal">PayPal</option>
-                  </select>
-
-                  <div className="relative w-28">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">$</span>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={pago.montoUSD}
-                      onChange={e => {
-                        const list = [...editPagoModal.metodosPago];
-                        list[index].montoUSD = e.target.value;
-                        setEditPagoModal(p => ({ ...p, metodosPago: list }));
-                      }}
-                      className="w-full pl-6 pr-2 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white"
-                      placeholder="0.00"
-                    />
-                  </div>
-
-                  {editPagoModal.metodosPago.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const list = editPagoModal.metodosPago.filter((_, i) => i !== index);
-                        setEditPagoModal(p => ({ ...p, metodosPago: list }));
-                      }}
-                      className="p-1 text-slate-400 hover:text-red-600 rounded"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
+            {/* Configuración de Tasa si hay pagos en Bs */}
+            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-amber-900">Tasa de Cambio (Bs / $)</label>
+                  <p className="text-[11px] text-amber-700">Requerida para convertir pagos en Bolívares</p>
                 </div>
-              ))}
+                <div className="relative w-32">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-700 text-xs font-bold">Bs</span>
+                  <input
+                    type="text"
+                    value={editPagoModal.tasaModal}
+                    onChange={e => updateModalTasa(e.target.value)}
+                    placeholder="Ej: 95.50"
+                    className="w-full pl-8 pr-2.5 py-1.5 border border-amber-300 rounded-lg text-xs font-bold bg-white text-right focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {editPagoModal.metodosPago.map((pago, index) => {
+                const esBs = pago.moneda === 'BS';
+                const cuentasDisponibles = esBs ? cuentasBS : cuentasUSD;
+
+                return (
+                  <div key={index} className={`p-3 rounded-xl border space-y-2 ${esBs ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-2">
+                      {/* Selector de Método Agrupado */}
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Método</label>
+                        <select
+                          value={pago.metodo}
+                          onChange={e => updatePagoMetodo(index, e.target.value)}
+                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white font-medium"
+                        >
+                          {METODOS_PAGO_OPCIONES.map(grp => (
+                            <optgroup key={grp.grupo} label={grp.grupo}>
+                              {grp.metodos.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Selector de Cuenta Filtrado por Moneda */}
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                          Cuenta ({esBs ? 'BS' : 'USD'})
+                        </label>
+                        <select
+                          value={pago.cuentaKey || ''}
+                          onChange={e => {
+                            const list = [...editPagoModal.metodosPago];
+                            list[index].cuentaKey = e.target.value;
+                            setEditPagoModal(p => ({ ...p, metodosPago: list }));
+                          }}
+                          className={`w-full px-2.5 py-1.5 border rounded-lg text-xs bg-white font-medium ${esBs ? 'border-amber-300 text-amber-900' : 'border-slate-300 text-slate-800'}`}
+                        >
+                          {cuentasDisponibles.map(c => (
+                            <option key={c.key} value={c.key}>
+                              {c.label} ({c.moneda})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {editPagoModal.metodosPago.length > 1 && (
+                        <div className="pt-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const list = editPagoModal.metodosPago.filter((_, i) => i !== index);
+                              setEditPagoModal(p => ({ ...p, metodosPago: list }));
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-white transition-colors"
+                            title="Eliminar método"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fila de Monto */}
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                          Monto en {esBs ? 'Bolívares (Bs)' : 'Dólares ($)'}
+                        </label>
+                        <div className="relative">
+                          <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${esBs ? 'text-amber-700' : 'text-slate-400'}`}>
+                            {esBs ? 'Bs' : '$'}
+                          </span>
+                          <input
+                            type="text"
+                            value={esBs ? (pago.monto || '') : (pago.montoUSD || '')}
+                            onChange={e => updatePagoMonto(index, e.target.value)}
+                            placeholder={esBs ? "Ej: 489090" : "0.00"}
+                            className="w-full pl-8 pr-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white text-right"
+                          />
+                        </div>
+                      </div>
+
+                      {esBs && (
+                        <div className="text-right pt-3">
+                          <span className="text-[11px] text-slate-500">Equivalente: </span>
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
+                            ≈ ${(Number(pago.montoUSD) || 0).toFixed(2)} USD
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
 
               <button
                 type="button"
                 onClick={() => {
                   setEditPagoModal(p => ({
                     ...p,
-                    metodosPago: [...p.metodosPago, { metodo: 'Efectivo', montoUSD: 0 }]
+                    metodosPago: [...p.metodosPago, {
+                      metodo: 'Efectivo',
+                      cuentaKey: 'efectivo',
+                      montoUSD: '',
+                      monto: '',
+                      moneda: 'USD'
+                    }]
                   }));
                 }}
                 className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 pt-1"
               >
-                <Plus className="w-3.5 h-3.5" /> Agregar otro método
+                <Plus className="w-3.5 h-3.5" /> Agregar otro método de pago
               </button>
 
               <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-sm font-bold text-slate-800">
-                <span>Nuevo Total:</span>
-                <span>
-                  ${editPagoModal.metodosPago.reduce((acc, p) => acc + (Number(p.montoUSD) || 0), 0).toFixed(2)}
+                <span>Nuevo Total Venta:</span>
+                <span className="text-base text-emerald-600">
+                  ${editPagoModal.metodosPago.reduce((acc, p) => acc + (Number(p.montoUSD) || 0), 0).toFixed(2)} USD
                 </span>
               </div>
             </div>

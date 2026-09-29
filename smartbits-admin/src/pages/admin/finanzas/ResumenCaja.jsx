@@ -3,20 +3,9 @@ import { doc, onSnapshot, updateDoc, addDoc, collection, increment, serverTimest
 import { db } from '../../../firebase';
 import { Wallet, DollarSign, Plus, AlertTriangle, RefreshCw, Settings, X, Save, History, Landmark } from 'lucide-react';
 
-// Cuentas fijas del sistema (compatibilidad con esquema existente)
-const CUENTAS_FIJAS_USD = [
-  { key: 'bancamiga', label: 'Bancamiga', moneda: 'USD' },
-  { key: 'efectivo', label: 'Efectivo', moneda: 'USD' },
-  { key: 'paypal', label: 'PayPal', moneda: 'USD' },
-  { key: 'zelle', label: 'Zelle', moneda: 'USD' },
-  { key: 'binance', label: 'Binance (USDT)', moneda: 'USD' },
-  { key: 'zinli', label: 'Zinli', moneda: 'USD' },
-];
-const CUENTAS_FIJAS_BS = [
-  { key: 'venezuela', label: 'Banco Venezuela', moneda: 'BS' },
-  { key: 'bolivares_bs', label: 'Otros Bs', moneda: 'BS' },
-];
-const EXCLUIR_KEYS = ['tasa_cambio', 'updated_at', 'caja_envios', 'ventas_no_asignadas', '_cuentas_dinamicas'];
+import { CUENTAS_FIJAS, parseDecimalInput } from '../../../utils/useCuentasCaja';
+
+const EXCLUIR_KEYS = ['tasa_cambio', 'updated_at', 'caja_envios', 'ventas_no_asignadas', '_cuentas_dinamicas', '_nombres_personalizados'];
 
 export default function ResumenCaja() {
   const [saldos, setSaldos] = useState({});
@@ -47,8 +36,14 @@ export default function ResumenCaja() {
   // -------- Calculos --------
   const tasaCambio = Number(saldos.tasa_cambio) || 1;
 
-  const todasUSD = [...CUENTAS_FIJAS_USD, ...cuentasDinamicas.filter(c => c.moneda === 'USD')];
-  const todasBS = [...CUENTAS_FIJAS_BS, ...cuentasDinamicas.filter(c => c.moneda === 'BS')];
+  const nombresCustom = saldos._nombres_personalizados || {};
+  const cuentasFijasConNombres = CUENTAS_FIJAS.map(c => ({
+    ...c,
+    label: nombresCustom[c.key] || c.label
+  }));
+
+  const todasUSD = [...cuentasFijasConNombres.filter(c => c.moneda === 'USD'), ...cuentasDinamicas.filter(c => c.moneda === 'USD')];
+  const todasBS = [...cuentasFijasConNombres.filter(c => c.moneda === 'BS'), ...cuentasDinamicas.filter(c => c.moneda === 'BS')];
 
   const totalUSD = todasUSD.reduce((acc, c) => acc + (Number(saldos[c.key]) || 0), 0);
   const totalBSenUSD = tasaCambio > 0

@@ -3,15 +3,23 @@ import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export const CUENTAS_FIJAS = [
-  { key: 'efectivo', label: 'Efectivo', moneda: 'USD' },
+  { key: 'efectivo', label: 'Efectivo ($)', moneda: 'USD' },
   { key: 'zelle', label: 'Zelle', moneda: 'USD' },
   { key: 'binance', label: 'Binance (USDT)', moneda: 'USD' },
   { key: 'zinli', label: 'Zinli', moneda: 'USD' },
-  { key: 'bancamiga', label: 'Bancamiga', moneda: 'USD' },
+  { key: 'bancamiga', label: 'Bancamiga ($)', moneda: 'USD' },
   { key: 'paypal', label: 'PayPal', moneda: 'USD' },
   { key: 'venezuela', label: 'Banco Venezuela', moneda: 'BS' },
   { key: 'bolivares_bs', label: 'Otros Bs', moneda: 'BS' },
 ];
+
+export function parseDecimalInput(val) {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  const sanitized = String(val).trim().replace(',', '.');
+  const num = parseFloat(sanitized);
+  return isNaN(num) ? 0 : num;
+}
 
 export function useCuentasCaja() {
   const [saldos, setSaldos] = useState({});
@@ -33,8 +41,14 @@ export function useCuentasCaja() {
     return () => unsub();
   }, []);
 
+  const nombresCustom = saldos._nombres_personalizados || {};
+  const cuentasFijasConNombres = CUENTAS_FIJAS.map(c => ({
+    ...c,
+    label: nombresCustom[c.key] || c.label
+  }));
+
   const listaCuentasRaw = [
-    ...CUENTAS_FIJAS,
+    ...cuentasFijasConNombres,
     ...cuentasDinamicas
   ];
 
@@ -42,8 +56,8 @@ export function useCuentasCaja() {
   const cuentasUSD = listaCuentasRaw.filter(c => c.moneda !== 'BS');
 
   const todasCuentas = [
-    ...cuentasBS,
-    ...cuentasUSD
+    ...cuentasUSD,
+    ...cuentasBS
   ];
 
   const tasaCambio = Number(saldos.tasa_cambio) || 1;
@@ -56,7 +70,7 @@ export function useCuentasCaja() {
     const nuevasDinamicas = [...cuentasDinamicas, nuevaCuenta];
 
     await updateDoc(doc(db, 'caja', 'saldos'), {
-      [safeKey]: Number(saldoInicial) || 0,
+      [safeKey]: parseDecimalInput(saldoInicial),
       _cuentas_dinamicas: nuevasDinamicas,
       updated_at: new Date()
     });
@@ -64,14 +78,50 @@ export function useCuentasCaja() {
     return nuevaCuenta;
   };
 
+  // Helper para renombrar cuenta
+  const renombrarCuenta = async (cuentaKey, nuevoNombre) => {
+    if (!nuevoNombre || !nuevoNombre.trim()) throw new Error('Ingresa un nombre válido.');
+    const trimmed = nuevoNombre.trim();
+    const esDinamica = cuentasDinamicas.some(c => c.key === cuentaKey);
+    if (esDinamica) {
+      const nuevasDinamicas = cuentasDinamicas.map(c => c.key === cuentaKey ? { ...c, label: trimmed } : c);
+      await updateDoc(doc(db, 'caja', 'saldos'), {
+        _cuentas_dinamicas: nuevasDinamicas,
+        updated_at: new Date()
+      });
+    } else {
+      const custom = saldos._nombres_personalizados || {};
+      await updateDoc(doc(db, 'caja', 'saldos'), {
+        _nombres_personalizados: { ...custom, [cuentaKey]: trimmed },
+        updated_at: new Date()
+      });
+    }
+  };
+
+  // Helper para eliminar una cuenta dinámica
+  const eliminarCuenta = async (cuentaKey) => {
+    const esDinamica = cuentasDinamicas.some(c => c.key === cuentaKey);
+    if (!esDinamica) throw new Error('Solo se pueden eliminar cuentas personalizadas creadas.');
+    const nuevasDinamicas = cuentasDinamicas.filter(c => c.key !== cuentaKey);
+    await updateDoc(doc(db, 'caja', 'saldos'), {
+      _cuentas_dinamicas: nuevasDinamicas,
+      updated_at: new Date()
+    });
+  };
+
   // Helper para actualizar la tasa de cambio global
   const actualizarTasaCambio = async (nuevaTasa) => {
-    const tasaNum = Number(nuevaTasa);
+    const tasaNum = parseDecimalInput(nuevaTasa);
     if (isNaN(tasaNum) || tasaNum <= 0) throw new Error('Tasa de cambio inválida.');
     await updateDoc(doc(db, 'caja', 'saldos'), {
       tasa_cambio: tasaNum,
       updated_at: new Date()
     });
+  };
+
+  const isCuentaBs = (cuentaKey) => {
+    const c = todasCuentas.find(acc => acc.key === cuentaKey);
+    return c ? c.moneda === 'BS' : false;
   };
 
   return { 
@@ -83,6 +133,9 @@ export function useCuentasCaja() {
     tasaCambio, 
     loading,
     agregarCuenta,
-    actualizarTasaCambio
+    renombrarCuenta,
+    eliminarCuenta,
+    actualizarTasaCambio,
+    isCuentaBs
   };
 }
