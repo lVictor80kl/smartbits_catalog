@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronUp, X, Copy, Flame, MoreVertical,
   LayoutGrid, List, Search, Laptop, DollarSign, CheckCircle2,
   Clock, AlertCircle, ArrowUpDown, Cpu, HardDrive, MemoryStick, Eye,
-  TrendingUp
+  TrendingUp, Truck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
@@ -34,6 +34,8 @@ export default function Dashboard() {
   const [filterCpu, setFilterCpu] = useState('');
   const [filterOfertasOnly, setFilterOfertasOnly] = useState(false);
   const [filterBorradoresOnly, setFilterBorradoresOnly] = useState(false);
+  const [filterEnvio, setFilterEnvio] = useState('todos'); // 'todos' | 'sin_envio' | 'con_envio'
+  const [filterExtras, setFilterExtras] = useState('todos'); // 'todos' | 'con_extras' | 'sin_extras'
   const [searchTerm, setSearchTerm] = useState('');
   const [priceSort, setPriceSort] = useState('asc');
   
@@ -124,6 +126,8 @@ export default function Dashboard() {
     const activas = laptops.filter(l => l.disponibilidad === 'Disponible' || l.disponibilidad === 'Coming soon');
     const enOferta = laptops.filter(l => Boolean(l.en_oferta));
     const borradores = laptops.filter(l => Boolean(l.borrador));
+    const sinEnvio = laptops.filter(l => !tieneEnvioPagado(l));
+    const conExtras = laptops.filter(l => tienePagoExtra(l));
 
     // Costo de adquisición real (Finanzas)
     const costoInvTotal = activas.reduce((acc, l) => acc + (getCostoTotal(l) || 0), 0);
@@ -164,6 +168,8 @@ export default function Dashboard() {
       activasCount: activas.length,
       enOfertaCount: enOferta.length,
       borradoresCount: borradores.length,
+      sinEnvioCount: sinEnvio.length,
+      conExtrasCount: conExtras.length,
       // Costos idénticos a Finanzas
       costoInvTotal,
       costoInvDisponibles,
@@ -312,6 +318,10 @@ export default function Dashboard() {
     if (filterCpu.trim()) filterParts.push(`CPU: "${filterCpu}"`);
     if (filterOfertasOnly) filterParts.push(`Solo Ofertas`);
     if (filterBorradoresOnly) filterParts.push(`Solo Borradores`);
+    if (filterEnvio === 'sin_envio') filterParts.push('Sin Envío Registrado');
+    if (filterEnvio === 'con_envio') filterParts.push('Con Envío Registrado');
+    if (filterExtras === 'con_extras') filterParts.push('Con Gastos Extras');
+    if (filterExtras === 'sin_extras') filterParts.push('Sin Gastos Extras');
     if (searchTerm.trim()) filterParts.push(`Búsqueda: "${searchTerm}"`);
     if (priceSort === 'asc') filterParts.push('Precio: Menor a mayor');
     if (priceSort === 'desc') filterParts.push('Precio: Mayor a menor');
@@ -442,6 +452,8 @@ export default function Dashboard() {
     (filterCpu.trim() !== '' ? 1 : 0) +
     (filterOfertasOnly ? 1 : 0) +
     (filterBorradoresOnly ? 1 : 0) +
+    (filterEnvio !== 'todos' ? 1 : 0) +
+    (filterExtras !== 'todos' ? 1 : 0) +
     (searchTerm.trim() !== '' ? 1 : 0);
 
   const clearAllFilters = () => {
@@ -452,6 +464,8 @@ export default function Dashboard() {
     setFilterCpu('');
     setFilterOfertasOnly(false);
     setFilterBorradoresOnly(false);
+    setFilterEnvio('todos');
+    setFilterExtras('todos');
     setSearchTerm('');
     setPriceSort('asc');
   };
@@ -466,12 +480,20 @@ export default function Dashboard() {
       const matchCpu = !filterCpu.trim() || (laptop.cpu || '').toLowerCase().includes(filterCpu.toLowerCase().trim());
       const matchOferta = !filterOfertasOnly || Boolean(laptop.en_oferta);
       const matchBorrador = !filterBorradoresOnly || Boolean(laptop.borrador);
+      const matchEnvio =
+        filterEnvio === 'todos' ? true :
+        filterEnvio === 'sin_envio' ? !tieneEnvioPagado(laptop) :
+        tieneEnvioPagado(laptop);
+      const matchExtras =
+        filterExtras === 'todos' ? true :
+        filterExtras === 'con_extras' ? tienePagoExtra(laptop) :
+        !tienePagoExtra(laptop);
       const matchSearch = !searchTerm.trim() ||
         laptop.modelo.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
         (laptop.marca || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
         (laptop.cpu || '').toLowerCase().includes(searchTerm.toLowerCase().trim());
 
-      return matchDisp && matchMarca && matchRam && matchStorage && matchCpu && matchOferta && matchBorrador && matchSearch;
+      return matchDisp && matchMarca && matchRam && matchStorage && matchCpu && matchOferta && matchBorrador && matchEnvio && matchExtras && matchSearch;
     })
     .sort((a, b) => {
       const dispOrder = { 'Disponible': 0, 'Coming soon': 1, 'No disponible': 2 };
@@ -881,6 +903,32 @@ export default function Dashboard() {
           >
             Borradores ({stats.borradoresCount})
           </button>
+
+          <button
+            onClick={() => setFilterEnvio(prev => prev === 'sin_envio' ? 'todos' : 'sin_envio')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              filterEnvio === 'sin_envio'
+                ? 'bg-rose-600 text-white shadow-2xs'
+                : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50'
+            }`}
+            title="Laptops que no tienen el gasto de envío registrado"
+          >
+            <Truck className="w-3 h-3 text-rose-500" />
+            Sin Envío ({stats.sinEnvioCount})
+          </button>
+
+          <button
+            onClick={() => setFilterExtras(prev => prev === 'con_extras' ? 'todos' : 'con_extras')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              filterExtras === 'con_extras'
+                ? 'bg-blue-600 text-white shadow-2xs'
+                : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'
+            }`}
+            title="Laptops con gastos adicionales o extras registrados"
+          >
+            <Package className="w-3 h-3 text-blue-500" />
+            Con Extras ({stats.conExtrasCount})
+          </button>
         </div>
 
         {/* Panel Colapsable de Filtros Avanzados (Marca, RAM, Disco, CPU) */}
@@ -1018,6 +1066,64 @@ export default function Dashboard() {
                       <X className="w-3 h-3" />
                     </button>
                   )}
+                </div>
+              </div>
+            </div>
+
+            {/* Fila: Filtros de Gastos y Envíos */}
+            <div className="pt-3 border-t border-gray-200/60">
+              <label className="block font-bold text-gray-500 uppercase tracking-wider mb-2">
+                Gastos Adicionales y Envíos
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Envío */}
+                <div>
+                  <span className="block text-[11px] font-semibold text-gray-600 mb-1.5">Gasto de Envío:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { key: 'todos', label: 'Todos' },
+                      { key: 'sin_envio', label: 'Sin Envío Registrado', icon: Truck },
+                      { key: 'con_envio', label: 'Con Envío Registrado' }
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setFilterEnvio(opt.key)}
+                        className={`px-2.5 py-1 rounded-lg font-medium border transition-all text-xs flex items-center gap-1 ${
+                          filterEnvio === opt.key
+                            ? 'bg-rose-600 text-white border-rose-600 font-bold shadow-2xs'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        {opt.icon && <opt.icon className="w-3 h-3" />}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Extras */}
+                <div>
+                  <span className="block text-[11px] font-semibold text-gray-600 mb-1.5">Gastos Extras:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { key: 'todos', label: 'Todos' },
+                      { key: 'con_extras', label: 'Con Extras', icon: Package },
+                      { key: 'sin_extras', label: 'Sin Extras' }
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setFilterExtras(opt.key)}
+                        className={`px-2.5 py-1 rounded-lg font-medium border transition-all text-xs flex items-center gap-1 ${
+                          filterExtras === opt.key
+                            ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-2xs'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        {opt.icon && <opt.icon className="w-3 h-3" />}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

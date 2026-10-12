@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { Package, Edit2, Save, X, RefreshCw, Layers, Check, TrendingDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { getCostoTotal, getGastosExtraItems, getGastosExtraTotal } from '../../../utils/costos';
+import { Package, Edit2, Save, X, RefreshCw, Layers, Check, TrendingDown, ArrowUp, ArrowDown, Truck } from 'lucide-react';
+import { getCostoTotal, getGastosExtraItems, getGastosExtraTotal, tieneEnvioPagado, tienePagoExtra } from '../../../utils/costos';
 
 const ESTADOS_ACTIVOS = ['Disponible', 'Coming soon'];
 
@@ -12,6 +12,8 @@ export default function InventarioFinanciero() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('laptops');
   const [estadoSortOrder, setEstadoSortOrder] = useState('disponible'); // 'disponible' | 'coming_soon'
+  const [filterEnvio, setFilterEnvio] = useState('todos'); // 'todos' | 'sin_envio' | 'con_envio'
+  const [filterExtras, setFilterExtras] = useState('todos'); // 'todos' | 'con_extras' | 'sin_extras'
 
   useEffect(() => {
     let loaded = 0;
@@ -67,7 +69,16 @@ export default function InventarioFinanciero() {
   const costoInvTotal = costoInvLaptops + costoInvComponentes;
 
   const rawItems = activeTab === 'laptops' ? laptopsActivas : componentesActivos;
-  const items = [...rawItems].sort((a, b) => {
+  const sinEnvioCount = rawItems.filter(i => !tieneEnvioPagado(i)).length;
+  const conExtrasCount = rawItems.filter(i => tienePagoExtra(i)).length;
+
+  const items = [...rawItems].filter(item => {
+    if (filterEnvio === 'sin_envio' && tieneEnvioPagado(item)) return false;
+    if (filterEnvio === 'con_envio' && !tieneEnvioPagado(item)) return false;
+    if (filterExtras === 'con_extras' && !tienePagoExtra(item)) return false;
+    if (filterExtras === 'sin_extras' && tienePagoExtra(item)) return false;
+    return true;
+  }).sort((a, b) => {
     const prio = (val) => val === 'Disponible' ? (estadoSortOrder === 'disponible' ? 1 : 2) : (estadoSortOrder === 'disponible' ? 2 : 1);
     return prio(a.disponibilidad) - prio(b.disponibilidad);
   });
@@ -108,28 +119,73 @@ export default function InventarioFinanciero() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs y Filtros Rápidos */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex border-b border-gray-100 p-1">
-          {[
-            { key: 'laptops', label: `Laptops (${laptopsActivas.length})`, icon: Package },
-            { key: 'componentes', label: `Componentes (${componentesActivos.length})`, icon: Layers },
-          ].map(t => {
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === t.key
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                  }`}
-              >
-                <Icon className="w-4 h-4" />
-                {t.label}
-              </button>
-            );
-          })}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 p-2 gap-2 bg-gray-50/50">
+          <div className="flex gap-1">
+            {[
+              { key: 'laptops', label: `Laptops (${laptopsActivas.length})`, icon: Package },
+              { key: 'componentes', label: `Componentes (${componentesActivos.length})`, icon: Layers },
+            ].map(t => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => {
+                    setActiveTab(t.key);
+                    setFilterEnvio('todos');
+                    setFilterExtras('todos');
+                  }}
+                  className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === t.key
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Filters de Envío y Extras */}
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs px-1">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0 mr-0.5">Filtrar:</span>
+            <button
+              onClick={() => { setFilterEnvio('todos'); setFilterExtras('todos'); }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                filterEnvio === 'todos' && filterExtras === 'todos'
+                  ? 'bg-gray-900 text-white shadow-2xs'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              Todos ({rawItems.length})
+            </button>
+            <button
+              onClick={() => setFilterEnvio(prev => prev === 'sin_envio' ? 'todos' : 'sin_envio')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                filterEnvio === 'sin_envio'
+                  ? 'bg-rose-600 text-white shadow-2xs'
+                  : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50'
+              }`}
+              title="Equipos que no tienen el gasto de envío registrado"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              Sin Envío ({sinEnvioCount})
+            </button>
+            <button
+              onClick={() => setFilterExtras(prev => prev === 'con_extras' ? 'todos' : 'con_extras')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                filterExtras === 'con_extras'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'
+              }`}
+              title="Equipos con gastos adicionales o extras registrados"
+            >
+              <Package className="w-3.5 h-3.5" />
+              Con Extras ({conExtrasCount})
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">

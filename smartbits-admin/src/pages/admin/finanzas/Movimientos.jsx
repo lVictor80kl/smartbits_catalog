@@ -23,7 +23,7 @@ const METODO_TO_CAJA_KEY = {
 
 export default function Movimientos() {
   const { corte, loading: loadingCorte } = useCorteContable();
-  const { todasCuentas, cuentasUSD, cuentasBS, tasaCambio: tasaHook } = useCuentasCaja();
+  const { todasCuentas, cuentasUSD, cuentasBS, tasaCambio: tasaHook, saldos } = useCuentasCaja();
 
   // Tipo de operación en formulario: 'gasto_op' | 'retiro' | 'transferencia'
   const [tipoOperacion, setTipoOperacion] = useState('gasto_op');
@@ -86,6 +86,7 @@ export default function Movimientos() {
 
   // Filtros de tabla
   const [filtroTipo, setFiltroTipo] = useState('todos'); // 'todos' | 'gasto_op' | 'retiro_ysmael' | 'retiro_victor' | 'transferencia'
+  const [filtroCuenta, setFiltroCuenta] = useState('todas'); // 'todas' o key de la cuenta
   const [busqueda, setBusqueda] = useState('');
 
   // Modales de eliminación y edición
@@ -664,6 +665,75 @@ export default function Movimientos() {
     }
   };
 
+  // Helper para verificar si un movimiento involucra una cuenta específica
+  const movimientoInvolucraCuenta = (m, targetKey) => {
+    if (!targetKey || targetKey === 'todas') return true;
+
+    // 1. Transferencias internas (origen o destino)
+    if (m.tipo_mov === 'transferencia') {
+      return m.cuenta_origen === targetKey || m.cuenta_destino === targetKey;
+    }
+
+    // 2. Retiros de socios
+    if (m.tipo_mov === 'retiro') {
+      const cuenta = m.cuenta_salida || m.metodo_pago;
+      return cuenta === targetKey;
+    }
+
+    // 3. Aportes de capital
+    if (m.tipo_mov === 'aporte_capital') {
+      const cuenta = m.cuenta_destino || m.metodo_pago;
+      return cuenta === targetKey;
+    }
+
+    // 4. Reembolsos
+    if (m.tipo_mov === 'reembolso') {
+      return m.cuenta_destino === targetKey;
+    }
+
+    // 5. Gastos operativos y compras de inventario
+    if (m.tipo_mov === 'gasto_op' || m.tipo_mov === 'compra_inventario') {
+      const c = m.metodo_pago || m.cuenta_origen;
+      return c === targetKey;
+    }
+
+    // 6. Ventas / Ingresos
+    if (m.tipo_mov === 'venta') {
+      if (m.metodo_pago) {
+        if (typeof m.metodo_pago === 'string') {
+          const parts = m.metodo_pago.split(',').map(s => s.trim());
+          if (parts.some(p => p === targetKey || METODO_TO_CAJA_KEY[p] === targetKey)) return true;
+        } else if (Array.isArray(m.metodo_pago)) {
+          if (m.metodo_pago.some(p => {
+            const k = p.cuentaKey || METODO_TO_CAJA_KEY[p.metodo] || p.metodo;
+            return k === targetKey;
+          })) return true;
+        }
+      }
+    }
+
+    // Fallback general por cualquier campo que contenga la clave
+    const candidateKeys = [
+      m.metodo_pago,
+      m.cuenta_salida,
+      m.cuenta_destino,
+      m.cuenta_origen,
+      m.cuenta_key
+    ].filter(Boolean);
+
+    for (const c of candidateKeys) {
+      if (typeof c === 'string') {
+        if (c === targetKey || METODO_TO_CAJA_KEY[c] === targetKey) return true;
+        if (c.includes(',')) {
+          const parts = c.split(',').map(s => s.trim());
+          if (parts.some(p => p === targetKey || METODO_TO_CAJA_KEY[p] === targetKey)) return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
   // --- MOVIMIENTOS COMBINADOS Y FILTRADOS ---
   const todosMovimientos = [
     ...gastosOp,
@@ -682,6 +752,8 @@ export default function Movimientos() {
     if (filtroTipo === 'transferencia' && m.tipo_mov !== 'transferencia') return false;
     if (filtroTipo === 'reembolso' && m.tipo_mov !== 'reembolso') return false;
     if (filtroTipo === 'venta' && m.tipo_mov !== 'venta') return false;
+
+    if (filtroCuenta !== 'todas' && !movimientoInvolucraCuenta(m, filtroCuenta)) return false;
 
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase();
@@ -1169,6 +1241,25 @@ export default function Movimientos() {
               />
             </div>
 
+            {/* Selector filtro por cuenta */}
+            <select
+              value={filtroCuenta}
+              onChange={e => setFiltroCuenta(e.target.value)}
+              className="w-full sm:w-auto border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value="todas">Todas las cuentas</option>
+              <optgroup label="Cuentas en Dólares (USD)">
+                {todasCuentas.filter(c => c.moneda !== 'BS').map(c => (
+                  <option key={c.key} value={c.key}>{c.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Cuentas en Bolívares (BS)">
+                {todasCuentas.filter(c => c.moneda === 'BS').map(c => (
+                  <option key={c.key} value={c.key}>{c.label}</option>
+                ))}
+              </optgroup>
+            </select>
+
             {/* Selector filtro tipo */}
             <select
               value={filtroTipo}
@@ -1187,6 +1278,37 @@ export default function Movimientos() {
             </select>
           </div>
         </div>
+
+        {/* Banner informativo de conciliación por cuenta */}
+        {filtroCuenta !== 'todas' && (
+          (() => {
+            const cSel = todasCuentas.find(c => c.key === filtroCuenta);
+            const saldoCuenta = saldos ? Number(saldos[filtroCuenta] || 0) : 0;
+            const esBs = cSel?.moneda === 'BS';
+            return (
+              <div className="mx-5 my-3 p-3.5 bg-brand-50/80 border border-brand-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-brand-600 animate-pulse shrink-0" />
+                  <span className="text-slate-600 font-medium">Conciliando con estado de cuenta:</span>
+                  <span className="font-bold text-slate-900 bg-white px-2 py-0.5 rounded-md border border-brand-200 shadow-2xs">
+                    {cSel?.label || filtroCuenta} ({cSel?.moneda || 'USD'})
+                  </span>
+                  <span className="text-slate-400 hidden sm:inline">•</span>
+                  <span className="text-slate-600">
+                    Saldo registrado en caja: <strong className="text-slate-900 font-black">{esBs ? `Bs ${saldoCuenta.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `$${saldoCuenta.toFixed(2)}`}</strong>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFiltroCuenta('todas')}
+                  className="text-brand-700 hover:text-brand-900 font-bold hover:underline flex items-center gap-1 shrink-0 self-start sm:self-auto"
+                >
+                  <X className="w-3.5 h-3.5" /> Quitar filtro de cuenta
+                </button>
+              </div>
+            );
+          })()
+        )}
 
         {loadingData ? (
           <div className="p-12 text-center text-slate-400 flex items-center justify-center gap-2 text-sm">
@@ -1310,6 +1432,11 @@ export default function Movimientos() {
                               {fmtMontoMoneda(item.moneda_origen || monedaDeCuenta(item.cuenta_origen), item.monto_origen)}
                               {item.monto_destino && item.monto_destino !== item.monto_origen && ` → ${fmtMontoMoneda(item.moneda_destino || monedaDeCuenta(item.cuenta_destino), item.monto_destino)}`}
                             </span>
+                            {filtroCuenta !== 'todas' && (
+                              <div className={`text-[10px] font-black ${item.cuenta_destino === filtroCuenta ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {item.cuenta_destino === filtroCuenta ? '↓ Entrada (+) a esta cuenta' : '↑ Salida (-) de esta cuenta'}
+                              </div>
+                            )}
                             {Number(item.diferencial_usd) !== 0 && (
                               <div className={`text-[10px] font-black ${Number(item.diferencial_usd) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                                 {Number(item.diferencial_usd) > 0 ? 'Ganancia' : 'Pérdida'} camb.: {fmtMontoMoneda('USD', Math.abs(Number(item.diferencial_usd)))}
