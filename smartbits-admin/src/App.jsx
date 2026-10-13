@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminLayout from './components/layout/AdminLayout';
@@ -43,7 +43,7 @@ function App() {
             <Route path="components/edit/:id" element={<EditComponent />} />
             <Route path="components/delivery/:id" element={<ComponentDeliveryNote />} />
             <Route path="service" element={<ServiceDeliveryNote />} />
-            <Route path="trackings" element={<TrackingsDashboard />} />
+            <Route path="trackings" element={<Navigate to="/admin/compras-ebay" replace />} />
             <Route path="compras-ebay" element={<ComprasEbay />} />
             <Route path="finanzas/*" element={<FinanzasDashboard />} />
           </Route>

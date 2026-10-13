@@ -9,11 +9,16 @@ import {
   AlertTriangle, CheckCircle2, Clock, Package, Laptop, 
   Box, ArrowRight, DollarSign, Calendar, RefreshCw, X, ShieldAlert,
   Info, Sparkles, Filter, Check, EyeOff, RotateCcw, Link as LinkIcon,
-  CheckCircle, Unlink, Layers, Edit2, Plus
+  CheckCircle, Unlink, Layers, Edit2, Plus, Printer, Truck, MapPin
 } from 'lucide-react';
-import { getTrackingUrlUsa, getCourierUsaConfig, COURIERS_USA } from '../../../utils/couriers';
+import { 
+  getTrackingUrlUsa, getCourierUsaConfig, COURIERS_USA,
+  getTrackingUrlVzla, getCourierVzlaConfig, COURIERS_VZLA,
+  ESTADOS_TRACKING, getEstadoConfig
+} from '../../../utils/couriers';
 import TrackingModal from '../trackings/TrackingModal';
 import { syncTrackingFromEbay } from '../../../utils/syncTrackingFromEbay';
+import { tieneEnvioPagado } from '../../../utils/costos';
 
 export default function ComprasEbay() {
   const navigate = useNavigate();
@@ -23,7 +28,7 @@ export default function ComprasEbay() {
   const [trackings, setTrackings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterEstado, setFilterEstado] = useState('pendientes'); // 'todos' | 'pendientes' | 'en_tracking' | 'en_inventario' | 'descartados'
+  const [filterEstado, setFilterEstado] = useState('prioridad'); // 'prioridad' | 'todos' | 'pendientes' | 'sin_prealerta' | 'en_usa' | 'en_vzla' | 'en_taller' | 'disponibles' | 'coming_soon' | 'descartados'
 
   // Modales
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -53,9 +58,23 @@ export default function ComprasEbay() {
     syncToEnvios: true
   });
 
+  // Modal rápido para asignar / editar Tracking VZLA
+  const [quickVzlaModal, setQuickVzlaModal] = useState({
+    open: false,
+    item: null,
+    tracking_id: null,
+    courier_vzla: 'liberty',
+    tracking_vzla: '',
+    saving: false
+  });
+
   // Edición rápida de precio
   const [editingPriceId, setEditingPriceId] = useState(null);
   const [editingPriceVal, setEditingPriceVal] = useState('');
+
+  // Edición rápida de Order ID de eBay
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [editingOrderVal, setEditingOrderVal] = useState('');
 
   // 1. Escuchar compras de eBay en tiempo real
   useEffect(() => {
@@ -101,155 +120,44 @@ export default function ComprasEbay() {
     };
   }, []);
 
-  // Algoritmo de Coincidencia Inteligente con exclusión de equipos ya asignados
-  const findInventoryMatch = (ebayItem, excludedLaptopIds = new Set()) => {
-    if (!ebayItem || ebayItem.estado === 'en_inventario') return null;
+  // Contador de compras marcadas con auto-vinculación previa
+  const autoLinkedCount = useMemo(() => {
+    return compras.filter(c => c.vinculado_automatico).length;
+  }, [compras]);
 
-    const ebayTitle = (ebayItem.titulo || '').toLowerCase();
-    const ebayOrderId = (ebayItem.orderId || '').toLowerCase().trim();
-    const ebayItemId = (ebayItem.itemId || '').toLowerCase().trim();
-    const ebayTracking = (ebayItem.tracking_usa || '').replace(/[\s-]/g, '').toLowerCase();
-
-    // 1. Coincidencia exacta por N° de orden o ID de item en observaciones_compra o ebay_compra_id
-    for (const lap of laptops) {
-      if (excludedLaptopIds.has(lap.id)) continue;
-      if (lap.ebay_compra_id && lap.ebay_compra_id === ebayItem.id) {
-        return { type: 'laptop', item: lap, confidence: 'exact', reason: `Ficha ya enlazada a esta compra` };
-      }
-      const obs = (lap.observaciones_compra || '').toLowerCase();
-      if (ebayOrderId && obs.includes(ebayOrderId)) {
-        return { type: 'laptop', item: lap, confidence: 'exact', reason: `Orden #${ebayItem.orderId}` };
-      }
-      if (ebayItemId && obs.includes(ebayItemId)) {
-        return { type: 'laptop', item: lap, confidence: 'exact', reason: `Artículo eBay #${ebayItem.itemId}` };
-      }
+  // Revertir en lote cualquier auto-vinculación errónea generada por el algoritmo anterior
+  const handleRevertAllAutoLinks = async () => {
+    const toRevert = compras.filter(c => c.vinculado_automatico);
+    if (toRevert.length === 0) {
+      alert('No hay compras con auto-vinculación activa.');
+      return;
     }
-
-    // 2. Coincidencia por Tracking USA registrado en el módulo de Envíos
-    if (ebayTracking && trackings.length > 0) {
-      for (const trk of trackings) {
-        const trkUsa = (trk.tracking_usa || '').replace(/[\s-]/g, '').toLowerCase();
-        if (trkUsa && trkUsa === ebayTracking) {
-          if (Array.isArray(trk.items)) {
-            for (const ti of trk.items) {
-              const lap = laptops.find(l => l.id === ti.id);
-              if (lap && !excludedLaptopIds.has(lap.id)) {
-                return { type: 'laptop', item: lap, confidence: 'exact', reason: `Mismo Tracking ${ebayItem.tracking_usa}` };
-              }
-            }
-          }
+    if (!confirm(`Se detectaron ${toRevert.length} compras vinculadas automáticamente.\n\n¿Deseas revertirlas a estado "Sin Inventario" para agregarlas formalmente y evitar que se mezclen con equipos anteriores?`)) {
+      return;
+    }
+    try {
+      const batch = writeBatch(db);
+      for (const c of toRevert) {
+        if (c.tipo_inventario === 'laptop' && c.inventario_id) {
+          try {
+            batch.update(doc(db, 'laptops', c.inventario_id), { ebay_compra_id: null });
+          } catch (e) {}
         }
+        batch.update(doc(db, 'compras_ebay', c.id), {
+          estado: 'pendiente',
+          tipo_inventario: '',
+          inventario_id: '',
+          vinculado_automatico: false,
+          fecha_actualizacion: serverTimestamp()
+        });
       }
+      await batch.commit();
+      setAutoLinkNotification(`¡Se revirtieron ${toRevert.length} compras a estado "Sin Inventario"! Ahora podrás agregarlas formalmente.`);
+      setTimeout(() => setAutoLinkNotification(''), 7000);
+    } catch (err) {
+      alert('Error revirtiendo vinculaciones: ' + err.message);
     }
-
-    // 3. Coincidencia semántica por Marca y Modelo de Laptop
-    const stopWords = new Set(['laptop', 'notebook', 'intel', 'core', 'with', 'para', 'computadora', 'nuevo', 'used', 'refurbished', 'original', 'excelente', 'screen', 'pantalla', 'disco', 'year', 'good', 'condition', 'the', 'and', 'for']);
-    const cleanKeywords = ebayTitle
-      .replace(/[^\w\s]/gi, ' ')
-      .split(/\s+/)
-      .map(w => w.trim().toLowerCase())
-      .filter(w => w.length >= 3 && !stopWords.has(w));
-
-    let bestLaptop = null;
-    let maxScore = 0;
-
-    for (const lap of laptops) {
-      if (excludedLaptopIds.has(lap.id)) continue;
-
-      const lapModel = (lap.modelo || '').toLowerCase();
-      const lapBrand = (lap.marca || '').toLowerCase();
-      let score = 0;
-
-      // Coincidencia de marca (ej. Asus, Dell, Lenovo)
-      if (lapBrand && ebayTitle.includes(lapBrand)) {
-        score += 2;
-      }
-
-      // Coincidencia de palabras clave del modelo
-      cleanKeywords.forEach(kw => {
-        if (lapModel.includes(kw)) score += 2;
-      });
-
-      // Si el modelo exacto de la laptop está contenido en el título de eBay (ej. "vivobook 14", "latitude 5500")
-      if (lapModel.length >= 4 && ebayTitle.includes(lapModel)) {
-        score += 5;
-      }
-
-      // Proximidad de precio de compra
-      if (lap.precio_ebay && ebayItem.precio) {
-        const diff = Math.abs(Number(lap.precio_ebay) - Number(ebayItem.precio));
-        if (diff < 2) score += 3;
-        else if (diff < 15) score += 1;
-      }
-
-      // Fecha idéntica
-      if (lap.fecha_compra && ebayItem.fecha_compra && lap.fecha_compra === ebayItem.fecha_compra) {
-        score += 2;
-      }
-
-      if (score > maxScore) {
-        maxScore = score;
-        bestLaptop = lap;
-      }
-    }
-
-    if (bestLaptop && maxScore >= 5) {
-      return {
-        type: 'laptop',
-        item: bestLaptop,
-        confidence: maxScore >= 7 ? 'high' : 'medium',
-        reason: `Modelo: ${bestLaptop.marca || ''} ${bestLaptop.modelo || ''}`
-      };
-    }
-
-    // 4. Coincidencia con Componentes
-    for (const comp of componentes) {
-      const compName = (comp.nombre || '').toLowerCase().trim();
-      if (compName.length >= 4 && ebayTitle.includes(compName)) {
-        return {
-          type: 'componente',
-          item: comp,
-          confidence: 'high',
-          reason: `Componente: ${comp.nombre}`
-        };
-      }
-    }
-
-    return null;
   };
-
-  // Mapa de sugerencias calculadas en memoria con asignación 1 a 1
-  const sugerenciasMap = useMemo(() => {
-    // 1. Identificar laptops que ya están vinculadas en la base de datos
-    const globallyLinkedLaptops = new Set();
-    compras.forEach(c => {
-      if (c.estado === 'en_inventario' && c.tipo_inventario === 'laptop' && c.inventario_id) {
-        globallyLinkedLaptops.add(c.inventario_id);
-      }
-    });
-    laptops.forEach(l => {
-      if (l.ebay_compra_id) globallyLinkedLaptops.add(l.id);
-    });
-
-    const allocatedLaptopIds = new Set(globallyLinkedLaptops);
-    const map = {};
-
-    // 2. Emparejar compras pendientes secuencialmente de forma excluyente
-    compras.forEach(item => {
-      if (item.estado === 'pendiente') {
-        const match = findInventoryMatch(item, allocatedLaptopIds);
-        if (match) {
-          map[item.id] = match;
-          if (match.type === 'laptop') {
-            allocatedLaptopIds.add(match.item.id);
-          }
-        }
-      }
-    });
-    return map;
-  }, [compras, laptops, componentes, trackings]);
-
-  const totalSugerencias = Object.keys(sugerenciasMap).length;
 
   // Detección inteligente de compras duplicadas reales (mismo itemId exacto, NO por título)
   const detectedDuplicates = useMemo(() => {
@@ -297,152 +205,268 @@ export default function ComprasEbay() {
 
   const detectedDuplicatesCount = detectedDuplicates.length;
 
-  // Conteos para métricas y filtros
-  const totalCount = compras.length;
-  const pendientesCount = compras.filter(c => c.estado === 'pendiente').length;
-  const enTrackingCount = compras.filter(c => c.estado === 'en_tracking').length;
-  const enInventarioCount = compras.filter(c => c.estado === 'en_inventario').length;
-  const descartadosCount = compras.filter(c => c.estado === 'descartado').length;
+  // Helper estricto para encontrar la ficha de inventario asociada a una compra de eBay
+  const getLinkedInventoryItem = (item) => {
+    if (!item) return null;
 
-  // Filtrado y ordenación de compras (siguiendo el orden cronológico de fecha_compra)
-  const comprasFiltradas = compras
-    .filter(item => {
-      if (filterEstado === 'pendientes' && item.estado !== 'pendiente') return false;
-      if (filterEstado === 'en_tracking' && item.estado !== 'en_tracking') return false;
-      if (filterEstado === 'en_inventario' && item.estado !== 'en_inventario') return false;
-      if (filterEstado === 'descartados' && item.estado !== 'descartado') return false;
+    const cleanOrderId = (item.orderId || '').trim();
 
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        const matchTitulo = item.titulo && item.titulo.toLowerCase().includes(term);
-        const matchOrder = item.orderId && item.orderId.toLowerCase().includes(term);
-        const matchTracking = item.tracking_usa && item.tracking_usa.toLowerCase().includes(term);
-        const matchVendedor = item.vendedor && item.vendedor.toLowerCase().includes(term);
-        if (!matchTitulo && !matchOrder && !matchTracking && !matchVendedor) return false;
+    // A. Si está explícitamente asignado por tipo e ID
+    if (item.tipo_inventario === 'laptop' && item.inventario_id) {
+      const found = laptops.find(l => l.id === item.inventario_id);
+      if (found) {
+        // Si fue auto-vinculado anteriormente y el order_id no coincide, ignorar la asociación espuria
+        if (item.vinculado_automatico && cleanOrderId && found.order_id && found.order_id.trim() !== cleanOrderId) {
+          return null;
+        }
+        return { type: 'laptop', item: found };
       }
+    }
+    if (item.tipo_inventario === 'componente' && item.inventario_id) {
+      const found = componentes.find(c => c.id === item.inventario_id);
+      if (found) {
+        if (item.vinculado_automatico && cleanOrderId && found.order_id && found.order_id.trim() !== cleanOrderId) {
+          return null;
+        }
+        return { type: 'componente', item: found };
+      }
+    }
 
-      return true;
-    })
-    .sort((a, b) => {
-      // 1. Fecha de compra descendente (más reciente primero)
-      const dateA = a.fecha_compra ? new Date(a.fecha_compra).getTime() : 0;
-      const dateB = b.fecha_compra ? new Date(b.fecha_compra).getTime() : 0;
-      if (dateB !== dateA) return dateB - dateA;
+    // B. Por ebay_compra_id en la ficha de inventario
+    const lapByEbay = laptops.find(l => l.ebay_compra_id === item.id);
+    if (lapByEbay) {
+      if (item.vinculado_automatico && cleanOrderId && lapByEbay.order_id && lapByEbay.order_id.trim() !== cleanOrderId) {
+        return null;
+      }
+      return { type: 'laptop', item: lapByEbay };
+    }
 
-      // 2. Si tienen la misma fecha, por fecha de sincronización descendente
-      const syncA = a.fecha_sincronizacion?.toMillis?.() || (a.fecha_sincronizacion ? new Date(a.fecha_sincronizacion).getTime() : 0);
-      const syncB = b.fecha_sincronizacion?.toMillis?.() || (b.fecha_sincronizacion ? new Date(b.fecha_sincronizacion).getTime() : 0);
-      return syncB - syncA;
+    const compByEbay = componentes.find(c => c.ebay_compra_id === item.id);
+    if (compByEbay) {
+      if (item.vinculado_automatico && cleanOrderId && compByEbay.order_id && compByEbay.order_id.trim() !== cleanOrderId) {
+        return null;
+      }
+      return { type: 'componente', item: compByEbay };
+    }
+
+    // C. Por orderId exacto único (SOLO si es un ID real y no un identificador temporal como order_1, order_2)
+    const isValidRealOrderId = (ord) => {
+      if (!ord || typeof ord !== 'string') return false;
+      const c = ord.replace(/^#/, '').trim().toLowerCase();
+      if (!c || c.startsWith('order_') || c.startsWith('order-') || c.startsWith('item_') || c.startsWith('ebay_') || c.startsWith('temp_')) return false;
+      return c.length >= 8;
+    };
+
+    if (isValidRealOrderId(cleanOrderId)) {
+      const normClean = cleanOrderId.replace(/^#/, '').trim().toLowerCase();
+      const lapByOrd = laptops.find(l => {
+        const lo = (l.order_id || '').replace(/^#/, '').trim().toLowerCase();
+        return isValidRealOrderId(lo) && lo === normClean;
+      });
+      if (lapByOrd) return { type: 'laptop', item: lapByOrd };
+
+      const compByOrd = componentes.find(c => {
+        const co = (c.order_id || '').replace(/^#/, '').trim().toLowerCase();
+        return isValidRealOrderId(co) && co === normClean;
+      });
+      if (compByOrd) return { type: 'componente', item: compByOrd };
+    }
+
+    return null;
+  };
+
+  // Helper para encontrar el paquete de tracking asociado en trackings
+  const getLinkedTrackingDoc = (item, invItemObj) => {
+    if (!item) return null;
+    if (item.tracking_id) {
+      const trk = trackings.find(t => t.id === item.tracking_id);
+      if (trk) return trk;
+    }
+    if (invItemObj?.item?.tracking_id) {
+      const trk = trackings.find(t => t.id === invItemObj.item.tracking_id);
+      if (trk) return trk;
+    }
+    const cleanUsa = (item.tracking_usa || invItemObj?.item?.tracking_usa || '').trim().replace(/[\s-]/g, '').toUpperCase();
+    if (cleanUsa) {
+      const trk = trackings.find(t => {
+        const trkClean = (t.tracking_usa || '').trim().replace(/[\s-]/g, '').toUpperCase();
+        return trkClean && trkClean === cleanUsa;
+      });
+      if (trk) return trk;
+    }
+    const targetId = invItemObj?.item?.id || item.id;
+    const trkByItem = trackings.find(t => Array.isArray(t.items) && t.items.some(ti => ti.id === targetId || ti.id === item.id));
+    if (trkByItem) return trkByItem;
+
+    return null;
+  };
+
+  // Prioridad operativa para clasificación:
+  // 1: Sin agregar a inventario
+  // 2: Sin prealertar (tiene tracking USA pero no prealertado)
+  // 3: En tracking USA (prealertado)
+  // 4: En Tracking Vzla (viajando o en agencia)
+  // 5: Ya en el taller
+  const getItemPriority = (item, invObj, trk) => {
+    const hasInv = Boolean(invObj?.item);
+    const isDisponible = invObj?.item?.disponibilidad === 'Disponible';
+    const isVendido = invObj?.item?.disponibilidad === 'No disponible';
+    const tieneLlegada = Boolean((invObj?.item && tieneEnvioPagado(invObj.item)) || trk?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
+    const isEnTaller = !isDisponible && !isVendido && tieneLlegada;
+
+    const hasTrackingUsa = Boolean(item.tracking_usa || trk?.tracking_usa);
+    const isPrealerted = Boolean(trk?.prealertado || item.prealertado);
+    const hasTrackingVzla = Boolean(trk?.tracking_vzla || item.tracking_vzla);
+
+    if (isVendido) return 7; // 7° Ya Vendido
+    if (isDisponible) return 6; // 6° Ya Disponible (salió de taller)
+    if (!hasInv) return 1; // 1° Sin Inventario
+    if (hasTrackingUsa && !isPrealerted) return 2; // 2° Sin Prealertar
+    if (isEnTaller) return 5; // 5° En taller (en preparación)
+    if (hasTrackingVzla || trk?.estado === 'en_miami' || trk?.estado === 'transito_vzla' || trk?.estado === 'disponible_agencia') return 4; // 4° En tracking VZLA
+    if (hasTrackingUsa) return 3; // 3° En tracking USA
+    return 2.5; // En inventario esperando tracking
+  };
+
+  // Conteos y métricas unificadas para cabecera (KPIs) sincronizadas con Inventario
+  const metrics = useMemo(() => {
+    // 1. Cifras oficiales cuadradas con Inventario Laptops
+    const disponiblesCount = laptops.filter(l => l.disponibilidad === 'Disponible').length;
+    const comingSoonCount = laptops.filter(l => l.disponibilidad === 'Coming soon').length;
+
+    let enUsaCount = 0;
+    let enVzlaCount = 0;
+    let yaEnTallerCount = 0;
+    let sinInventarioCount = 0;
+    let sinPrealertaCount = 0;
+
+    compras.forEach(item => {
+      if (item.estado === 'descartado') return;
+      const invObj = getLinkedInventoryItem(item);
+      const trk = getLinkedTrackingDoc(item, invObj);
+
+      const hasInv = Boolean(invObj?.item);
+      const isDisponible = invObj?.item?.disponibilidad === 'Disponible';
+      const isVendido = invObj?.item?.disponibilidad === 'No disponible';
+      const tieneLlegada = Boolean((invObj?.item && tieneEnvioPagado(invObj.item)) || trk?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
+      const isEnTaller = !isDisponible && !isVendido && tieneLlegada;
+
+      const hasTrackingUsa = Boolean(item.tracking_usa || trk?.tracking_usa);
+      const isPrealerted = Boolean(trk?.prealertado || item.prealertado);
+      const hasTrackingVzla = Boolean(trk?.tracking_vzla || item.tracking_vzla);
+
+      if (!hasInv) sinInventarioCount++;
+      if (hasTrackingUsa && !isPrealerted) sinPrealertaCount++;
+
+      // En taller solo cuenta equipos en preparación (si ya están disponibles o vendidos, ya salieron del taller)
+      if (isEnTaller) {
+        yaEnTallerCount++;
+      } else if (!isDisponible && !isVendido) {
+        if (hasTrackingVzla || trk?.estado === 'en_miami' || trk?.estado === 'transito_vzla' || trk?.estado === 'disponible_agencia') {
+          enVzlaCount++;
+        } else if (hasTrackingUsa) {
+          enUsaCount++;
+        }
+      }
     });
 
-  // Acciones de Auto-vinculación con sincronización a Trackings
-  const handleAutoLinkAll = async () => {
-    const keys = Object.keys(sugerenciasMap);
-    if (keys.length === 0) {
-      alert('No se detectaron coincidencias automáticas de alta certeza en este momento.');
-      return;
-    }
+    return {
+      total: compras.filter(c => c.estado !== 'descartado').length,
+      enUsa: enUsaCount,
+      enVzla: enVzlaCount,
+      yaEnTaller: yaEnTallerCount,
+      disponibles: disponiblesCount,
+      comingSoon: comingSoonCount,
+      sinInventario: sinInventarioCount,
+      sinPrealerta: sinPrealertaCount,
+    };
+  }, [compras, laptops, componentes, trackings]);
 
-    if (!confirm(`Se detectaron ${keys.length} compras de eBay con coincidencia en tu inventario. ¿Deseas vincularlas automáticamente ahora y registrar sus trackings de USA en Envíos?`)) {
-      return;
-    }
+  // Conteos para filtros
+  const totalCount = compras.length;
+  const pendientesCount = metrics.sinInventario;
+  const enTrackingCount = metrics.enUsa + metrics.enVzla;
+  const enInventarioCount = compras.length - metrics.sinInventario;
+  const descartadosCount = compras.filter(c => c.estado === 'descartado').length;
 
-    setLinkingProcessing(true);
-    let linked = 0;
-    let trackingsSynced = 0;
+  // Filtrado y ordenación inteligente de compras
+  const comprasFiltradas = useMemo(() => {
+    return compras
+      .filter(item => {
+        const invObj = getLinkedInventoryItem(item);
+        const trk = getLinkedTrackingDoc(item, invObj);
+        const hasInv = Boolean(invObj?.item);
+        const isDisponible = invObj?.item?.disponibilidad === 'Disponible';
+        const isVendido = invObj?.item?.disponibilidad === 'No disponible';
+        const tieneLlegada = Boolean((invObj?.item && tieneEnvioPagado(invObj.item)) || trk?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
+        const isEnTaller = !isDisponible && !isVendido && tieneLlegada;
 
-    try {
-      for (const ebayId of keys) {
-        const match = sugerenciasMap[ebayId];
-        const ebayItem = compras.find(c => c.id === ebayId);
-        let trkId = null;
+        const hasTrackingUsa = Boolean(item.tracking_usa || trk?.tracking_usa);
+        const isPrealerted = Boolean(trk?.prealertado || item.prealertado);
+        const hasTrackingVzla = Boolean(trk?.tracking_vzla || item.tracking_vzla);
 
-        if (ebayItem?.tracking_usa) {
-          try {
-            const trkRes = await syncTrackingFromEbay(db, {
-              ebayItem,
-              inventoryItem: match.item,
-              tipo: match.type
-            });
-            if (trkRes?.id) {
-              trkId = trkRes.id;
-              trackingsSynced++;
-            }
-          } catch (trkErr) {
-            console.warn('Error sincronizando tracking para ' + ebayId, trkErr);
-          }
+        if (filterEstado === 'descartados') {
+          return item.estado === 'descartado';
+        }
+        if (item.estado === 'descartado' && filterEstado !== 'descartados') {
+          return false;
         }
 
-        // 1. Actualizar registro en compras_ebay
-        const ebayRef = doc(db, 'compras_ebay', ebayId);
-        await updateDoc(ebayRef, {
-          estado: 'en_inventario',
-          tipo_inventario: match.type,
-          inventario_id: match.item.id,
-          tracking_id: trkId || ebayItem?.tracking_id || null,
-          vinculado_automatico: true,
-          fecha_actualizacion: serverTimestamp()
-        });
-
-        // 2. Actualizar ficha en inventario (laptops) para cerrar vinculación bidireccional
-        if (match.type === 'laptop') {
-          try {
-            await updateDoc(doc(db, 'laptops', match.item.id), {
-              ebay_compra_id: ebayId,
-              tracking_usa: ebayItem?.tracking_usa ? ebayItem.tracking_usa.trim().toUpperCase() : (match.item.tracking_usa || ''),
-              precio_ebay: ebayItem?.precio || match.item.precio_ebay || 0,
-              ...(trkId ? { tracking_id: trkId } : {})
-            });
-          } catch (lErr) {
-            console.warn('No se pudo actualizar ficha de laptop con ebay_compra_id:', lErr);
-          }
+        if (filterEstado === 'pendientes' || filterEstado === 'sin_inventario') {
+          if (hasInv) return false;
+        } else if (filterEstado === 'sin_prealerta') {
+          if (!hasTrackingUsa || isPrealerted || isVendido || isDisponible) return false;
+        } else if (filterEstado === 'en_usa') {
+          if (!hasTrackingUsa || hasTrackingVzla || isEnTaller || isVendido || isDisponible) return false;
+        } else if (filterEstado === 'en_vzla') {
+          if (!hasTrackingVzla || isEnTaller || isVendido || isDisponible) return false;
+        } else if (filterEstado === 'en_taller') {
+          if (!isEnTaller) return false;
+        } else if (filterEstado === 'disponibles') {
+          if (invObj?.item?.disponibilidad !== 'Disponible') return false;
+        } else if (filterEstado === 'coming_soon') {
+          if (invObj?.item?.disponibilidad !== 'Coming soon') return false;
         }
 
-        linked++;
-      }
+        if (searchTerm.trim()) {
+          const term = searchTerm.toLowerCase();
+          const matchTitulo = item.titulo && item.titulo.toLowerCase().includes(term);
+          const matchOrder = item.orderId && item.orderId.toLowerCase().includes(term);
+          const matchTracking = (item.tracking_usa && item.tracking_usa.toLowerCase().includes(term)) || (trk?.tracking_usa && trk.tracking_usa.toLowerCase().includes(term)) || (trk?.tracking_vzla && trk.tracking_vzla.toLowerCase().includes(term));
+          const matchVendedor = item.vendedor && item.vendedor.toLowerCase().includes(term);
+          const matchInv = invObj?.item && (
+            (invObj.item.marca && invObj.item.marca.toLowerCase().includes(term)) ||
+            (invObj.item.modelo && invObj.item.modelo.toLowerCase().includes(term)) ||
+            (invObj.item.nombre && invObj.item.nombre.toLowerCase().includes(term))
+          );
+          if (!matchTitulo && !matchOrder && !matchTracking && !matchVendedor && !matchInv) return false;
+        }
 
-      setAutoLinkNotification(`¡Éxito! Se vincularon ${linked} compras con tu inventario${trackingsSynced > 0 ? ` y se sincronizaron ${trackingsSynced} encomiendas en Envíos` : ''}.`);
-      setTimeout(() => setAutoLinkNotification(''), 7000);
-    } catch (e) {
-      alert('Error en auto-vinculación: ' + e.message);
-    } finally {
-      setLinkingProcessing(false);
-    }
-  };
+        return true;
+      })
+      .sort((a, b) => {
+        const invA = getLinkedInventoryItem(a);
+        const trkA = getLinkedTrackingDoc(a, invA);
+        const invB = getLinkedInventoryItem(b);
+        const trkB = getLinkedTrackingDoc(b, invB);
 
-  const handleConfirmSingleAutoLink = async (ebayItem, match) => {
-    try {
-      let trkId = null;
-      if (ebayItem?.tracking_usa) {
-        const trkRes = await syncTrackingFromEbay(db, {
-          ebayItem,
-          inventoryItem: match.item,
-          tipo: match.type
-        });
-        trkId = trkRes?.id || null;
-      }
+        // Si el filtro es 'prioridad', ordenar primero por prioridad operativa
+        if (filterEstado === 'prioridad') {
+          const prioA = getItemPriority(a, invA, trkA);
+          const prioB = getItemPriority(b, invB, trkB);
+          if (prioA !== prioB) return prioA - prioB;
+        }
 
-      await updateDoc(doc(db, 'compras_ebay', ebayItem.id), {
-        estado: 'en_inventario',
-        tipo_inventario: match.type,
-        inventario_id: match.item.id,
-        tracking_id: trkId || ebayItem.tracking_id || null,
-        vinculado_automatico: true,
-        fecha_actualizacion: serverTimestamp()
+        // Orden cronológico por fecha de compra descendente
+        const dateA = a.fecha_compra ? new Date(a.fecha_compra).getTime() : 0;
+        const dateB = b.fecha_compra ? new Date(b.fecha_compra).getTime() : 0;
+        if (dateB !== dateA) return dateB - dateA;
+
+        const syncA = a.fecha_sincronizacion?.toMillis?.() || (a.fecha_sincronizacion ? new Date(a.fecha_sincronizacion).getTime() : 0);
+        const syncB = b.fecha_sincronizacion?.toMillis?.() || (b.fecha_sincronizacion ? new Date(b.fecha_sincronizacion).getTime() : 0);
+        return syncB - syncA;
       });
-
-      if (match.type === 'laptop') {
-        await updateDoc(doc(db, 'laptops', match.item.id), {
-          ebay_compra_id: ebayItem.id,
-          tracking_usa: ebayItem?.tracking_usa ? ebayItem.tracking_usa.trim().toUpperCase() : (match.item.tracking_usa || ''),
-          precio_ebay: ebayItem?.precio || match.item.precio_ebay || 0,
-          ...(trkId ? { tracking_id: trkId } : {})
-        });
-      }
-    } catch (e) {
-      alert('Error vinculando compra: ' + e.message);
-    }
-  };
+  }, [compras, laptops, componentes, trackings, filterEstado, searchTerm]);
 
   // Abrir Modal de Vinculación Manual
   const handleOpenLinkModal = (item) => {
@@ -784,6 +808,47 @@ export default function ComprasEbay() {
     }
   };
 
+  // Edición rápida de Order ID de eBay
+  const handleStartEditOrderId = (item) => {
+    setEditingOrderId(item.id);
+    setEditingOrderVal(String(item.orderId || ''));
+  };
+
+  const handleSaveOrderId = async (itemId) => {
+    const clean = (editingOrderVal || '').trim().replace(/^#/, '');
+    if (!clean) {
+      alert('Ingresa un número de orden de eBay (ej: 06-15295-97160).');
+      return;
+    }
+
+    try {
+      const item = compras.find(c => c.id === itemId);
+      await updateDoc(doc(db, 'compras_ebay', itemId), {
+        orderId: clean,
+        fecha_actualizacion: serverTimestamp()
+      });
+
+      // Si la compra ya estaba asociada a una laptop o componente, actualizar también su order_id
+      if (item?.tipo_inventario === 'laptop' && item.inventario_id) {
+        await updateDoc(doc(db, 'laptops', item.inventario_id), {
+          order_id: clean,
+          actualizadoEn: serverTimestamp()
+        }).catch(() => {});
+      } else if (item?.tipo_inventario === 'componente' && item.inventario_id) {
+        await updateDoc(doc(db, 'componentes', item.inventario_id), {
+          order_id: clean,
+          actualizadoEn: serverTimestamp()
+        }).catch(() => {});
+      }
+
+      setEditingOrderId(null);
+      setAutoLinkNotification(`¡Order ID actualizado a #${clean}!`);
+      setTimeout(() => setAutoLinkNotification(''), 5000);
+    } catch (e) {
+      alert('Error actualizando número de orden: ' + e.message);
+    }
+  };
+
   // Acciones de conversión
   const handleConvertToLaptop = (item) => {
     navigate('/admin/new', {
@@ -960,6 +1025,237 @@ export default function ComprasEbay() {
     }
   };
 
+  // Alternar estado de Prealerta en 1 clic
+  const handleTogglePrealerta = async (item, trkDoc) => {
+    try {
+      const isCurrentlyPrealerted = Boolean(trkDoc?.prealertado || item.prealertado);
+      const newPrealertStatus = !isCurrentlyPrealerted;
+
+      if (trkDoc?.id) {
+        await updateDoc(doc(db, 'trackings', trkDoc.id), {
+          prealertado: newPrealertStatus,
+          fecha_prealerta: newPrealertStatus ? serverTimestamp() : null,
+          estado: newPrealertStatus ? (trkDoc.estado === 'por_prealertar' ? 'prealertado' : trkDoc.estado) : 'por_prealertar',
+          fecha_actualizacion: serverTimestamp()
+        });
+      } else if (item.tracking_usa) {
+        await syncTrackingFromEbay(db, {
+          ebayItem: {
+            ...item,
+            prealertado: newPrealertStatus
+          },
+          inventoryItem: null,
+          tipo: 'laptop'
+        });
+      }
+
+      await updateDoc(doc(db, 'compras_ebay', item.id), {
+        prealertado: newPrealertStatus,
+        fecha_actualizacion: serverTimestamp()
+      });
+
+      setAutoLinkNotification(newPrealertStatus ? '¡Paquete marcado como Prealertado! ✅' : 'Prealerta marcada como pendiente.');
+      setTimeout(() => setAutoLinkNotification(''), 4000);
+    } catch (err) {
+      console.error('Error alternando prealerta:', err);
+      alert('Error actualizando prealerta: ' + err.message);
+    }
+  };
+
+  // Abrir y Guardar Tracking VZLA en modal rápido
+  const handleOpenQuickVzla = (item, trkDoc) => {
+    setQuickVzlaModal({
+      open: true,
+      item,
+      tracking_id: trkDoc?.id || item.tracking_id || null,
+      courier_vzla: trkDoc?.courier_vzla || item.courier_vzla || 'liberty',
+      tracking_vzla: trkDoc?.tracking_vzla || item.tracking_vzla || '',
+      saving: false
+    });
+  };
+
+  const handleSaveQuickVzla = async () => {
+    const { item, tracking_id, courier_vzla, tracking_vzla } = quickVzlaModal;
+    if (!item) return;
+    const cleanGuia = tracking_vzla.trim().toUpperCase();
+
+    setQuickVzlaModal(prev => ({ ...prev, saving: true }));
+    try {
+      let targetTrkId = tracking_id;
+      if (targetTrkId) {
+        await updateDoc(doc(db, 'trackings', targetTrkId), {
+          tracking_vzla: cleanGuia,
+          courier_vzla: courier_vzla || 'liberty',
+          estado: cleanGuia ? 'en_miami' : 'prealertado',
+          fecha_actualizacion: serverTimestamp()
+        });
+      } else {
+        const res = await syncTrackingFromEbay(db, {
+          ebayItem: item,
+          inventoryItem: null,
+          tipo: 'laptop'
+        });
+        if (res?.id) {
+          targetTrkId = res.id;
+          await updateDoc(doc(db, 'trackings', res.id), {
+            tracking_vzla: cleanGuia,
+            courier_vzla: courier_vzla || 'liberty',
+            estado: cleanGuia ? 'en_miami' : 'prealertado',
+            fecha_actualizacion: serverTimestamp()
+          });
+        }
+      }
+
+      await updateDoc(doc(db, 'compras_ebay', item.id), {
+        tracking_vzla: cleanGuia,
+        courier_vzla: courier_vzla || 'liberty',
+        ...(targetTrkId ? { tracking_id: targetTrkId } : {}),
+        fecha_actualizacion: serverTimestamp()
+      });
+
+      setQuickVzlaModal({ open: false, item: null, tracking_id: null, courier_vzla: 'liberty', tracking_vzla: '', saving: false });
+      setAutoLinkNotification('¡Guía de Venezuela guardada exitosamente! 🇻🇪');
+      setTimeout(() => setAutoLinkNotification(''), 4000);
+    } catch (err) {
+      console.error('Error guardando guía Vzla:', err);
+      alert('Error guardando guía Vzla: ' + err.message);
+      setQuickVzlaModal(prev => ({ ...prev, saving: false }));
+    }
+  };
+
+  // Marcar llegada a taller físico (Smartbits) para preparación y revisión
+  const handleMarcarLlegadaTaller = async (item, trkDoc, invItemObj) => {
+    const itemLabel = invItemObj?.item ? `${invItemObj.item.marca || ''} ${invItemObj.item.modelo || invItemObj.item.nombre || ''}`.trim() : item.titulo;
+    if (!confirm(`¿Confirmar que este equipo ya llegó físicamente al taller Smartbits?\n\n"${itemLabel}"\n\n• Se marcará como recibido en taller para su revisión y preparación.\n• NO se cambiará a Disponible (se mantiene en preparación hasta que esté listo).`)) {
+      return;
+    }
+
+    try {
+      if (trkDoc?.id) {
+        await updateDoc(doc(db, 'trackings', trkDoc.id), {
+          estado: 'ya_recogido',
+          fecha_recogido: serverTimestamp(),
+          fecha_actualizacion: serverTimestamp()
+        });
+      }
+
+      if (invItemObj?.item?.id) {
+        const col = invItemObj.type === 'componente' ? 'componentes' : 'laptops';
+        await updateDoc(doc(db, col, invItemObj.item.id), {
+          en_taller: true,
+          actualizadoEn: serverTimestamp()
+        });
+      }
+
+      await updateDoc(doc(db, 'compras_ebay', item.id), {
+        en_taller: true,
+        fecha_actualizacion: serverTimestamp()
+      });
+
+      setAutoLinkNotification(`🏢 ¡${itemLabel} recibido en taller! (En preparación para su venta)`);
+      setTimeout(() => setAutoLinkNotification(''), 5000);
+    } catch (err) {
+      console.error('Error marcando llegada a taller:', err);
+      alert('Error marcando llegada a taller: ' + err.message);
+    }
+  };
+
+  // Generador de impresión en PDF del reporte de compras y logística
+  const handlePrintReport = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor permite las ventanas emergentes en tu navegador para generar la impresión.');
+      return;
+    }
+
+    const now = new Date();
+    const rows = comprasFiltradas.map((item, idx) => {
+      const invObj = getLinkedInventoryItem(item);
+      const trk = getLinkedTrackingDoc(item, invObj);
+      const pvp = invObj?.item?.precio ? `$${Number(invObj.item.precio).toFixed(2)}` : '<span style="color:#d97706;font-weight:bold;">Falta PVP</span>';
+      const costo = `$${Number(item.precio || 0).toFixed(2)}`;
+      const trkUsa = item.tracking_usa || trk?.tracking_usa || '—';
+      const trkVzla = trk?.tracking_vzla || item.tracking_vzla || '—';
+      const courierU = trk?.courier_usa || item.courier_usa || 'USA';
+      const courierV = trk?.courier_vzla || item.courier_vzla || 'liberty';
+      const prealert = trk?.prealertado || item.prealertado ? 'Prealertado ✅' : 'Sin Prealerta ⚠️';
+      const statusLabel = trk?.estado === 'ya_recogido' || item.en_taller ? 'En Taller 🏢' : (trk?.tracking_vzla || item.tracking_vzla ? 'En VZLA 🇻🇪' : (trkUsa !== '—' ? 'En USA 🇺🇸' : 'Pendiente'));
+
+      const invTitle = invObj?.item ? `${invObj.item.marca || ''} ${invObj.item.modelo || invObj.item.nombre || ''}`.trim() : '<span style="color:#dc2626;">Sin Inventario</span>';
+
+      return `
+        <tr style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
+          <td style="padding: 6px 8px; text-align: center; color: #6b7280;">${idx + 1}</td>
+          <td style="padding: 6px 8px; font-weight: 600; color: #111827;">${item.orderId || 'S/N'}</td>
+          <td style="padding: 6px 8px; color: #1f2937; max-width: 200px;">${item.titulo || ''}</td>
+          <td style="padding: 6px 8px; font-weight: 600; color: #0284c7;">${invTitle}</td>
+          <td style="padding: 6px 8px; font-family: monospace;">${courierU.toUpperCase()}: ${trkUsa}<br><small style="color:${prealert.includes('✅') ? '#059669' : '#dc2626'}">${prealert}</small></td>
+          <td style="padding: 6px 8px; font-family: monospace;">${courierV.toUpperCase()}: ${trkVzla}</td>
+          <td style="padding: 6px 8px; text-align: center;">${statusLabel}</td>
+          <td style="padding: 6px 8px; text-align: right; font-weight: 600; color: #059669;">${costo}</td>
+          <td style="padding: 6px 8px; text-align: right;">${pvp}</td>
+        </tr>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Reporte de Compras y Logística - Smartbits</title>
+        <style>
+          @page { size: letter landscape; margin: 10mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th { background: #f3f4f6; color: #374151; font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 8px; border-bottom: 2px solid #d1d5db; }
+          tr:nth-child(even) { background-color: #f9fafb; }
+        </style>
+      </head>
+      <body>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px;">
+          <div>
+            <h1 style="margin: 0; font-size: 18px; color: #0f172a; font-weight: 800; letter-spacing: 0.5px;">SMARTBITS • REPORTE DE COMPRAS Y LOGÍSTICA</h1>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #64748b;">Filtro: <strong>${filterEstado.toUpperCase()}</strong> • Total registros: <strong>${comprasFiltradas.length}</strong> • Generado: ${now.toLocaleDateString('es-VE')} ${now.toLocaleTimeString('es-VE')}</p>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 11px; font-weight: 700; color: #0284c7;">Smartbits Admin Panel</span>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 30px; text-align: center;">#</th>
+              <th style="width: 90px; text-align: left;">Orden</th>
+              <th style="text-align: left;">Título eBay</th>
+              <th style="text-align: left;">Inventario</th>
+              <th style="text-align: left;">Tracking USA</th>
+              <th style="text-align: left;">Guía VZLA</th>
+              <th style="text-align: center;">Estado</th>
+              <th style="text-align: right; width: 80px;">Costo eBay</th>
+              <th style="text-align: right; width: 80px;">PVP Venta</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 25px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+          Documento generado automáticamente por Smartbits Admin • Compra inteligente, compra en Smartbits.
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 300);
+    };
+  };
+
   const handleToggleDescartar = async (item) => {
     try {
       const nuevoEstado = item.estado === 'descartado' ? 'pendiente' : 'descartado';
@@ -1072,16 +1368,15 @@ export default function ComprasEbay() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Botón Auto-vincular Inteligente */}
-          {totalSugerencias > 0 && (
+          {/* Botón Revertir Auto-vinculaciones si existen */}
+          {autoLinkedCount > 0 && (
             <button
-              onClick={handleAutoLinkAll}
-              disabled={linkingProcessing}
-              className="flex items-center gap-2 px-3.5 py-2 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg transition shadow-md hover:shadow-lg animate-pulse"
-              title="Vincular automáticamente todas las compras que coinciden con tu inventario"
+              onClick={handleRevertAllAutoLinks}
+              className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-rose-800 dark:text-rose-200 bg-rose-100 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-700 rounded-lg hover:bg-rose-200 transition shadow-sm"
+              title="Revertir compras vinculadas automáticamente por el algoritmo previo para corregir inventario"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>Auto-vincular ({totalSugerencias})</span>
+              <RotateCcw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <span>Revertir Auto-vinculaciones ({autoLinkedCount})</span>
             </button>
           )}
 
@@ -1098,6 +1393,16 @@ export default function ComprasEbay() {
             </button>
           )}
 
+          {/* Botón Imprimir Reporte PDF */}
+          <button
+            onClick={handlePrintReport}
+            className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition shadow-xs"
+            title="Imprimir o exportar listado filtrado a PDF"
+          >
+            <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+            <span>Imprimir Listado</span>
+          </button>
+
           {/* Botón Sincronizar Trackings USA a Envíos */}
           <button
             onClick={handleSyncAllTrackingsToEnvios}
@@ -1110,7 +1415,7 @@ export default function ComprasEbay() {
             ) : (
               <Package className="w-4 h-4 text-purple-600" />
             )}
-            <span>{syncingTrackings ? 'Sincronizando...' : 'Sincronizar Trackings USA'}</span>
+            <span>{syncingTrackings ? 'Sincronizando...' : 'Sync Trackings'}</span>
           </button>
 
           <button
@@ -1118,7 +1423,7 @@ export default function ComprasEbay() {
             className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 rounded-lg hover:bg-blue-100 transition shadow-sm"
           >
             <Info className="w-4 h-4" />
-            <span>Extensión Chrome</span>
+            <span>Extensión</span>
           </button>
         </div>
       </div>
@@ -1131,158 +1436,236 @@ export default function ComprasEbay() {
         </div>
       )}
 
-      {/* Tarjetas de Métricas Resumen */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* TARJETA PENDIENTES - ALERTA ROJA DESTACADA */}
+      {/* Tarjetas de Métricas Resumen - 6 KPIs Pedidos */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* 1. Total Equipos */}
         <div 
-          onClick={() => setFilterEstado('pendientes')}
-          className={`cursor-pointer p-4 rounded-xl border transition-all duration-200 ${
-            pendientesCount > 0 
-              ? 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 ring-2 ring-red-500/20 shadow-md' 
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+          onClick={() => setFilterEstado('todos')}
+          className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
+            filterEstado === 'todos'
+              ? 'bg-blue-50/80 border-blue-400 dark:bg-blue-950/40 ring-2 ring-blue-400/20 shadow-sm'
+              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-xs font-bold uppercase tracking-wider ${
-              pendientesCount > 0 ? 'text-red-700 dark:text-red-300' : 'text-gray-500'
-            }`}>
-              Pendientes de Inventario
-            </span>
-            {pendientesCount > 0 && (
-              <span className="flex h-3 w-3 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
-              </span>
-            )}
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className={`text-3xl font-extrabold ${
-              pendientesCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
-            }`}>
-              {pendientesCount}
-            </span>
-            <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-              {pendientesCount > 0 ? '¡Requieren ingresar!' : 'Al día'}
-            </span>
-          </div>
-        </div>
-
-        {/* En Tracking */}
-        <div 
-          onClick={() => setFilterEstado('en_tracking')}
-          className="cursor-pointer p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 transition-all shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              En Tránsito / Tracking
-            </span>
-            <Package className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-blue-600 dark:text-blue-400">
-              {enTrackingCount}
-            </span>
-            <span className="text-xs text-gray-400">paquetes</span>
-          </div>
-        </div>
-
-        {/* En Inventario */}
-        <div 
-          onClick={() => setFilterEstado('en_inventario')}
-          className="cursor-pointer p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-emerald-300 transition-all shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              En Inventario
-            </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
-              {enInventarioCount}
-            </span>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">listos</span>
-          </div>
-        </div>
-
-        {/* Total Sincronizadas */}
-        <div 
-          onClick={() => setFilterEstado('todos')}
-          className="cursor-pointer p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 transition-all shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Total Sincronizadas
-            </span>
+            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Total Equipos</span>
             <ShoppingBag className="w-4 h-4 text-gray-400" />
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-gray-900 dark:text-white">
-              {totalCount}
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-gray-900 dark:text-white">{metrics.total}</span>
+            <span className="text-[10px] text-gray-400 font-medium">en pipeline</span>
+          </div>
+        </div>
+
+        {/* 2. En USA */}
+        <div 
+          onClick={() => setFilterEstado('en_usa')}
+          className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
+            filterEstado === 'en_usa'
+              ? 'bg-amber-50/80 border-amber-400 dark:bg-amber-950/40 ring-2 ring-amber-400/20 shadow-sm'
+              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-amber-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
+              <span>🇺🇸 En USA</span>
             </span>
-            <span className="text-xs text-gray-400">artículos</span>
+            <Package className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-amber-700 dark:text-amber-400">{metrics.enUsa}</span>
+            <span className="text-[10px] text-amber-600 font-medium">vía casillero</span>
+          </div>
+        </div>
+
+        {/* 3. Agencia Envíos Vzla */}
+        <div 
+          onClick={() => setFilterEstado('en_vzla')}
+          className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
+            filterEstado === 'en_vzla'
+              ? 'bg-purple-50/80 border-purple-400 dark:bg-purple-950/40 ring-2 ring-purple-400/20 shadow-sm'
+              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-purple-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-purple-800 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1">
+              <span>🇻🇪 En VZLA</span>
+            </span>
+            <Truck className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-purple-700 dark:text-purple-400">{metrics.enVzla}</span>
+            <span className="text-[10px] text-purple-600 font-medium">con guía local</span>
+          </div>
+        </div>
+
+        {/* 4. Ya en Taller */}
+        <div 
+          onClick={() => setFilterEstado('en_taller')}
+          className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
+            filterEstado === 'en_taller'
+              ? 'bg-emerald-50/80 border-emerald-400 dark:bg-emerald-950/40 ring-2 ring-emerald-400/20 shadow-sm'
+              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-emerald-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1">
+              <span>🏢 En Taller</span>
+            </span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{metrics.yaEnTaller}</span>
+            <span className="text-[10px] text-emerald-600 font-medium">activos</span>
+          </div>
+        </div>
+
+        {/* 5. Disponibles en Inventario */}
+        <div 
+          onClick={() => setFilterEstado('disponibles')}
+          className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
+            filterEstado === 'disponibles'
+              ? 'bg-teal-50/80 border-teal-400 dark:bg-teal-950/40 ring-2 ring-teal-400/20 shadow-sm'
+              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-teal-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider">
+              Disponibles
+            </span>
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-teal-700 dark:text-teal-400">{metrics.disponibles}</span>
+            <span className="text-[10px] text-teal-600 font-medium">para venta</span>
+          </div>
+        </div>
+
+        {/* 6. Coming Soon en Inventario */}
+        <div 
+          onClick={() => setFilterEstado('coming_soon')}
+          className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
+            filterEstado === 'coming_soon'
+              ? 'bg-sky-50/80 border-sky-400 dark:bg-sky-950/40 ring-2 ring-sky-400/20 shadow-sm'
+              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-sky-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider">
+              Coming Soon
+            </span>
+            <Clock className="w-4 h-4 text-sky-500" />
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-sky-700 dark:text-sky-400">{metrics.comingSoon}</span>
+            <span className="text-[10px] text-sky-600 font-medium">próximamente</span>
           </div>
         </div>
       </div>
 
       {/* Barra de Filtros y Búsqueda */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* 1. Prioridad Operativa (Predeterminado) */}
           <button
-            onClick={() => setFilterEstado('pendientes')}
+            onClick={() => setFilterEstado('prioridad')}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
-              filterEstado === 'pendientes'
-                ? 'bg-red-600 text-white shadow-sm'
+              filterEstado === 'prioridad'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
+            }`}
+          >
+            <span>⚡ Prioridad Operativa</span>
+            {(metrics.sinInventario > 0 || metrics.sinPrealerta > 0) && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                filterEstado === 'prioridad' ? 'bg-blue-800 text-white' : 'bg-red-500 text-white animate-pulse'
+              }`}>
+                {metrics.sinInventario + metrics.sinPrealerta}
+              </span>
+            )}
+          </button>
+
+          {/* 2. Sin Inventario */}
+          <button
+            onClick={() => setFilterEstado('sin_inventario')}
+            className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
+              filterEstado === 'sin_inventario'
+                ? 'bg-red-600 text-white shadow-xs'
                 : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 hover:bg-red-100'
             }`}
           >
-            <span>🔴 Pendientes</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[11px] ${
-              filterEstado === 'pendientes' ? 'bg-red-700 text-white' : 'bg-red-200 dark:bg-red-900 text-red-800 dark:text-red-200'
-            }`}>
-              {pendientesCount}
-            </span>
+            <span>🔴 Sin Inventario</span>
+            <span className="text-[11px] font-mono">({metrics.sinInventario})</span>
           </button>
 
+          {/* 3. Sin Prealerta */}
+          <button
+            onClick={() => setFilterEstado('sin_prealerta')}
+            className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
+              filterEstado === 'sin_prealerta'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 hover:bg-amber-100'
+            }`}
+          >
+            <span>⚠️ Sin Prealerta</span>
+            <span className="text-[11px] font-mono">({metrics.sinPrealerta})</span>
+          </button>
+
+          {/* 4. En USA */}
+          <button
+            onClick={() => setFilterEstado('en_usa')}
+            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              filterEstado === 'en_usa'
+                ? 'bg-amber-700 text-white font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            🇺🇸 En USA ({metrics.enUsa})
+          </button>
+
+          {/* 5. En VZLA */}
+          <button
+            onClick={() => setFilterEstado('en_vzla')}
+            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              filterEstado === 'en_vzla'
+                ? 'bg-purple-700 text-white font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            🇻🇪 En VZLA ({metrics.enVzla})
+          </button>
+
+          {/* 6. En Taller */}
+          <button
+            onClick={() => setFilterEstado('en_taller')}
+            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              filterEstado === 'en_taller'
+                ? 'bg-emerald-700 text-white font-bold'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            🏢 En Taller ({metrics.yaEnTaller})
+          </button>
+
+          {/* 7. Todos */}
           <button
             onClick={() => setFilterEstado('todos')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
               filterEstado === 'todos'
-                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold'
+                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold'
                 : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
-            Todos ({totalCount})
+            Todos ({metrics.total})
           </button>
 
-          <button
-            onClick={() => setFilterEstado('en_tracking')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-              filterEstado === 'en_tracking'
-                ? 'bg-blue-600 text-white font-semibold'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-          >
-            En Tracking ({enTrackingCount})
-          </button>
-
-          <button
-            onClick={() => setFilterEstado('en_inventario')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-              filterEstado === 'en_inventario'
-                ? 'bg-emerald-600 text-white font-semibold'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-          >
-            En Inventario ({enInventarioCount})
-          </button>
-
+          {/* 8. Descartados */}
           <button
             onClick={() => setFilterEstado('descartados')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all ${
               filterEstado === 'descartados'
-                ? 'bg-gray-600 text-white font-semibold'
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-gray-600 text-white font-bold'
+                : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
             Descartados ({descartadosCount})
@@ -1324,21 +1707,45 @@ export default function ComprasEbay() {
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mt-1 mb-4">
             {compras.length === 0 
-              ? 'Usa la Extensión de Chrome en tu cuenta de eBay para sincronizar tus pedidos aquí.' 
-              : 'Prueba cambiando los filtros para ver otras compras sincronizadas.'}
+              ? 'Usa la Extensión de Chrome en tu cuenta de eBay para importar tus compras automáticamente.'
+              : 'Intenta cambiar los filtros o el término de búsqueda.'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="space-y-4">
           {comprasFiltradas.map((item) => {
-            const isPendiente = item.estado === 'pendiente';
-            const isEnInventario = item.estado === 'en_inventario';
-            const isEnTracking = item.estado === 'en_tracking';
+            const invObj = getLinkedInventoryItem(item);
+            const trkDoc = getLinkedTrackingDoc(item, invObj);
+            const hasInv = Boolean(invObj?.item);
+
+            const isPendiente = !hasInv;
+            const isEnInventario = hasInv;
             const isDescartado = item.estado === 'descartado';
 
-            const courierConfig = item.courier_usa ? getCourierUsaConfig(item.courier_usa) : null;
-            const trackingUrl = item.tracking_usa ? getTrackingUrlUsa(item.courier_usa, item.tracking_usa) : null;
-            const matchSuggestion = isPendiente ? sugerenciasMap[item.id] : null;
+            // Datos de Inventario
+            const invTitle = invObj?.item ? `${invObj.item.marca || ''} ${invObj.item.modelo || invObj.item.nombre || ''}`.trim() : null;
+            const invFoto = invObj?.item?.imagenes?.[0] || invObj?.item?.imagen || null;
+            const invPrecioVenta = invObj?.item?.precio ? Number(invObj.item.precio) : null;
+            const invDisponibilidad = invObj?.item?.disponibilidad || null;
+
+            // Datos de Tracking USA
+            const trackingUsa = (item.tracking_usa || trkDoc?.tracking_usa || '').trim().toUpperCase();
+            const courierUsa = trkDoc?.courier_usa || item.courier_usa || 'usps';
+            const courierUsaConfig = getCourierUsaConfig(courierUsa);
+            const trackingUrlUsa = trackingUsa ? getTrackingUrlUsa(courierUsa, trackingUsa) : null;
+            const isPrealerted = Boolean(trkDoc?.prealertado || item.prealertado);
+
+            // Datos de Tracking VZLA
+            const trackingVzla = (trkDoc?.tracking_vzla || item.tracking_vzla || '').trim().toUpperCase();
+            const courierVzla = trkDoc?.courier_vzla || item.courier_vzla || 'liberty';
+            const courierVzlaConfig = getCourierVzlaConfig(courierVzla);
+            const trackingUrlVzla = trackingVzla ? getTrackingUrlVzla(courierVzla, trackingVzla) : null;
+
+            // En taller: solo si aún NO está disponible (en preparación) y NO se ha vendido
+            const isDisponible = invDisponibilidad === 'Disponible';
+            const isVendido = invDisponibilidad === 'No disponible';
+            const tieneEnvio = invObj?.item ? tieneEnvioPagado(invObj.item) : false;
+            const isEnTaller = !isDisponible && !isVendido && (tieneEnvio || trkDoc?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
 
             return (
               <div 
@@ -1346,69 +1753,143 @@ export default function ComprasEbay() {
                 className={`p-4 rounded-xl border transition-all duration-150 flex flex-col gap-3 ${
                   isPendiente 
                     ? 'bg-red-50/40 dark:bg-red-950/20 border-red-200 dark:border-red-900/60 hover:border-red-400 shadow-sm' 
-                    : isEnInventario 
-                    ? 'bg-emerald-50/20 dark:bg-emerald-950/10 border-gray-200 dark:border-gray-800'
+                    : isVendido
+                    ? 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-75'
+                    : isEnTaller
+                    ? 'bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800'
                     : isDescartado
                     ? 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800 opacity-60'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-xs'
                 }`}
               >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  {/* Info Principal del Producto */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  {/* Bloque Izquierdo: Doble Miniatura y Detalles */}
                   <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                    <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                      {item.foto_url ? (
-                        <img 
-                          src={item.foto_url} 
-                          alt={item.titulo} 
-                          className="w-full h-full object-cover"
-                          onError={(e) => { e.target.style.display = 'none'; }} 
-                        />
-                      ) : (
-                        <ShoppingBag className="w-6 h-6 text-gray-400" />
-                      )}
+                    {/* Doble Foto (eBay + Inventario) */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {/* Foto eBay */}
+                      <div className="relative w-14 h-14 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center shadow-xs" title="Foto original de la compra en eBay">
+                        {item.foto_url ? (
+                          <img 
+                            src={item.foto_url} 
+                            alt={item.titulo} 
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.target.style.display = 'none'; }} 
+                          />
+                        ) : (
+                          <ShoppingBag className="w-5 h-5 text-gray-400" />
+                        )}
+                        <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] text-white text-center font-bold py-0.2">
+                          eBay
+                        </span>
+                      </div>
+
+                      {/* Foto Inventario */}
+                      <div className="relative w-14 h-14 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center shadow-xs" title={invFoto ? "Foto subida al inventario" : "Sin foto en inventario aún"}>
+                        {invFoto ? (
+                          <img 
+                            src={invFoto} 
+                            alt={invTitle || 'Stock'} 
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.target.style.display = 'none'; }} 
+                          />
+                        ) : (
+                          invObj?.type === 'componente' ? <Package className="w-5 h-5 text-gray-400" /> : <Laptop className="w-5 h-5 text-gray-400" />
+                        )}
+                        <span className="absolute bottom-0 inset-x-0 bg-blue-600/80 text-[8px] text-white text-center font-bold py-0.2">
+                          Stock
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                    {/* Contenido Central: Doble Título, Precios y Trackings */}
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      {/* Meta Tags superiores */}
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {isPendiente && (
-                          <span className="px-2.5 py-0.5 text-xs font-bold rounded-md bg-red-100 text-red-700 border border-red-300 dark:bg-red-900/60 dark:text-red-200 dark:border-red-800 flex items-center gap-1.5 shadow-xs">
-                            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-                            PENDIENTE DE INVENTARIO
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-100 text-red-700 border border-red-300 dark:bg-red-900/60 dark:text-red-200 flex items-center gap-1 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
+                            FALTA EN INVENTARIO
                           </span>
                         )}
-                        {isEnInventario && (
-                          <span className="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            En Inventario ({item.tipo_inventario === 'laptop' ? 'Laptop' : item.tipo_inventario === 'componente' ? 'Componente' : 'Registrado'})
+                        {hasInv && (
+                          <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                            En Inventario ({invObj.type === 'laptop' ? 'Laptop' : 'Parte'})
                           </span>
                         )}
-                        {isEnTracking && (
-                          <span className="px-2.5 py-0.5 text-xs font-semibold rounded-md bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 flex items-center gap-1">
-                            <Package className="w-3 h-3" />
-                            En Tracking
+                        {invDisponibilidad && (
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
+                            invDisponibilidad === 'Disponible'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : invDisponibilidad === 'Coming soon'
+                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                          }`}>
+                            {invDisponibilidad === 'Disponible' ? '🟢 Disponible' : invDisponibilidad === 'Coming soon' ? '⏳ Coming Soon' : '⚪ Vendido'}
                           </span>
                         )}
-                        {isDescartado && (
-                          <span className="px-2 py-0.5 text-xs font-medium rounded-md bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                            Descartado
+                        {isEnTaller && (
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                            <Check className="w-3 h-3" />
+                            En Taller 🏢
                           </span>
                         )}
-
-                        {item.orderId && (
-                          <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400">
-                            Orden: #{item.orderId}
-                          </span>
-                        )}
-                        {item.itemId && (
-                          <span className="text-[10px] font-mono text-gray-400">
-                            Item: {item.itemId}
-                          </span>
+                        {editingOrderId === item.id ? (
+                          <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-950/50 p-1 rounded-lg border border-blue-300 dark:border-blue-700 shadow-xs">
+                            <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 font-mono">#</span>
+                            <input
+                              type="text"
+                              placeholder="06-15295-97160"
+                              value={editingOrderVal}
+                              onChange={(e) => setEditingOrderVal(e.target.value)}
+                              className="w-32 px-1.5 py-0.5 text-[11px] font-mono font-bold text-blue-900 dark:text-blue-100 bg-white dark:bg-gray-900 border border-blue-300 rounded focus:outline-hidden"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveOrderId(item.id);
+                                if (e.key === 'Escape') setEditingOrderId(null);
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSaveOrderId(item.id)}
+                              className="p-1 text-emerald-700 hover:bg-emerald-200 rounded"
+                              title="Guardar Order ID"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => setEditingOrderId(null)}
+                              className="p-1 text-gray-400 hover:bg-gray-200 rounded"
+                              title="Cancelar"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1">
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                              item.orderId && item.orderId.toLowerCase().startsWith('order_')
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                                : 'text-gray-500 dark:text-gray-400'
+                            }`}>
+                              Orden: #{item.orderId || 'Sin ID'}
+                              {item.orderId && item.orderId.toLowerCase().startsWith('order_') && ' ⚠️'}
+                            </span>
+                            <button
+                              onClick={() => handleStartEditOrderId(item)}
+                              title="Editar o corregir Order ID único de eBay"
+                              className="p-0.5 text-gray-400 hover:text-blue-600 rounded transition"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5 group">
-                        <h4 className="text-sm font-bold text-gray-900 dark:text-white line-clamp-1 leading-snug">
+                      {/* 1. Título eBay */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider flex-shrink-0">eBay:</span>
+                        <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 line-clamp-1 leading-snug">
                           {item.titulo}
                         </h4>
                         {item.item_url && (
@@ -1419,12 +1900,37 @@ export default function ComprasEbay() {
                             title="Ver en eBay"
                             className="text-gray-400 hover:text-blue-600 transition flex-shrink-0"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
+                            <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {/* 2. Título Inventario (Clic redirige a edición) */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider flex-shrink-0">Stock:</span>
+                        {hasInv ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
+                              else navigate(`/admin/components/edit/${invObj.item.id}`);
+                            }}
+                            className="text-sm font-bold text-blue-700 dark:text-blue-400 hover:underline text-left line-clamp-1 flex items-center gap-1 group/inv"
+                            title="Clic para abrir la ficha en inventario"
+                          >
+                            <span>{invTitle}</span>
+                            <Edit2 className="w-3 h-3 opacity-0 group-hover/inv:opacity-100 transition text-blue-600 flex-shrink-0" />
+                          </button>
+                        ) : (
+                          <span className="text-xs font-bold text-red-600 dark:text-red-400">
+                            Pendiente por registrar especificaciones en inventario
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Métricas Financieras y Fecha */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400 pt-0.5">
+                        {/* Costo de Compra eBay (Editable) */}
                         {editingPriceId === item.id ? (
                           <div className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/50 p-1 rounded-lg border border-emerald-300 dark:border-emerald-700 shadow-xs">
                             <span className="text-emerald-700 dark:text-emerald-300 font-bold text-xs">$</span>
@@ -1433,237 +1939,284 @@ export default function ComprasEbay() {
                               step="0.01"
                               value={editingPriceVal}
                               onChange={(e) => setEditingPriceVal(e.target.value)}
-                              className="w-24 px-1.5 py-0.5 text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-white dark:bg-gray-900 border border-emerald-300 rounded focus:outline-hidden"
+                              className="w-20 px-1.5 py-0.5 text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-white dark:bg-gray-900 border border-emerald-300 rounded focus:outline-hidden"
                               autoFocus
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleSavePrice(item.id);
                                 if (e.key === 'Escape') setEditingPriceId(null);
                               }}
                             />
-                            <button
-                              onClick={() => handleSavePrice(item.id)}
-                              className="p-1 text-emerald-700 hover:bg-emerald-200 rounded"
-                              title="Guardar precio"
-                            >
-                              <Check className="w-3.5 h-3.5" />
+                            <button onClick={() => handleSavePrice(item.id)} className="p-1 text-emerald-700 hover:bg-emerald-200 rounded">
+                              <Check className="w-3 h-3" />
                             </button>
-                            <button
-                              onClick={() => setEditingPriceId(null)}
-                              className="p-1 text-gray-400 hover:bg-gray-200 rounded"
-                              title="Cancelar"
-                            >
-                              <X className="w-3.5 h-3.5" />
+                            <button onClick={() => setEditingPriceId(null)} className="p-1 text-gray-400 hover:bg-gray-200 rounded">
+                              <X className="w-3 h-3" />
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1 group/price">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[11px] text-gray-400">Costo:</span>
                             <span 
                               onClick={() => handleStartEditPrice(item)}
-                              className="font-bold text-emerald-600 dark:text-emerald-400 text-sm cursor-pointer hover:underline"
-                              title="Clic para editar precio"
+                              className="font-bold text-emerald-600 dark:text-emerald-400 text-xs cursor-pointer hover:underline"
+                              title="Clic para editar costo de compra"
                             >
                               ${Number(item.precio || 0).toFixed(2)} USD
                             </span>
-                            <button
-                              onClick={() => handleStartEditPrice(item)}
-                              className="opacity-0 group-hover/price:opacity-100 p-0.5 text-gray-400 hover:text-emerald-600 transition"
-                              title="Editar precio"
-                            >
-                              <Edit2 className="w-3 h-3" />
+                            <button onClick={() => handleStartEditPrice(item)} className="p-0.5 text-gray-400 hover:text-emerald-600" title="Editar costo">
+                              <Edit2 className="w-2.5 h-2.5" />
                             </button>
                           </div>
                         )}
 
+                        {/* Precio de Venta PVP */}
+                        {hasInv && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[11px] text-gray-400">PVP:</span>
+                            {invPrecioVenta && invPrecioVenta > 0 ? (
+                              <span className="font-bold text-blue-700 dark:text-blue-300 text-xs">
+                                ${invPrecioVenta.toFixed(2)} USD
+                              </span>
+                            ) : (
+                              <span 
+                                onClick={() => {
+                                  if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
+                                  else navigate(`/admin/components/edit/${invObj.item.id}`);
+                                }}
+                                className="font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded text-[10px] border border-amber-300 cursor-pointer hover:bg-amber-100 animate-pulse"
+                                title="Clic para ir a inventario y fijar precio de venta"
+                              >
+                                ⚠️ Falta fijar PVP
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Fecha de compra */}
                         {item.fecha_compra && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="flex items-center gap-1 text-[11px]">
+                            <Calendar className="w-3 h-3 text-gray-400" />
                             {item.fecha_compra}
                           </span>
                         )}
+
                         {item.vendedor && (
-                          <span>Vendedor: <strong className="text-gray-700 dark:text-gray-300">{item.vendedor}</strong></span>
+                          <span className="text-[11px]">Vendedor: <strong>{item.vendedor}</strong></span>
                         )}
                       </div>
 
-                      {(() => {
-                        const rawItem = String(item.itemId || '').replace(/_u[0-9]+$/, '').trim();
-                        const isItemIdBogus = item.tracking_usa && rawItem && item.tracking_usa.trim() === rawItem;
-                        const isWordBogus = item.tracking_usa && (item.tracking_usa.toLowerCase() === 'experience' || item.tracking_usa.replace(/\D/g, '').length < 4);
-                        if (isItemIdBogus || isWordBogus) {
-                          return (
-                            <div className="pt-1 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-md border border-amber-200 dark:border-amber-800">
-                              <span>⚠️ Tracking inválido ({item.tracking_usa}{isItemIdBogus ? ' es el Item ID' : ''}).</span>
-                              <button
-                                onClick={() => handleOpenQuickTracking(item)}
-                                className="underline font-semibold hover:text-amber-800"
-                              >
-                                Corregir
-                              </button>
-                            </div>
-                          );
-                        }
-
-                        const rawItemId = String(item.itemId || '').replace(/_u[0-9]+$/, '').trim();
-                        const rawOrderId = String(item.orderId || '').replace(/[\s-]/g, '').trim();
-                        const isBogusTracking = item.tracking_usa && (
-                          item.tracking_usa === rawItemId ||
-                          item.tracking_usa === rawOrderId ||
-                          /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(item.tracking_usa) ||
-                          item.tracking_usa.startsWith('{') ||
-                          item.tracking_usa.includes('EVENTFAMILY')
-                        );
-
-                        if (item.tracking_usa && !isBogusTracking) {
-                          const trk = trackings.find(t => (t.tracking_usa || '').trim().toUpperCase() === item.tracking_usa.trim().toUpperCase() || t.id === item.tracking_id);
-                          return (
-                            <div className="pt-1 flex flex-wrap items-center gap-2 text-xs">
-                              <span className="text-gray-400">Tracking USA:</span>
-                              {trackingUrl ? (
+                      {/* Bloque de Trackings Claros con Banderas 🇺🇸 y 🇻🇪 */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1.5">
+                        {/* 1. TRACKING USA 🇺🇸 */}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
+                          <span className="text-sm" title="Estados Unidos">🇺🇸</span>
+                          {trackingUsa ? (
+                            <div className="flex items-center gap-1">
+                              <span className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
+                                {courierUsa.toUpperCase()}:
+                              </span>
+                              {trackingUrlUsa ? (
                                 <a 
-                                  href={trackingUrl} 
+                                  href={trackingUrlUsa} 
                                   target="_blank" 
-                                  rel="noreferrer"
-                                  className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1"
+                                  rel="noreferrer" 
+                                  className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-bold text-[11px] flex items-center gap-0.5"
+                                  title="Rastrear en la web oficial del courier"
                                 >
-                                  <span>{courierConfig?.label || (item.courier_usa?.toUpperCase() || 'USA')}:</span>
-                                  <span>{item.tracking_usa}</span>
-                                  <ExternalLink className="w-3 h-3" />
+                                  {trackingUsa}
+                                  <ExternalLink className="w-2.5 h-2.5" />
                                 </a>
                               ) : (
-                                <span className="font-mono font-medium text-gray-700 dark:text-gray-300">
-                                  {item.tracking_usa}
+                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                                  {trackingUsa}
                                 </span>
                               )}
-
-                              <button
-                                onClick={() => handleOpenQuickTracking(item)}
-                                className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition"
+                              <button 
+                                onClick={() => handleOpenQuickTracking(item)} 
+                                className="p-0.5 text-slate-400 hover:text-blue-600 ml-0.5" 
                                 title="Editar Tracking USA"
                               >
-                                <Edit2 className="w-3 h-3" />
+                                <Edit2 className="w-2.5 h-2.5" />
                               </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className="text-slate-400 text-[10px]">Sin Tracking USA</span>
+                              <button 
+                                onClick={() => handleOpenQuickTracking(item)} 
+                                className="text-purple-600 font-bold hover:underline text-[10px] ml-0.5"
+                              >
+                                + Agregar
+                              </button>
+                            </div>
+                          )}
 
-                              {trk && (
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
-                                  trk.tracking_vzla 
-                                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' 
-                                    : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                                }`}>
-                                  <Package className="w-3 h-3" />
-                                  <span>{trk.tracking_vzla ? `VZLA: ${trk.tracking_vzla}` : 'En Envíos (Falta Tracking VZLA)'}</span>
+                          {/* Botón de Prealerta Creada ✅ */}
+                          {trackingUsa && (
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePrealerta(item, trkDoc)}
+                              className={`ml-1 px-2 py-0.5 text-[10px] font-bold rounded-md transition flex items-center gap-1 ${
+                                isPrealerted
+                                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
+                                  : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 animate-pulse ring-1 ring-amber-400'
+                              }`}
+                              title={isPrealerted ? "Prealertado. Clic para desmarcar si fue un error" : "¡Falta prealertar en casillero! Clic para marcar Prealertado"}
+                            >
+                              {isPrealerted ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Prealertado ✅</span>
+                                </>
+                              ) : (
+                                <>
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  <span>Prealerta Pendiente ⚠️</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* 2. TRACKING VZLA 🇻🇪 */}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
+                          <span className="text-sm" title="Venezuela">🇻🇪</span>
+                          {trackingVzla ? (
+                            <div className="flex items-center gap-1">
+                              <span className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
+                                {courierVzlaConfig?.nombre || courierVzla.toUpperCase()}:
+                              </span>
+                              {trackingUrlVzla ? (
+                                <a 
+                                  href={trackingUrlVzla} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="font-mono text-emerald-700 dark:text-emerald-400 hover:underline font-bold text-[11px] flex items-center gap-0.5"
+                                  title="Rastrear en la web del courier venezolano"
+                                >
+                                  {trackingVzla}
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              ) : (
+                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                                  {trackingVzla}
                                 </span>
                               )}
+                              <button 
+                                onClick={() => handleOpenQuickVzla(item, trkDoc)} 
+                                className="p-0.5 text-slate-400 hover:text-emerald-600 ml-0.5" 
+                                title="Editar Guía VZLA"
+                              >
+                                <Edit2 className="w-2.5 h-2.5" />
+                              </button>
                             </div>
-                          );
-                        }
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className="text-slate-400 text-[10px]">Sin Guía VZLA</span>
+                              <button 
+                                onClick={() => handleOpenQuickVzla(item, trkDoc)} 
+                                className="text-emerald-700 dark:text-emerald-400 font-bold hover:underline text-[10px] ml-0.5"
+                              >
+                                + Guía VZLA
+                              </button>
+                            </div>
+                          )}
 
-                        return (
-                          <div className="pt-1 flex flex-wrap items-center gap-2 text-xs">
-                            {isBogusTracking && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title="Se detectó el ID del artículo como tracking">
-                                ⚠️ ID de compra detectado (Pendiente de tracking)
-                              </span>
-                            )}
-                            {item.shipping_status === 'awaiting_shipment' && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title="El vendedor en eBay aún no ha emitido la guía de envío">
-                                ⏳ Awaiting tracking
-                              </span>
-                            )}
+                          {/* Botón Llegó al Taller */}
+                          {isVendido ? (
+                            <span className="ml-1 px-2 py-0.5 text-[10px] font-semibold rounded-md bg-slate-100 text-slate-600 border border-slate-300 flex items-center gap-1" title="Equipo vendido y entregado">
+                              <span>⚪ Vendido</span>
+                            </span>
+                          ) : isDisponible ? (
+                            <span className="ml-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1" title="Equipo listo y disponible para venta">
+                              <Check className="w-3 h-3 text-teal-600" />
+                              <span>Listo en Venta</span>
+                            </span>
+                          ) : !isEnTaller ? (
                             <button
-                              onClick={() => handleOpenQuickTracking(item)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-dashed border-purple-300 dark:border-purple-800 rounded-lg transition"
-                              title="Asignar número de Tracking USA a esta compra"
+                              type="button"
+                              onClick={() => handleMarcarLlegadaTaller(item, trkDoc, invObj)}
+                              className="ml-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-300 transition flex items-center gap-1 shadow-2xs"
+                              title="Marcar que el equipo ya llegó físicamente al taller Smartbits para comenzar su preparación"
                             >
-                              <Plus className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                              <span>Tracking USA</span>
+                              <MapPin className="w-3 h-3 text-blue-600" />
+                              <span>Llegó a Taller</span>
                             </button>
-                          </div>
-                        );
-                      })()}
+                          ) : (
+                            <span className="ml-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1" title="En taller en preparación para su venta">
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>En Taller 🏢</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Acciones Rápidas */}
-                  <div className="flex flex-wrap md:flex-nowrap items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-gray-200 dark:border-gray-700 flex-shrink-0">
-                    {/* Botón Vincular a Inventario Existente (Manual) */}
-                    {isPendiente && (
-                      <button
-                        onClick={() => handleOpenLinkModal(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 rounded-lg transition"
-                        title="Vincular con un producto ya registrado en el inventario"
-                      >
-                        <LinkIcon className="w-3.5 h-3.5" />
-                        <span>Vincular</span>
-                      </button>
+                  {/* Bloque Derecho: Acciones de Conversión e Inventario */}
+                  <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    {/* Si aún NO está en inventario: Botones para Agregar */}
+                    {!hasInv && (
+                      <>
+                        <button
+                          onClick={() => handleConvertToLaptop(item)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-xs"
+                          title="Crear ficha de Laptop con estos datos precargados"
+                        >
+                          <Laptop className="w-3.5 h-3.5" />
+                          <span>+ Laptop</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleConvertToComponent(item)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition"
+                          title="Crear componente con estos datos precargados"
+                        >
+                          <Package className="w-3.5 h-3.5" />
+                          <span>+ Comp.</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenLinkModal(item)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition"
+                          title="Vincular con un producto ya existente en inventario"
+                        >
+                          <LinkIcon className="w-3.5 h-3.5" />
+                          <span>Vincular</span>
+                        </button>
+                      </>
                     )}
 
-                    {/* Ver Ficha en Inventario si ya está vinculado */}
-                    {isEnInventario && item.inventario_id && (
-                      <button
-                        onClick={() => {
-                          if (item.tipo_inventario === 'laptop') navigate(`/admin/edit/${item.inventario_id}`);
-                          else if (item.tipo_inventario === 'componente') navigate(`/admin/components/edit/${item.inventario_id}`);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition"
-                        title="Abrir ficha del producto en inventario"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        <span>Ver Ficha</span>
-                      </button>
-                    )}
+                    {/* Si YA está en inventario: Botón para Editar Ficha */}
+                    {hasInv && invObj?.item && (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
+                            else navigate(`/admin/components/edit/${invObj.item.id}`);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-950/60 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition shadow-xs"
+                          title="Abrir y editar la ficha del equipo en inventario"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Editar Ficha</span>
+                        </button>
 
-                    {/* Desvincular si ya está en inventario */}
-                    {isEnInventario && (
-                      <button
-                        onClick={() => handleUnlink(item)}
-                        className="p-1.5 text-gray-400 hover:text-amber-600 rounded-lg hover:bg-gray-100 transition"
-                        title="Desvincular y volver a estado pendiente"
-                      >
-                        <Unlink className="w-4 h-4" />
-                      </button>
-                    )}
-
-                    {/* Convertir a Nueva Laptop */}
-                    {isPendiente && (
-                      <button
-                        onClick={() => handleConvertToLaptop(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-xs"
-                        title="Crear ficha de Laptop con estos datos precargados"
-                      >
-                        <Laptop className="w-3.5 h-3.5" />
-                        <span>+ Laptop</span>
-                      </button>
-                    )}
-
-                    {/* Convertir a Nuevo Componente */}
-                    {isPendiente && (
-                      <button
-                        onClick={() => handleConvertToComponent(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition"
-                        title="Crear componente con estos datos precargados"
-                      >
-                        <Package className="w-3.5 h-3.5" />
-                        <span>+ Comp.</span>
-                      </button>
-                    )}
-
-                    {/* Crear Tracking */}
-                    {!isEnTracking && (
-                      <button
-                        onClick={() => handleOpenTrackingModal(item)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 border border-purple-200 rounded-lg transition"
-                        title="Crear o asociar a encomienda"
-                      >
-                        <Box className="w-3.5 h-3.5" />
-                        <span>Tracking</span>
-                      </button>
+                        <button
+                          onClick={() => handleUnlink(item)}
+                          className="p-1.5 text-gray-400 hover:text-amber-600 rounded-lg hover:bg-gray-100 transition"
+                          title="Desvincular ficha de inventario"
+                        >
+                          <Unlink className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
 
                     {/* Descartar / Restaurar */}
                     <button
                       onClick={() => handleToggleDescartar(item)}
                       className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"
-                      title={isDescartado ? "Restaurar a pendientes" : "Descartar (compra personal o no tienda)"}
+                      title={isDescartado ? "Restaurar compra" : "Descartar compra"}
                     >
                       {isDescartado ? <RotateCcw className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                     </button>
@@ -1672,33 +2225,13 @@ export default function ComprasEbay() {
                     <button
                       onClick={() => setDeleteConfirm({ open: true, id: item.id, title: item.titulo })}
                       className="p-1.5 text-red-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
-                      title="Eliminar registro"
+                      title="Eliminar compra"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* Banner de Sugerencia Automática de Coincidencia */}
-                {matchSuggestion && (
-                  <div className="p-2.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-indigo-900 dark:text-indigo-200 animate-in fade-in">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                      <span>
-                        Sugerencia en inventario: <strong>{matchSuggestion.item.marca || ''} {matchSuggestion.item.modelo || matchSuggestion.item.nombre}</strong>
-                        {matchSuggestion.item.precio_ebay ? ` • $${matchSuggestion.item.precio_ebay} USD` : ''} 
-                        <span className="text-indigo-500 text-[11px] ml-1">({matchSuggestion.reason})</span>
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleConfirmSingleAutoLink(item, matchSuggestion)}
-                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-md shadow-xs text-xs self-start sm:self-auto flex items-center gap-1"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Vincular Ahora</span>
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -2043,6 +2576,90 @@ export default function ComprasEbay() {
                 className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg shadow-sm transition"
               >
                 {linkingProcessing ? 'Guardando...' : 'Guardar Tracking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Rápido: Asignar / Editar Tracking VZLA */}
+      {quickVzlaModal.open && quickVzlaModal.item && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-lg text-lg">
+                  🇻🇪
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                    {quickVzlaModal.tracking_vzla ? 'Editar Guía Venezuela' : 'Asignar Guía Venezuela'}
+                  </h3>
+                  <p className="text-xs text-gray-500 truncate max-w-[260px]">
+                    {quickVzlaModal.item.titulo}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setQuickVzlaModal({ open: false, item: null, tracking_id: null, courier_vzla: 'liberty', tracking_vzla: '', saving: false })}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Empresa / Courier en Venezuela <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={quickVzlaModal.courier_vzla}
+                  onChange={(e) => setQuickVzlaModal(prev => ({ ...prev, courier_vzla: e.target.value }))}
+                  className="w-full text-sm px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden dark:text-white"
+                >
+                  {COURIERS_VZLA.map(c => (
+                    <option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Número de Guía / Tracking VZLA <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={quickVzlaModal.tracking_vzla}
+                  onChange={(e) => setQuickVzlaModal(prev => ({ ...prev, tracking_vzla: e.target.value }))}
+                  placeholder="Ej: LIB-849201 o 1234567890"
+                  className="w-full font-mono text-sm px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden dark:text-white uppercase"
+                  autoFocus
+                />
+              </div>
+
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-900 text-xs text-emerald-900 dark:text-emerald-200">
+                <p>
+                  Al guardar, se vinculará a la encomienda y el estado logístico avanzará automáticamente para que puedas monitorear su llegada a Venezuela.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setQuickVzlaModal({ open: false, item: null, tracking_id: null, courier_vzla: 'liberty', tracking_vzla: '', saving: false })}
+                className="px-3.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveQuickVzla}
+                disabled={quickVzlaModal.saving || !quickVzlaModal.tracking_vzla.trim()}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg shadow-sm transition"
+              >
+                {quickVzlaModal.saving ? 'Guardando...' : 'Guardar Guía VZLA'}
               </button>
             </div>
           </div>

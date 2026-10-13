@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus, DollarSign, Trash2, Flame } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, CheckCircle, X, Loader2, Plus, DollarSign, Trash2, Flame, AlertTriangle } from 'lucide-react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, getDocs, updateDoc, collection, addDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
 import { COMISIONES_POR_CUENTA } from '../../utils/bancos';
@@ -17,6 +17,7 @@ export default function EditLaptop() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(isEditMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicateLaptop, setDuplicateLaptop] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [newImageFiles, setNewImageFiles] = useState([]);
   const [newImagePreviews, setNewImagePreviews] = useState([]);
@@ -94,6 +95,44 @@ export default function EditLaptop() {
               setPagosCompra([
                 { metodoId: 'paypal', bancoNombre: 'PayPal', monto: String(ebayData.precio), comisionPct: 0 }
               ]);
+            }
+
+            // Detección estricta de duplicados por ebay_compra_id o un orderId real de eBay
+            const ordClean = (ebayData.orderId || '').trim();
+            const ebayDocId = ebayData.id;
+
+            const isValidEbayOrderId = (ord) => {
+              if (!ord || typeof ord !== 'string') return false;
+              const clean = ord.replace(/^#/, '').trim().toLowerCase();
+              if (!clean || clean.startsWith('order_') || clean.startsWith('order-') || clean.startsWith('item_') || clean.startsWith('ebay_') || clean.startsWith('temp_')) {
+                return false;
+              }
+              return clean.length >= 8;
+            };
+
+            try {
+              const snapLaptops = await getDocs(collection(db, 'laptops'));
+              const existingMatch = snapLaptops.docs.find(d => {
+                const data = d.data();
+                // 1. Vinculación directa por ID de documento de compra
+                if (ebayDocId && data.ebay_compra_id === ebayDocId) return true;
+
+                // 2. Verificación por número de orden REAL de eBay (excluyendo IDs temporales como order_1, order_2)
+                if (isValidEbayOrderId(ordClean)) {
+                  const normClean = ordClean.replace(/^#/, '').trim().toLowerCase();
+                  const targetOrd = (data.order_id || '').replace(/^#/, '').trim().toLowerCase();
+                  if (isValidEbayOrderId(targetOrd) && targetOrd === normClean) return true;
+                  if (data.observaciones_compra && typeof data.observaciones_compra === 'string') {
+                    if (data.observaciones_compra.toLowerCase().includes(normClean)) return true;
+                  }
+                }
+                return false;
+              });
+              if (existingMatch) {
+                setDuplicateLaptop({ id: existingMatch.id, ...existingMatch.data() });
+              }
+            } catch (dupErr) {
+              console.warn('Error verificando duplicados de laptop:', dupErr);
             }
           }
           setLoading(false);
@@ -267,6 +306,12 @@ export default function EditLaptop() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!isEditMode && duplicateLaptop) {
+      alert(`No se puede guardar: esta compra de eBay (Orden #${ebayData?.orderId || 'S/N'}) ya fue registrada en el inventario como ${duplicateLaptop.marca || ''} ${duplicateLaptop.modelo || ''}.`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -366,6 +411,7 @@ export default function EditLaptop() {
         const newLaptopDoc = await addDoc(collection(db, 'laptops'), {
           ...laptopDataPayload,
           ebay_compra_id: ebayData?.id || null,
+          order_id: ebayData?.orderId || null,
           tracking_usa: ebayData?.tracking_usa ? ebayData.tracking_usa.trim().toUpperCase() : '',
           creadoEn: serverTimestamp(),
         });
@@ -463,7 +509,37 @@ export default function EditLaptop() {
         </div>
       ) : (
         <>
-          {ebayData && (
+          {duplicateLaptop && (
+            <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 mb-6 text-amber-950 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-amber-900 text-sm">¡Esta compra de eBay ya está registrada en Inventario!</p>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    Ya existe un equipo asociado a la Orden #{ebayData?.orderId || 'S/N'}: <strong>{duplicateLaptop.marca} {duplicateLaptop.modelo}</strong> (ID: {duplicateLaptop.id}). No se permiten duplicados.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/admin/edit/${duplicateLaptop.id}`)}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-xs transition"
+                >
+                  Ir a Editar Ficha Existente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/compras-ebay')}
+                  className="px-3 py-1.5 bg-white border border-amber-300 text-amber-900 font-semibold text-xs rounded-lg hover:bg-amber-100 transition"
+                >
+                  Regresar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {ebayData && !duplicateLaptop && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-blue-900 shadow-xs">
               <div className="flex items-center gap-3">
                 <span className="px-2.5 py-1 bg-blue-600 text-white rounded-lg font-bold text-xs">eBay Sync</span>

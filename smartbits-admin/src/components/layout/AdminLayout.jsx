@@ -102,8 +102,7 @@ export default function AdminLayout() {
   const navItems = [
     { path: '/admin', label: 'Inventario', icon: LayoutDashboard },
     { path: '/admin/components', label: 'Componentes', icon: Package },
-    { path: '/admin/compras-ebay', label: 'Compras eBay', icon: ShoppingBag, badge: pendientesEbay },
-    { path: '/admin/trackings', label: 'Envíos y Trackings', icon: Truck },
+    { path: '/admin/compras-ebay', label: 'Compras y Logística', icon: ShoppingBag, badge: pendientesEbay },
     { path: '/admin/service', label: 'Servicio Técnico', icon: Wrench },
     { path: '/admin/finanzas', label: 'Finanzas', icon: DollarSign },
   ];
