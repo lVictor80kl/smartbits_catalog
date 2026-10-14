@@ -9,7 +9,8 @@ import {
   AlertTriangle, CheckCircle2, Clock, Package, Laptop, 
   Box, ArrowRight, DollarSign, Calendar, RefreshCw, X, ShieldAlert,
   Info, Sparkles, Filter, Check, EyeOff, RotateCcw, Link as LinkIcon,
-  CheckCircle, Unlink, Layers, Edit2, Plus, Printer, Truck, MapPin
+  CheckCircle, Unlink, Layers, Edit2, Plus, Printer, Truck, MapPin,
+  Copy, AlertCircle, TrendingUp
 } from 'lucide-react';
 import { 
   getTrackingUrlUsa, getCourierUsaConfig, COURIERS_USA,
@@ -1375,24 +1376,24 @@ export default function ComprasEbay() {
   }, [compras]);
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header Principal */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800">
+        <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-xl">
-              <ShoppingBag className="w-6 h-6" />
+            <div className="p-2.5 bg-slate-900 text-white dark:bg-white dark:text-slate-950 rounded-xl shadow-xs">
+              <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-                Compras de eBay
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                Compras de eBay &amp; Logística
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-2">
-                <span>Sincronización, detección inteligente y conversión hacia Inventario y Envíos</span>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-2">
+                <span>Gestión de compras, envíos internacionales y vinculación a inventario</span>
                 {ultimaSincronizacion && (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                    <Clock className="w-3 h-3" />
-                    Última sinc.: {ultimaSincronizacion.toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 font-mono">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    <span>Última sinc.: {ultimaSincronizacion.toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}</span>
                   </span>
                 )}
               </p>
@@ -1400,15 +1401,15 @@ export default function ComprasEbay() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Botón Revertir Auto-vinculaciones si existen */}
           {autoLinkedCount > 0 && (
             <button
               onClick={handleRevertAllAutoLinks}
-              className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-rose-800 dark:text-rose-200 bg-rose-100 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-700 rounded-lg hover:bg-rose-200 transition shadow-sm"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-800 dark:text-rose-200 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-lg hover:bg-rose-100 transition shadow-2xs"
               title="Revertir compras vinculadas automáticamente por el algoritmo previo para corregir inventario"
             >
-              <RotateCcw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <RotateCcw className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
               <span>Revertir Auto-vinculaciones ({autoLinkedCount})</span>
             </button>
           )}
@@ -1418,10 +1419,10 @@ export default function ComprasEbay() {
             <button
               onClick={handleCleanDuplicates}
               disabled={cleaningDuplicates}
-              className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-200 transition shadow-sm"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 rounded-lg hover:bg-amber-100 transition shadow-2xs"
               title="Eliminar compras duplicadas conservando la versión vinculada o con tracking"
             >
-              <Trash2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <Trash2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
               <span>{cleaningDuplicates ? 'Limpiando...' : `Limpiar Duplicados (${detectedDuplicatesCount})`}</span>
             </button>
           )}
@@ -1429,33 +1430,33 @@ export default function ComprasEbay() {
           {/* Botón Imprimir Reporte PDF */}
           <button
             onClick={handlePrintReport}
-            className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition shadow-xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-2xs"
             title="Imprimir o exportar listado filtrado a PDF"
           >
-            <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-            <span>Imprimir Listado</span>
+            <Printer className="w-3.5 h-3.5 text-slate-500" />
+            <span>Imprimir</span>
           </button>
 
           {/* Botón Sincronizar Trackings USA a Envíos */}
           <button
             onClick={handleSyncAllTrackingsToEnvios}
             disabled={syncingTrackings}
-            className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900 rounded-lg hover:bg-purple-100 transition shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition shadow-2xs"
             title="Registrar o actualizar en Envíos todas las compras con Tracking USA"
           >
             {syncingTrackings ? (
-              <RefreshCw className="w-4 h-4 animate-spin text-purple-600" />
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-600 dark:text-slate-400" />
             ) : (
-              <Package className="w-4 h-4 text-purple-600" />
+              <Package className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
             )}
-            <span>{syncingTrackings ? 'Sincronizando...' : 'Sync Trackings'}</span>
+            <span>{syncingTrackings ? 'Sincronizando...' : 'Sync Envíos'}</span>
           </button>
 
           <button
             onClick={() => setShowHelpModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 rounded-lg hover:bg-blue-100 transition shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-2xs"
           >
-            <Info className="w-4 h-4" />
+            <Info className="w-3.5 h-3.5 text-slate-500" />
             <span>Extensión</span>
           </button>
         </div>
@@ -1463,32 +1464,32 @@ export default function ComprasEbay() {
 
       {/* Notificación de Auto-vinculación */}
       {autoLinkNotification && (
-        <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl flex items-center gap-3 text-sm font-medium animate-in fade-in">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 rounded-xl flex items-center gap-3 text-xs sm:text-sm font-medium animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span>{autoLinkNotification}</span>
         </div>
       )}
 
       {/* Banner de Compras Duplicadas Detectadas */}
       {detectedDuplicatesCount > 0 && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+        <div className="p-4 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-200 dark:bg-amber-900/60 rounded-lg text-amber-800 dark:text-amber-300 flex-shrink-0">
-              <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300" />
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-lg text-amber-800 dark:text-amber-300 shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-amber-900 dark:text-amber-100">
+              <h4 className="text-xs sm:text-sm font-semibold text-amber-950 dark:text-amber-100">
                 Se detectó {detectedDuplicatesCount} compra duplicada con conflicto de orden
               </h4>
-              <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                Hay registros repetidos o con números de orden cruzados. Puedes eliminarlos en 1 clic conservando la versión correcta y limpiando las alertas pendientes.
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
+                Hay registros repetidos o con números de orden cruzados. Puedes eliminarlos en 1 clic conservando la versión correcta.
               </p>
             </div>
           </div>
           <button
             onClick={handleCleanDuplicates}
             disabled={cleaningDuplicates}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition shadow-xs flex-shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition shadow-2xs shrink-0"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>{cleaningDuplicates ? 'Limpiando...' : `Limpiar Duplicados (${detectedDuplicatesCount})`}</span>
@@ -1496,24 +1497,26 @@ export default function ComprasEbay() {
         </div>
       )}
 
-      {/* Tarjetas de Métricas Resumen - 6 KPIs Pedidos */}
+      {/* Tarjetas de Métricas Resumen - 6 KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* 1. Total Equipos */}
         <div 
           onClick={() => setFilterEstado('todos')}
           className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
             filterEstado === 'todos'
-              ? 'bg-blue-50/80 border-blue-400 dark:bg-blue-950/40 ring-2 ring-blue-400/20 shadow-sm'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300'
+              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 border-slate-900 dark:border-white shadow-xs'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Total Equipos</span>
-            <ShoppingBag className="w-4 h-4 text-gray-400" />
+            <span className={`text-[11px] font-semibold uppercase tracking-wider ${filterEstado === 'todos' ? 'text-slate-300 dark:text-slate-600' : 'text-slate-500 dark:text-slate-400'}`}>
+              Total Pipeline
+            </span>
+            <Layers className={`w-3.5 h-3.5 ${filterEstado === 'todos' ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400'}`} />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-gray-900 dark:text-white">{metrics.total}</span>
-            <span className="text-[10px] text-gray-400 font-medium">en pipeline</span>
+            <span className="text-2xl font-bold tracking-tight tabular-nums font-mono">{metrics.total}</span>
+            <span className={`text-[11px] font-normal ${filterEstado === 'todos' ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400'}`}>equipos</span>
           </div>
         </div>
 
@@ -1522,19 +1525,19 @@ export default function ComprasEbay() {
           onClick={() => setFilterEstado('en_usa')}
           className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
             filterEstado === 'en_usa'
-              ? 'bg-amber-50/80 border-amber-400 dark:bg-amber-950/40 ring-2 ring-amber-400/20 shadow-sm'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-amber-300'
+              ? 'bg-amber-500/10 dark:bg-amber-500/20 border-amber-500 ring-1 ring-amber-500/30 shadow-xs'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
-              <span>🇺🇸 En USA</span>
+            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+              <span>Casillero USA</span>
             </span>
-            <Package className="w-4 h-4 text-amber-600" />
+            <Package className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-amber-700 dark:text-amber-400">{metrics.enUsa}</span>
-            <span className="text-[10px] text-amber-600 font-medium">vía casillero</span>
+            <span className="text-2xl font-bold tracking-tight tabular-nums font-mono text-slate-900 dark:text-white">{metrics.enUsa}</span>
+            <span className="text-[11px] text-slate-400 font-normal">en tránsito</span>
           </div>
         </div>
 
@@ -1543,19 +1546,19 @@ export default function ComprasEbay() {
           onClick={() => setFilterEstado('en_vzla')}
           className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
             filterEstado === 'en_vzla'
-              ? 'bg-purple-50/80 border-purple-400 dark:bg-purple-950/40 ring-2 ring-purple-400/20 shadow-sm'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-purple-300'
+              ? 'bg-sky-500/10 dark:bg-sky-500/20 border-sky-500 ring-1 ring-sky-500/30 shadow-xs'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-purple-800 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1">
-              <span>🇻🇪 En VZLA</span>
+            <span className="text-[11px] font-semibold text-sky-700 dark:text-sky-400 uppercase tracking-wider flex items-center gap-1">
+              <span>Tránsito VZLA</span>
             </span>
-            <Truck className="w-4 h-4 text-purple-600" />
+            <Truck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-purple-700 dark:text-purple-400">{metrics.enVzla}</span>
-            <span className="text-[10px] text-purple-600 font-medium">con guía local</span>
+            <span className="text-2xl font-bold tracking-tight tabular-nums font-mono text-slate-900 dark:text-white">{metrics.enVzla}</span>
+            <span className="text-[11px] text-slate-400 font-normal">con guía</span>
           </div>
         </div>
 
@@ -1564,19 +1567,19 @@ export default function ComprasEbay() {
           onClick={() => setFilterEstado('en_taller')}
           className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
             filterEstado === 'en_taller'
-              ? 'bg-emerald-50/80 border-emerald-400 dark:bg-emerald-950/40 ring-2 ring-emerald-400/20 shadow-sm'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-emerald-300'
+              ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-indigo-500 ring-1 ring-indigo-500/30 shadow-xs'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-              <span>🏢 En Taller</span>
+            <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+              <span>En Taller</span>
             </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{metrics.yaEnTaller}</span>
-            <span className="text-[10px] text-emerald-600 font-medium">activos</span>
+            <span className="text-2xl font-bold tracking-tight tabular-nums font-mono text-slate-900 dark:text-white">{metrics.yaEnTaller}</span>
+            <span className="text-[11px] text-slate-400 font-normal">en revisión</span>
           </div>
         </div>
 
@@ -1585,60 +1588,62 @@ export default function ComprasEbay() {
           onClick={() => setFilterEstado('disponibles')}
           className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
             filterEstado === 'disponibles'
-              ? 'bg-teal-50/80 border-teal-400 dark:bg-teal-950/40 ring-2 ring-teal-400/20 shadow-sm'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-teal-300'
+              ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500 ring-1 ring-emerald-500/30 shadow-xs'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider">
+            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
               Disponibles
             </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-teal-700 dark:text-teal-400">{metrics.disponibles}</span>
-            <span className="text-[10px] text-teal-600 font-medium">para venta</span>
+            <span className="text-2xl font-bold tracking-tight tabular-nums font-mono text-slate-900 dark:text-white">{metrics.disponibles}</span>
+            <span className="text-[11px] text-slate-400 font-normal">a la venta</span>
           </div>
         </div>
 
-        {/* 6. Coming Soon en Inventario */}
+        {/* 6. Coming Soon */}
         <div 
           onClick={() => setFilterEstado('coming_soon')}
           className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
             filterEstado === 'coming_soon'
-              ? 'bg-sky-50/80 border-sky-400 dark:bg-sky-950/40 ring-2 ring-sky-400/20 shadow-sm'
-              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-sky-300'
+              ? 'bg-blue-500/10 dark:bg-blue-500/20 border-blue-500 ring-1 ring-blue-500/30 shadow-xs'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider">
+            <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider">
               Coming Soon
             </span>
-            <Clock className="w-4 h-4 text-sky-500" />
+            <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-sky-700 dark:text-sky-400">{metrics.comingSoon}</span>
-            <span className="text-[10px] text-sky-600 font-medium">próximamente</span>
+            <span className="text-2xl font-bold tracking-tight tabular-nums font-mono text-slate-900 dark:text-white">{metrics.comingSoon}</span>
+            <span className="text-[11px] text-slate-400 font-normal">anunciados</span>
           </div>
         </div>
       </div>
 
       {/* Barra de Filtros y Búsqueda */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {/* 1. Prioridad Operativa (Predeterminado) */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2 sm:p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-1">
+          {/* 1. Prioridad Operativa */}
           <button
             onClick={() => setFilterEstado('prioridad')}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
               filterEstado === 'prioridad'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <span>⚡ Prioridad Operativa</span>
+            <span>Prioridad Operativa</span>
             {(metrics.sinInventario > 0 || metrics.sinPrealerta > 0) && (
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                filterEstado === 'prioridad' ? 'bg-blue-800 text-white' : 'bg-red-500 text-white animate-pulse'
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                filterEstado === 'prioridad'
+                  ? 'bg-white/20 text-white dark:bg-black/20 dark:text-slate-950'
+                  : 'bg-rose-500 text-white'
               }`}>
                 {metrics.sinInventario + metrics.sinPrealerta}
               </span>
@@ -1648,27 +1653,29 @@ export default function ComprasEbay() {
           {/* 2. Sin Inventario */}
           <button
             onClick={() => setFilterEstado('sin_inventario')}
-            className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
+            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 ${
               filterEstado === 'sin_inventario'
-                ? 'bg-red-600 text-white shadow-xs'
-                : 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 hover:bg-red-100'
+                ? 'bg-rose-600 text-white font-semibold shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <span>🔴 Sin Inventario</span>
-            <span className="text-[11px] font-mono">({metrics.sinInventario})</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            <span>Sin Inventario</span>
+            <span className="text-[11px] font-mono opacity-80">({metrics.sinInventario})</span>
           </button>
 
           {/* 3. Sin Prealerta */}
           <button
             onClick={() => setFilterEstado('sin_prealerta')}
-            className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 ${
+            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 ${
               filterEstado === 'sin_prealerta'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 hover:bg-amber-100'
+                ? 'bg-amber-600 text-white font-semibold shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <span>⚠️ Sin Prealerta</span>
-            <span className="text-[11px] font-mono">({metrics.sinPrealerta})</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            <span>Sin Prealerta</span>
+            <span className="text-[11px] font-mono opacity-80">({metrics.sinPrealerta})</span>
           </button>
 
           {/* 4. En USA */}
@@ -1676,11 +1683,11 @@ export default function ComprasEbay() {
             onClick={() => setFilterEstado('en_usa')}
             className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
               filterEstado === 'en_usa'
-                ? 'bg-amber-700 text-white font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 font-semibold shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            🇺🇸 En USA ({metrics.enUsa})
+            En USA ({metrics.enUsa})
           </button>
 
           {/* 5. En VZLA */}
@@ -1688,11 +1695,11 @@ export default function ComprasEbay() {
             onClick={() => setFilterEstado('en_vzla')}
             className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
               filterEstado === 'en_vzla'
-                ? 'bg-purple-700 text-white font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 font-semibold shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            🇻🇪 En VZLA ({metrics.enVzla})
+            En VZLA ({metrics.enVzla})
           </button>
 
           {/* 6. En Taller */}
@@ -1700,11 +1707,11 @@ export default function ComprasEbay() {
             onClick={() => setFilterEstado('en_taller')}
             className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
               filterEstado === 'en_taller'
-                ? 'bg-emerald-700 text-white font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 font-semibold shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            🏢 En Taller ({metrics.yaEnTaller})
+            En Taller ({metrics.yaEnTaller})
           </button>
 
           {/* 7. Todos */}
@@ -1712,40 +1719,42 @@ export default function ComprasEbay() {
             onClick={() => setFilterEstado('todos')}
             className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
               filterEstado === 'todos'
-                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 font-semibold shadow-2xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             Todos ({metrics.total})
           </button>
 
           {/* 8. Descartados */}
-          <button
-            onClick={() => setFilterEstado('descartados')}
-            className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all ${
-              filterEstado === 'descartados'
-                ? 'bg-gray-600 text-white font-bold'
-                : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-          >
-            Descartados ({descartadosCount})
-          </button>
+          {descartadosCount > 0 && (
+            <button
+              onClick={() => setFilterEstado('descartados')}
+              className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                filterEstado === 'descartados'
+                  ? 'bg-slate-700 text-white font-semibold'
+                  : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              Descartados ({descartadosCount})
+            </button>
+          )}
         </div>
 
         {/* Buscador */}
-        <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="relative w-full md:w-64">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Buscar modelo, tracking, orden..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-slate-900 dark:focus:ring-white transition"
           />
           {searchTerm && (
             <button 
               onClick={() => setSearchTerm('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -1755,31 +1764,30 @@ export default function ComprasEbay() {
 
       {/* Lista de Compras */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
-          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-3 text-sm text-gray-500">Cargando compras de eBay...</p>
+        <div className="flex flex-col items-center justify-center p-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="w-8 h-8 border-2 border-slate-900 dark:border-white border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-3 text-xs font-medium text-slate-500">Cargando compras de eBay...</p>
         </div>
       ) : comprasFiltradas.length === 0 ? (
-        <div className="text-center py-16 px-4 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
-          <ShoppingBag className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+        <div className="text-center py-16 px-4 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+          <ShoppingBag className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
             {searchTerm ? 'No se encontraron compras con esa búsqueda' : 'No hay compras en esta vista'}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mt-1 mb-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
             {compras.length === 0 
               ? 'Usa la Extensión de Chrome en tu cuenta de eBay para importar tus compras automáticamente.'
-              : 'Intenta cambiar los filtros o el término de búsqueda.'}
+              : 'Intenta cambiar los filtros seleccionados o el término de búsqueda.'}
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {comprasFiltradas.map((item) => {
             const invObj = getLinkedInventoryItem(item);
             const trkDoc = getLinkedTrackingDoc(item, invObj);
             const hasInv = Boolean(invObj?.item);
 
             const isPendiente = !hasInv;
-            const isEnInventario = hasInv;
             const isDescartado = item.estado === 'descartado';
 
             // Datos de Inventario
@@ -1801,109 +1809,150 @@ export default function ComprasEbay() {
             const courierVzlaConfig = getCourierVzlaConfig(courierVzla);
             const trackingUrlVzla = trackingVzla ? getTrackingUrlVzla(courierVzla, trackingVzla) : null;
 
-            // En taller: solo si aún NO está disponible (en preparación) y NO se ha vendido
+            // Estados operativos de inventario
             const isDisponible = invDisponibilidad === 'Disponible';
             const isVendido = invDisponibilidad === 'No disponible';
             const tieneEnvio = invObj?.item ? tieneEnvioPagado(invObj.item) : false;
             const isEnTaller = !isDisponible && !isVendido && (tieneEnvio || trkDoc?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
 
+            // Margen y finanzas calculadas
+            const costoNum = Number(item.precio || 0);
+            const pvpNum = invPrecioVenta ? Number(invPrecioVenta) : 0;
+            const margenGanancia = (pvpNum > 0 && costoNum > 0) ? (pvpNum - costoNum) : null;
+            const margenPct = (margenGanancia !== null && costoNum > 0) ? Math.round((margenGanancia / costoNum) * 100) : null;
+
+            // Estado único de ciclo de vida (Single Source of Truth)
+            let lifecycleBadge = null;
+            if (isDescartado) {
+              lifecycleBadge = { label: 'Descartado', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700' };
+            } else if (isVendido) {
+              lifecycleBadge = { label: 'Vendido', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
+            } else if (isDisponible) {
+              lifecycleBadge = { label: 'Disponible para Venta', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
+            } else if (isEnTaller) {
+              lifecycleBadge = { label: 'En Taller • Preparación', dot: 'bg-indigo-500', cls: 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' };
+            } else if (trackingVzla) {
+              lifecycleBadge = { label: 'En Tránsito VZLA', dot: 'bg-sky-500', cls: 'bg-sky-50 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300 border-sky-200 dark:border-sky-800' };
+            } else if (trackingUsa) {
+              lifecycleBadge = { label: 'En Casillero USA', dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
+            } else if (!hasInv) {
+              lifecycleBadge = { label: 'Falta en Catálogo', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800' };
+            } else {
+              lifecycleBadge = { label: 'En Inventario', dot: 'bg-slate-500', cls: 'bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
+            }
+
+            const ebayPhoto = item.foto_url || null;
+            const stockPhoto = invFoto || null;
+            const hasBothPhotos = Boolean(ebayPhoto && stockPhoto);
+
             return (
               <div 
                 key={item.id}
-                className={`p-4 rounded-xl border transition-all duration-150 flex flex-col gap-3 ${
+                className={`p-4 sm:p-5 rounded-2xl border transition-all duration-150 flex flex-col gap-3.5 ${
                   isPendiente 
-                    ? 'bg-red-50/40 dark:bg-red-950/20 border-red-200 dark:border-red-900/60 hover:border-red-400 shadow-sm' 
+                    ? 'bg-white dark:bg-slate-900 border-rose-200/80 dark:border-rose-900/40 hover:border-rose-300 shadow-2xs' 
                     : isVendido
-                    ? 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-75'
-                    : isEnTaller
-                    ? 'bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800'
+                    ? 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/80 dark:border-slate-800/80 opacity-75'
                     : isDescartado
-                    ? 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800 opacity-60'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-xs'
+                    ? 'bg-slate-50/40 dark:bg-slate-900/20 border-slate-200/60 dark:border-slate-800/60 opacity-60'
+                    : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-2xs'
                 }`}
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  {/* Bloque Izquierdo: Doble Miniatura y Detalles */}
-                  <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                    {/* Doble Foto (eBay + Inventario) */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {/* Foto eBay */}
-                      <div className="relative w-14 h-14 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center shadow-xs" title="Foto original de la compra en eBay">
-                        {item.foto_url ? (
+                  {/* Bloque Izquierdo: Fotografía & Información Principal */}
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    {/* Contenedor Fotográfico con Hover Swap eBay -> Stock */}
+                    <div 
+                      className="group/photo relative w-20 h-20 sm:w-22 sm:h-22 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 overflow-hidden shrink-0 flex items-center justify-center select-none"
+                      title={hasBothPhotos ? "Foto de eBay (Pasa el cursor para ver foto de Stock)" : (ebayPhoto ? "Foto de eBay" : (stockPhoto ? "Foto de Stock" : "Sin foto"))}
+                    >
+                      {hasBothPhotos ? (
+                        <>
+                          {/* 1. Foto eBay (Base por defecto) */}
                           <img 
-                            src={item.foto_url} 
+                            src={ebayPhoto} 
+                            alt={`eBay: ${item.titulo}`} 
+                            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 group-hover/photo:opacity-0" 
+                            onError={(e) => { e.target.style.display = 'none'; }} 
+                          />
+                          {/* 2. Foto Stock (Aparece al hacer hover) */}
+                          <img 
+                            src={stockPhoto} 
+                            alt={`Stock: ${invTitle || item.titulo}`} 
+                            className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-300 group-hover/photo:opacity-100" 
+                            onError={(e) => { e.target.style.display = 'none'; }} 
+                          />
+                          {/* Micro-píldora indicadora */}
+                          <div className="absolute bottom-1 inset-x-1 flex items-center justify-between px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-xs text-[9px] font-mono text-white pointer-events-none transition-all">
+                            <span className="font-semibold tracking-wider group-hover/photo:hidden">eBay</span>
+                            <span className="font-semibold tracking-wider hidden group-hover/photo:inline text-emerald-300">Stock</span>
+                            <div className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white group-hover/photo:bg-white/40 transition-colors"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-white/40 group-hover/photo:bg-emerald-400 transition-colors"></span>
+                            </div>
+                          </div>
+                        </>
+                      ) : ebayPhoto ? (
+                        <>
+                          <img 
+                            src={ebayPhoto} 
                             alt={item.titulo} 
                             className="w-full h-full object-cover"
                             onError={(e) => { e.target.style.display = 'none'; }} 
                           />
-                        ) : (
-                          <ShoppingBag className="w-5 h-5 text-gray-400" />
-                        )}
-                        <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] text-white text-center font-bold py-0.2">
-                          eBay
-                        </span>
-                      </div>
-
-                      {/* Foto Inventario */}
-                      <div className="relative w-14 h-14 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 overflow-hidden flex items-center justify-center shadow-xs" title={invFoto ? "Foto subida al inventario" : "Sin foto en inventario aún"}>
-                        {invFoto ? (
+                          <span className="absolute bottom-1 left-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-black/60 text-white backdrop-blur-xs">
+                            eBay
+                          </span>
+                        </>
+                      ) : stockPhoto ? (
+                        <>
                           <img 
-                            src={invFoto} 
-                            alt={invTitle || 'Stock'} 
+                            src={stockPhoto} 
+                            alt={invTitle || item.titulo} 
                             className="w-full h-full object-cover"
                             onError={(e) => { e.target.style.display = 'none'; }} 
                           />
-                        ) : (
-                          invObj?.type === 'componente' ? <Package className="w-5 h-5 text-gray-400" /> : <Laptop className="w-5 h-5 text-gray-400" />
-                        )}
-                        <span className="absolute bottom-0 inset-x-0 bg-blue-600/80 text-[8px] text-white text-center font-bold py-0.2">
-                          Stock
-                        </span>
-                      </div>
+                          <span className="absolute bottom-1 left-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-emerald-950/80 text-emerald-300 backdrop-blur-xs">
+                            Stock
+                          </span>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400">
+                          {invObj?.type === 'componente' ? <Package className="w-6 h-6" /> : <Laptop className="w-6 h-6" />}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Contenido Central: Doble Título, Precios y Trackings */}
+                    {/* Contenido Central: Ciclo de vida, Títulos, Precios y Trackings */}
                     <div className="flex-1 min-w-0 space-y-1.5">
                       {/* Meta Tags superiores */}
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {isPendiente && (
-                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-100 text-red-700 border border-red-300 dark:bg-red-900/60 dark:text-red-200 flex items-center gap-1 shadow-2xs">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
-                            FALTA EN INVENTARIO
+                        {/* Estado principal único */}
+                        {lifecycleBadge && (
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-md border ${lifecycleBadge.cls}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${lifecycleBadge.dot}`}></span>
+                            <span>{lifecycleBadge.label}</span>
                           </span>
                         )}
-                        {hasInv && (
-                          <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-blue-600" />
-                            En Inventario ({invObj.type === 'laptop' ? 'Laptop' : 'Parte'})
+
+                        {/* Alerta si falta prealerta en casillero */}
+                        {trackingUsa && !isPrealerted && !isDisponible && !isVendido && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span>Prealerta pendiente</span>
                           </span>
                         )}
-                        {invDisponibilidad && (
-                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
-                            invDisponibilidad === 'Disponible'
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                              : invDisponibilidad === 'Coming soon'
-                              ? 'bg-amber-100 text-amber-800 border-amber-300'
-                              : 'bg-slate-100 text-slate-700 border-slate-300'
-                          }`}>
-                            {invDisponibilidad === 'Disponible' ? '🟢 Disponible' : invDisponibilidad === 'Coming soon' ? '⏳ Coming Soon' : '⚪ Vendido'}
-                          </span>
-                        )}
-                        {isEnTaller && (
-                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                            <Check className="w-3 h-3" />
-                            En Taller 🏢
-                          </span>
-                        )}
+
+                        {/* Order ID de eBay */}
                         {editingOrderId === item.id ? (
-                          <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-950/50 p-1 rounded-lg border border-blue-300 dark:border-blue-700 shadow-xs">
-                            <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 font-mono">#</span>
+                          <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700">
+                            <span className="text-[10px] font-mono text-slate-400 pl-1">#</span>
                             <input
                               type="text"
                               placeholder="06-15295-97160"
                               value={editingOrderVal}
                               onChange={(e) => setEditingOrderVal(e.target.value)}
-                              className="w-32 px-1.5 py-0.5 text-[11px] font-mono font-bold text-blue-900 dark:text-blue-100 bg-white dark:bg-gray-900 border border-blue-300 rounded focus:outline-hidden"
+                              className="w-32 px-1 py-0.5 text-[11px] font-mono font-medium text-slate-900 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded focus:outline-hidden"
                               autoFocus
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleSaveOrderId(item.id);
@@ -1912,33 +1961,26 @@ export default function ComprasEbay() {
                             />
                             <button
                               onClick={() => handleSaveOrderId(item.id)}
-                              className="p-1 text-emerald-700 hover:bg-emerald-200 rounded"
+                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
                               title="Guardar Order ID"
                             >
                               <Check className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => setEditingOrderId(null)}
-                              className="p-1 text-gray-400 hover:bg-gray-200 rounded"
+                              className="p-1 text-slate-400 hover:bg-slate-200 rounded"
                               title="Cancelar"
                             >
                               <X className="w-3 h-3" />
                             </button>
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1">
-                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                              item.orderId && item.orderId.toLowerCase().startsWith('order_')
-                                ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
-                                : 'text-gray-500 dark:text-gray-400'
-                            }`}>
-                              Orden: #{item.orderId || 'Sin ID'}
-                              {item.orderId && item.orderId.toLowerCase().startsWith('order_') && ' ⚠️'}
-                            </span>
+                          <div className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100/70 dark:bg-slate-800/70 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                            <span>#{item.orderId || 'Sin ID'}</span>
                             <button
                               onClick={() => handleStartEditOrderId(item)}
-                              title="Editar o corregir Order ID único de eBay"
-                              className="p-0.5 text-gray-400 hover:text-blue-600 rounded transition"
+                              title="Editar Order ID"
+                              className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
                             >
                               <Edit2 className="w-2.5 h-2.5" />
                             </button>
@@ -1946,84 +1988,98 @@ export default function ComprasEbay() {
                         )}
                       </div>
 
-                      {/* 1. Título eBay */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider flex-shrink-0">eBay:</span>
-                        <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 line-clamp-1 leading-snug">
-                          {item.titulo}
-                        </h4>
-                        {item.item_url && (
-                          <a 
-                            href={item.item_url} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            title="Ver en eBay"
-                            className="text-gray-400 hover:text-blue-600 transition flex-shrink-0"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                      </div>
-
-                      {/* 2. Título Inventario (Clic redirige a edición) */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider flex-shrink-0">Stock:</span>
+                      {/* Títulos y Enlaces */}
+                      <div>
                         {hasInv ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
-                              else navigate(`/admin/components/edit/${invObj.item.id}`);
-                            }}
-                            className="text-sm font-bold text-blue-700 dark:text-blue-400 hover:underline text-left line-clamp-1 flex items-center gap-1 group/inv"
-                            title="Clic para abrir la ficha en inventario"
-                          >
-                            <span>{invTitle}</span>
-                            <Edit2 className="w-3 h-3 opacity-0 group-hover/inv:opacity-100 transition text-blue-600 flex-shrink-0" />
-                          </button>
+                          <div className="space-y-0.5">
+                            {/* Título formal en inventario */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
+                                else navigate(`/admin/components/edit/${invObj.item.id}`);
+                              }}
+                              className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 text-left line-clamp-1 flex items-center gap-1.5 group/inv transition"
+                              title="Clic para abrir la ficha en inventario"
+                            >
+                              <span>{invTitle}</span>
+                              <Edit2 className="w-3 h-3 opacity-0 group-hover/inv:opacity-100 transition text-blue-600 shrink-0" />
+                            </button>
+                            {/* Subtítulo: Título original de compra en eBay */}
+                            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                              <span className="truncate max-w-lg">{item.titulo}</span>
+                              {item.item_url && (
+                                <a 
+                                  href={item.item_url} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  title="Ver publicación original en eBay"
+                                  className="text-slate-400 hover:text-blue-600 transition shrink-0 ml-0.5"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         ) : (
-                          <span className="text-xs font-bold text-red-600 dark:text-red-400">
-                            Pendiente por registrar especificaciones en inventario
-                          </span>
+                          <div className="space-y-0.5">
+                            <h4 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white line-clamp-1 flex items-center gap-1.5">
+                              <span>{item.titulo}</span>
+                              {item.item_url && (
+                                <a 
+                                  href={item.item_url} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  title="Ver en eBay"
+                                  className="text-slate-400 hover:text-blue-600 transition shrink-0"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </h4>
+                            <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                              Pendiente por registrar especificaciones en inventario
+                            </p>
+                          </div>
                         )}
                       </div>
 
-                      {/* Métricas Financieras y Fecha */}
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400 pt-0.5">
+                      {/* Métricas Financieras, Margen y Fecha */}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 dark:text-slate-300 pt-0.5">
                         {/* Costo de Compra eBay (Editable) */}
                         {editingPriceId === item.id ? (
-                          <div className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/50 p-1 rounded-lg border border-emerald-300 dark:border-emerald-700 shadow-xs">
-                            <span className="text-emerald-700 dark:text-emerald-300 font-bold text-xs">$</span>
+                          <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700">
+                            <span className="text-slate-400 font-mono text-xs pl-1">$</span>
                             <input
                               type="number"
                               step="0.01"
                               value={editingPriceVal}
                               onChange={(e) => setEditingPriceVal(e.target.value)}
-                              className="w-20 px-1.5 py-0.5 text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-white dark:bg-gray-900 border border-emerald-300 rounded focus:outline-hidden"
+                              className="w-20 px-1 py-0.5 text-xs font-mono font-semibold text-slate-900 dark:text-white bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded focus:outline-hidden"
                               autoFocus
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleSavePrice(item.id);
                                 if (e.key === 'Escape') setEditingPriceId(null);
                               }}
                             />
-                            <button onClick={() => handleSavePrice(item.id)} className="p-1 text-emerald-700 hover:bg-emerald-200 rounded">
+                            <button onClick={() => handleSavePrice(item.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
                               <Check className="w-3 h-3" />
                             </button>
-                            <button onClick={() => setEditingPriceId(null)} className="p-1 text-gray-400 hover:bg-gray-200 rounded">
+                            <button onClick={() => setEditingPriceId(null)} className="p-1 text-slate-400 hover:bg-slate-200 rounded">
                               <X className="w-3 h-3" />
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[11px] text-gray-400">Costo:</span>
+                          <div className="inline-flex items-center gap-1">
+                            <span className="text-[11px] text-slate-400 uppercase tracking-wider">Costo</span>
                             <span 
                               onClick={() => handleStartEditPrice(item)}
-                              className="font-bold text-emerald-600 dark:text-emerald-400 text-xs cursor-pointer hover:underline"
+                              className="font-mono font-semibold tabular-nums text-slate-900 dark:text-slate-100 cursor-pointer hover:underline"
                               title="Clic para editar costo de compra"
                             >
-                              ${Number(item.precio || 0).toFixed(2)} USD
+                              ${costoNum.toFixed(2)} USD
                             </span>
-                            <button onClick={() => handleStartEditPrice(item)} className="p-0.5 text-gray-400 hover:text-emerald-600" title="Editar costo">
+                            <button onClick={() => handleStartEditPrice(item)} className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" title="Editar costo">
                               <Edit2 className="w-2.5 h-2.5" />
                             </button>
                           </div>
@@ -2031,63 +2087,77 @@ export default function ComprasEbay() {
 
                         {/* Precio de Venta PVP */}
                         {hasInv && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-[11px] text-gray-400">PVP:</span>
-                            {invPrecioVenta && invPrecioVenta > 0 ? (
-                              <span className="font-bold text-blue-700 dark:text-blue-300 text-xs">
-                                ${invPrecioVenta.toFixed(2)} USD
+                          <div className="inline-flex items-center gap-1">
+                            <span className="text-[11px] text-slate-400 uppercase tracking-wider">PVP</span>
+                            {pvpNum > 0 ? (
+                              <span className="font-mono font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                                ${pvpNum.toFixed(2)} USD
                               </span>
                             ) : (
-                              <span 
+                              <button
                                 onClick={() => {
                                   if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
                                   else navigate(`/admin/components/edit/${invObj.item.id}`);
                                 }}
-                                className="font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded text-[10px] border border-amber-300 cursor-pointer hover:bg-amber-100 animate-pulse"
-                                title="Clic para ir a inventario y fijar precio de venta"
+                                className="font-medium text-amber-700 dark:text-amber-400 text-xs hover:underline"
+                                title="Clic para ir a la ficha y fijar PVP"
                               >
-                                ⚠️ Falta fijar PVP
-                              </span>
+                                Falta fijar PVP
+                              </button>
                             )}
+                          </div>
+                        )}
+
+                        {/* Margen Calculado si ambos precios existen */}
+                        {margenGanancia !== null && (
+                          <div className="inline-flex items-center gap-1 font-mono text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                            <span>Margen:</span>
+                            <span className="font-semibold tabular-nums">
+                              {margenGanancia >= 0 ? `+$${margenGanancia.toFixed(2)}` : `-$${Math.abs(margenGanancia).toFixed(2)}`}
+                            </span>
+                            {margenPct !== null && <span className="text-slate-400 dark:text-slate-500">({margenPct}%)</span>}
                           </div>
                         )}
 
                         {/* Fecha de compra */}
                         {item.fecha_compra && (
-                          <span className="flex items-center gap-1 text-[11px]">
-                            <Calendar className="w-3 h-3 text-gray-400" />
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-400 dark:text-slate-500">
+                            <Calendar className="w-3 h-3 text-slate-400" />
                             {item.fecha_compra}
                           </span>
                         )}
 
+                        {/* Vendedor */}
                         {item.vendedor && (
-                          <span className="text-[11px]">Vendedor: <strong>{item.vendedor}</strong></span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Vendedor: <strong className="font-medium text-slate-700 dark:text-slate-300">{item.vendedor}</strong>
+                          </span>
                         )}
                       </div>
 
-                      {/* Bloque de Trackings Claros con Banderas 🇺🇸 y 🇻🇪 */}
+                      {/* Bloque Logístico Limpio: Tramo USA y Tramo VZLA */}
                       <div className="flex flex-wrap items-center gap-2 pt-1.5">
-                        {/* 1. TRACKING USA 🇺🇸 */}
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
-                          <span className="text-sm" title="Estados Unidos">🇺🇸</span>
+                        {/* 1. TRAMO USA (Casillero) */}
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">USA:</span>
                           {trackingUsa ? (
-                            <div className="flex items-center gap-1">
-                              <span className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
-                                {courierUsa.toUpperCase()}:
+                            <div className="inline-flex items-center gap-1">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px] uppercase">
+                                {courierUsa}:
                               </span>
                               {trackingUrlUsa ? (
                                 <a 
                                   href={trackingUrlUsa} 
                                   target="_blank" 
                                   rel="noreferrer" 
-                                  className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-bold text-[11px] flex items-center gap-0.5"
+                                  className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-medium text-[11px] flex items-center gap-0.5"
                                   title="Rastrear en la web oficial del courier"
                                 >
                                   {trackingUsa}
                                   <ExternalLink className="w-2.5 h-2.5" />
                                 </a>
                               ) : (
-                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                                <span className="font-mono font-medium text-slate-800 dark:text-slate-200 text-[11px]">
                                   {trackingUsa}
                                 </span>
                               )}
@@ -2100,50 +2170,50 @@ export default function ComprasEbay() {
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1">
-                              <span className="text-slate-400 text-[10px]">Sin Tracking USA</span>
+                            <div className="inline-flex items-center gap-1">
+                              <span className="text-slate-400 text-[11px]">Sin tracking</span>
                               <button 
                                 onClick={() => handleOpenQuickTracking(item)} 
-                                className="text-purple-600 font-bold hover:underline text-[10px] ml-0.5"
+                                className="text-blue-600 dark:text-blue-400 font-semibold hover:underline text-[11px]"
                               >
                                 + Agregar
                               </button>
                             </div>
                           )}
 
-                          {/* Botón de Prealerta Creada ✅ */}
+                          {/* Prealerta Toggle */}
                           {trackingUsa && (
                             <button
                               type="button"
                               onClick={() => handleTogglePrealerta(item, trkDoc)}
-                              className={`ml-1 px-2 py-0.5 text-[10px] font-bold rounded-md transition flex items-center gap-1 ${
+                              className={`ml-1 px-2 py-0.5 text-[10px] font-semibold rounded-md transition inline-flex items-center gap-1 ${
                                 isPrealerted
-                                  ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
-                                  : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 animate-pulse ring-1 ring-amber-400'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                  : 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-200'
                               }`}
-                              title={isPrealerted ? "Prealertado. Clic para desmarcar si fue un error" : "¡Falta prealertar en casillero! Clic para marcar Prealertado"}
+                              title={isPrealerted ? "Prealertado. Clic para desmarcar" : "Clic para marcar como Prealertado"}
                             >
                               {isPrealerted ? (
                                 <>
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                  <span>Prealertado ✅</span>
+                                  <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  <span>Prealertado</span>
                                 </>
                               ) : (
                                 <>
-                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
-                                  <span>Prealerta Pendiente ⚠️</span>
+                                  <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                  <span>Prealertar</span>
                                 </>
                               )}
                             </button>
                           )}
                         </div>
 
-                        {/* 2. TRACKING VZLA 🇻🇪 */}
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
-                          <span className="text-sm" title="Venezuela">🇻🇪</span>
+                        {/* 2. TRAMO VENEZUELA (Entrega) */}
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">VZLA:</span>
                           {trackingVzla ? (
-                            <div className="flex items-center gap-1">
-                              <span className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
+                            <div className="inline-flex items-center gap-1">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px]">
                                 {courierVzlaConfig?.nombre || courierVzla.toUpperCase()}:
                               </span>
                               {trackingUrlVzla ? (
@@ -2151,14 +2221,14 @@ export default function ComprasEbay() {
                                   href={trackingUrlVzla} 
                                   target="_blank" 
                                   rel="noreferrer" 
-                                  className="font-mono text-emerald-700 dark:text-emerald-400 hover:underline font-bold text-[11px] flex items-center gap-0.5"
+                                  className="font-mono text-emerald-700 dark:text-emerald-400 hover:underline font-medium text-[11px] flex items-center gap-0.5"
                                   title="Rastrear en la web del courier venezolano"
                                 >
                                   {trackingVzla}
                                   <ExternalLink className="w-2.5 h-2.5" />
                                 </a>
                               ) : (
-                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                                <span className="font-mono font-medium text-slate-800 dark:text-slate-200 text-[11px]">
                                   {trackingVzla}
                                 </span>
                               )}
@@ -2171,41 +2241,41 @@ export default function ComprasEbay() {
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1">
-                              <span className="text-slate-400 text-[10px]">Sin Guía VZLA</span>
+                            <div className="inline-flex items-center gap-1">
+                              <span className="text-slate-400 text-[11px]">Sin guía</span>
                               <button 
                                 onClick={() => handleOpenQuickVzla(item, trkDoc)} 
-                                className="text-emerald-700 dark:text-emerald-400 font-bold hover:underline text-[10px] ml-0.5"
+                                className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline text-[11px]"
                               >
                                 + Guía VZLA
                               </button>
                             </div>
                           )}
 
-                          {/* Botón Llegó al Taller */}
+                          {/* Estado de Llegada a Taller */}
                           {isVendido ? (
-                            <span className="ml-1 px-2 py-0.5 text-[10px] font-semibold rounded-md bg-slate-100 text-slate-600 border border-slate-300 flex items-center gap-1" title="Equipo vendido y entregado">
-                              <span>⚪ Vendido</span>
+                            <span className="ml-1 text-[10px] font-medium text-slate-500">
+                              Vendido
                             </span>
                           ) : isDisponible ? (
-                            <span className="ml-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-teal-50 text-teal-700 border border-teal-200 flex items-center gap-1" title="Equipo listo y disponible para venta">
-                              <Check className="w-3 h-3 text-teal-600" />
-                              <span>Listo en Venta</span>
+                            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-200 dark:border-teal-800 flex items-center gap-1">
+                              <Check className="w-2.5 h-2.5" />
+                              <span>En Venta</span>
                             </span>
                           ) : !isEnTaller ? (
                             <button
                               type="button"
                               onClick={() => handleMarcarLlegadaTaller(item, trkDoc, invObj)}
-                              className="ml-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-300 transition flex items-center gap-1 shadow-2xs"
-                              title="Marcar que el equipo ya llegó físicamente al taller Smartbits para comenzar su preparación"
+                              className="ml-1 px-2 py-0.5 text-[10px] font-semibold rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-950 hover:opacity-90 transition flex items-center gap-1 shadow-2xs"
+                              title="Marcar que el equipo ya llegó físicamente al taller Smartbits"
                             >
-                              <MapPin className="w-3 h-3 text-blue-600" />
+                              <MapPin className="w-2.5 h-2.5" />
                               <span>Llegó a Taller</span>
                             </button>
                           ) : (
-                            <span className="ml-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1" title="En taller en preparación para su venta">
-                              <Check className="w-3 h-3 text-emerald-600" />
-                              <span>En Taller 🏢</span>
+                            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                              <Check className="w-2.5 h-2.5" />
+                              <span>En Taller</span>
                             </span>
                           )}
                         </div>
@@ -2214,13 +2284,13 @@ export default function ComprasEbay() {
                   </div>
 
                   {/* Bloque Derecho: Acciones de Conversión e Inventario */}
-                  <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-gray-200 dark:border-gray-700 flex-shrink-0">
+                  <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 shrink-0">
                     {/* Si aún NO está en inventario: Botones para Agregar */}
                     {!hasInv && (
                       <>
                         <button
                           onClick={() => handleConvertToLaptop(item)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-xs"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition shadow-2xs"
                           title="Crear ficha de Laptop con estos datos precargados"
                         >
                           <Laptop className="w-3.5 h-3.5" />
@@ -2229,19 +2299,19 @@ export default function ComprasEbay() {
 
                         <button
                           onClick={() => handleConvertToComponent(item)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition"
                           title="Crear componente con estos datos precargados"
                         >
-                          <Package className="w-3.5 h-3.5" />
-                          <span>+ Comp.</span>
+                          <Package className="w-3.5 h-3.5 text-slate-500" />
+                          <span>+ Parte</span>
                         </button>
 
                         <button
                           onClick={() => handleOpenLinkModal(item)}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50/80 dark:bg-indigo-950/40 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-900 rounded-lg transition"
                           title="Vincular con un producto ya existente en inventario"
                         >
-                          <LinkIcon className="w-3.5 h-3.5" />
+                          <LinkIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                           <span>Vincular</span>
                         </button>
                       </>
@@ -2255,16 +2325,16 @@ export default function ComprasEbay() {
                             if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
                             else navigate(`/admin/components/edit/${invObj.item.id}`);
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-950/60 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition shadow-xs"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 rounded-lg transition shadow-2xs"
                           title="Abrir y editar la ficha del equipo en inventario"
                         >
-                          <Edit2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <Edit2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           <span>Editar Ficha</span>
                         </button>
 
                         <button
                           onClick={() => handleUnlink(item)}
-                          className="p-1.5 text-gray-400 hover:text-amber-600 rounded-lg hover:bg-gray-100 transition"
+                          className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                           title="Desvincular ficha de inventario"
                         >
                           <Unlink className="w-4 h-4" />
@@ -2275,7 +2345,7 @@ export default function ComprasEbay() {
                     {/* Descartar / Restaurar */}
                     <button
                       onClick={() => handleToggleDescartar(item)}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"
+                      className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                       title={isDescartado ? "Restaurar compra" : "Descartar compra"}
                     >
                       {isDescartado ? <RotateCcw className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
@@ -2284,7 +2354,7 @@ export default function ComprasEbay() {
                     {/* Eliminar */}
                     <button
                       onClick={() => setDeleteConfirm({ open: true, id: item.id, title: item.titulo })}
-                      className="p-1.5 text-red-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
                       title="Eliminar compra"
                     >
                       <Trash2 className="w-4 h-4" />
