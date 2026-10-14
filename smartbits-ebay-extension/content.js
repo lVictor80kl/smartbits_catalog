@@ -761,10 +761,25 @@ function extractEbayOrderId(card, orderWrapper) {
     }
   }
 
-  const primaryTarget = orderWrapper || card;
+  // 2. Determinar el contenedor seguro específico de la orden (sin contaminación multicompra)
+  let primaryTarget = card;
+  if (orderWrapper && orderWrapper !== card) {
+    const wrapperOrders = Array.from(new Set((orderWrapper.innerText || '').match(/\b[0-9]{2}-[0-9]{5}-[0-9]{5}\b/g) || []));
+    if (wrapperOrders.length <= 1) {
+      primaryTarget = orderWrapper;
+    }
+  }
   if (!primaryTarget) return '';
 
-  // 2. Buscar en atributos HTML de la tarjeta o contenedor
+  // 3. Buscar enlaces o botones directos de orden dentro de la tarjeta (ej. "View order details")
+  const orderLinks = primaryTarget.querySelectorAll?.('a[href*="orderId="], a[href*="orderid="], a[href*="FetchOrderDetails"], a[href*="purchase-history"], a[href*="/ord/"]') || [];
+  for (const a of orderLinks) {
+    const href = a.getAttribute('href') || '';
+    const m = href.match(/orderId=([0-9]{2}-[0-9]{5}-[0-9]{5})/i) || href.match(EBAY_ORDER_REGEX);
+    if (m) return m[1];
+  }
+
+  // 4. Buscar en atributos HTML de la tarjeta o contenedor
   const attrCandidates = ['data-order-id', 'data-orderid', 'data-order_id', 'data-order', 'data-id', 'id'];
   for (const attr of attrCandidates) {
     const val = primaryTarget.getAttribute?.(attr);
@@ -773,34 +788,25 @@ function extractEbayOrderId(card, orderWrapper) {
     }
   }
 
-  // 3. Buscar enlaces o botones con parámetros orderId en la tarjeta
-  const orderLinks = primaryTarget.querySelectorAll?.('a[href*="orderId="], a[href*="orderid="], a[href*="FetchOrderDetails"], a[href*="purchase-history"], a[href*="/ord/"]') || [];
-  for (const a of orderLinks) {
-    const href = a.getAttribute('href') || '';
-    const m = href.match(/orderId=([0-9]{2}-[0-9]{5}-[0-9]{5})/i) || href.match(EBAY_ORDER_REGEX);
-    if (m) return m[1];
-  }
-
-  // 4. Buscar explícitamente en el texto de la tarjeta ("Order number", "Orden", "Order #", etc.)
-  const cardText = (card?.innerText || '') + '\n' + (orderWrapper?.innerText || '');
-  const labeledMatch = cardText.match(/(?:Order\s*number|Order\s*#|Order\s*id|Orden|Pedido|Número\s*de\s*orden)\s*[:\s#]*([0-9]{2}-[0-9]{5}-[0-9]{5})/i);
+  // 5. Buscar explícitamente en el texto de la tarjeta ("Order number", "Orden", "Order #", etc.)
+  const targetText = primaryTarget.innerText || primaryTarget.textContent || '';
+  const labeledMatch = targetText.match(/(?:Order\s*number|Order\s*#|Order\s*id|Orden|Pedido|Número\s*de\s*orden)\s*[:\s#]*([0-9]{2}-[0-9]{5}-[0-9]{5})/i);
   if (labeledMatch) return labeledMatch[1];
 
-  // 5. Cualquier coincidencia del formato canónico de orden eBay en el texto visible de la tarjeta
-  const simpleMatch = cardText.match(EBAY_ORDER_REGEX);
-  if (simpleMatch) return simpleMatch[1];
+  // 6. Si en el texto de la tarjeta solo hay exactamente UN número de orden, usarlo
+  const matchesInTarget = Array.from(new Set(targetText.match(/\b[0-9]{2}-[0-9]{5}-[0-9]{5}\b/g) || []));
+  if (matchesInTarget.length === 1) return matchesInTarget[0];
 
-  // 6. Subir por los ancestros hasta encontrar el contenedor padre de la orden completa
-  let p = primaryTarget;
-  for (let lvl = 0; lvl < 8; lvl++) {
+  // 7. Subir por los ancestros SOLO si el ancestro contiene exactamente 1 número de orden
+  let p = primaryTarget.parentElement;
+  for (let lvl = 0; lvl < 6; lvl++) {
     if (!p || p === document.body || p === document.documentElement) break;
     const pText = p.innerText || p.textContent || '';
-    const pMatches = pText.match(/\b[0-9]{2}-[0-9]{5}-[0-9]{5}\b/g) || [];
-    const uniqueInParent = Array.from(new Set(pMatches));
-    if (uniqueInParent.length === 1) {
-      return uniqueInParent[0];
+    const pMatches = Array.from(new Set(pText.match(/\b[0-9]{2}-[0-9]{5}-[0-9]{5}\b/g) || []));
+    if (pMatches.length === 1) {
+      return pMatches[0];
     }
-    if (uniqueInParent.length > 1) break;
+    if (pMatches.length > 1) break; // Detenerse de inmediato si abarca más de una orden
     p = p.parentElement;
   }
 
@@ -857,12 +863,14 @@ async function extractOrdersFromPage() {
   // Forzar lazy loading programáticamente sin requerir scroll manual del usuario
   await autoTriggerLazyLoad();
 
-  // 1. Buscar contenedores estándar de órdenes en eBay
+  // 1. Buscar contenedores estándar de órdenes en eBay (excluyendo items internos para no duplicar padre e hijo)
   const cardCandidates = document.querySelectorAll(
-    '[data-testid*="order-card"], .m-order-card, .purchase-card, .order-item, [class*="orderCard"], div.sh-card, [data-order-id], [class*="order-container"], [class*="order-card-container"]'
+    '[data-testid*="order-card"], .m-order-card, .purchase-card, [class*="orderCard"], div.sh-card, [data-order-id], [class*="order-container"], [class*="order-card-container"]'
   );
 
   let cards = Array.from(cardCandidates);
+  // Filtrar elementos hijos anidados dentro de otra tarjeta ya seleccionada
+  cards = cards.filter(c => !cards.some(other => other !== c && other.contains(c)));
 
   // 2. Si no hay contenedores estándar, buscar por elementos con formato de orden XX-XXXXX-XXXXX
   if (cards.length === 0) {
@@ -890,6 +898,7 @@ async function extractOrdersFromPage() {
         }
       }
     });
+    cards = cards.filter(c => !cards.some(other => other !== c && other.contains(c)));
   }
 
   // 3. Si aún no hay, buscar a través de enlaces a artículos /itm/
@@ -908,6 +917,7 @@ async function extractOrdersFromPage() {
       }
     });
     cards = Array.from(containerSet);
+    cards = cards.filter(c => !cards.some(other => other !== c && other.contains(c)));
   }
 
   // 4. Fallback para detalle de orden específica
@@ -916,16 +926,26 @@ async function extractOrdersFromPage() {
     cards.push(mainContainer);
   }
 
+  const processedGlobalItemIds = new Set();
+
   const cardResults = await Promise.all(cards.map(async (card, cardIndex) => {
     const cardOrders = [];
     try {
-      // 0. Contenedor completo de la orden para abarcar encabezado, estado y cuerpo
+      // 0. Contenedor completo de la orden para abarcar encabezado, estado y cuerpo sin contaminarse con otras órdenes
       let orderWrapper = card;
-      let pCur = card;
+      let pCur = card.parentElement;
       for (let s = 0; s < 5; s++) {
         if (!pCur || pCur === document.body || pCur === document.documentElement) break;
-        if (pCur.matches && pCur.matches('[data-testid*="order-card"], .m-order-card, .purchase-card, [class*="orderCard"], [class*="order-card"], [class*="order-container"], [role="region"], li, section, article')) {
+        // Si el contenedor padre abarca 2 o más números de orden diferentes, frenar inmediatamente el ascenso
+        const parentMatches = (pCur.innerText || '').match(/\b[0-9]{2}-[0-9]{5}-[0-9]{5}\b/g) || [];
+        const uniqueInParent = Array.from(new Set(parentMatches));
+        if (uniqueInParent.length > 1) {
+          break;
+        }
+
+        if (pCur.matches && pCur.matches('[data-testid*="order-card"], .m-order-card, .purchase-card, [class*="orderCard"], [class*="order-card"], [class*="order-container"]')) {
           orderWrapper = pCur;
+          break; // Detenerse en el contenedor de orden más específico
         }
         pCur = pCur.parentElement;
       }
@@ -935,7 +955,7 @@ async function extractOrdersFromPage() {
       const fullText = `${cardText}\n${wrapperText}`;
       const fullHtml = orderWrapper ? orderWrapper.innerHTML : (card.innerHTML || '');
 
-      // 1. Número de Orden de eBay (Extracción exhaustiva multicapa)
+      // 1. Número de Orden de eBay (Extracción exhaustiva multicapa y aislada)
       let orderId = extractEbayOrderId(card, orderWrapper);
       if (!orderId) {
         // Si no se encontró por orden, buscar si la tarjeta tiene un itemId único de eBay para evitar colisiones
@@ -1012,6 +1032,11 @@ async function extractOrdersFromPage() {
       if (itemsMap.size > 0) {
         let itemIdx = 0;
         for (const [itemId, itemGroup] of itemsMap.entries()) {
+          if (processedGlobalItemIds.has(itemId)) {
+            console.warn(`[Smartbits] Omitiendo itemId ${itemId} ya procesado en otra tarjeta para evitar duplicados.`);
+            continue;
+          }
+          processedGlobalItemIds.add(itemId);
           itemIdx++;
           const firstLink = itemGroup.links[0] || card;
 
