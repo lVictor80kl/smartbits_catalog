@@ -762,20 +762,98 @@ async function syncOrderToFirestore(order) {
     headers: { 'Authorization': `Bearer ${currentToken}` }
   });
 
-  // 2. Si no existe, comprobar si existía bajo el formato anterior ebay_{orderId} para no duplicar
+  // 2. Si no existe, comprobar si existía bajo el formato anterior ebay_{orderId} o _item_1 para no duplicar
   if (getRes.status === 404 && order.orderId) {
     const legacyDocId = `ebay_${String(order.orderId).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-    if (legacyDocId !== docId) {
-      const legacyUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/compras_ebay/${legacyDocId}`;
-      const legacyRes = await fetch(legacyUrl, {
+    const legacyItem1DocId = `${legacyDocId}_item_1`;
+    const candidates = [legacyDocId, legacyItem1DocId].filter(id => id !== docId);
+
+    for (const candId of candidates) {
+      const candUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/compras_ebay/${candId}`;
+      const candRes = await fetch(candUrl, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${currentToken}` }
       });
-      if (legacyRes.ok) {
-        getRes = legacyRes;
-        actualDocUrl = legacyUrl;
-        targetDocId = legacyDocId;
+      if (candRes.ok) {
+        getRes = candRes;
+        actualDocUrl = candUrl;
+        targetDocId = candId;
+        break;
       }
+    }
+  }
+
+  // 3. Si aún da 404, consultar Firestore por orderId para encontrar cualquier compra previa con esta orden
+  if (getRes.status === 404 && order.orderId) {
+    try {
+      const queryUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+      const queryRes = await fetch(queryUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${currentToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: 'compras_ebay' }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: 'orderId' },
+                op: 'EQUAL',
+                value: { stringValue: String(order.orderId).trim() }
+              }
+            },
+            limit: 10
+          }
+        })
+      });
+
+      if (queryRes.ok) {
+        const queryData = await queryRes.json();
+        const matchedDocs = (queryData || [])
+          .filter(item => item && item.document && item.document.name)
+          .map(item => item.document);
+
+        if (matchedDocs.length > 0) {
+          const rawItemId = String(order.itemId || '').replace(/_u[0-9]+$/, '').trim();
+          let matched = null;
+
+          // 1° Buscar por itemId exacto si coincide
+          if (rawItemId) {
+            matched = matchedDocs.find(d => {
+              const dItemId = String(d.fields?.itemId?.stringValue || '').replace(/_u[0-9]+$/, '').trim();
+              return dItemId && dItemId === rawItemId;
+            });
+          }
+
+          // 2° Si solo hay 1 compra previa con este orderId, es la misma compra
+          if (!matched && matchedDocs.length === 1) {
+            matched = matchedDocs[0];
+          }
+
+          // 3° Coincidencia por título si hay varias
+          if (!matched) {
+            matched = matchedDocs.find(d => {
+              const dTitle = (d.fields?.titulo?.stringValue || '').trim().toLowerCase();
+              const oTitle = (order.titulo || '').trim().toLowerCase();
+              return dTitle && oTitle && (dTitle === oTitle || dTitle.includes(oTitle.slice(0, 20)));
+            }) || matchedDocs[0];
+          }
+
+          if (matched) {
+            const docName = matched.name;
+            actualDocUrl = `https://firestore.googleapis.com/v1/${docName}`;
+            targetDocId = docName.split('/').pop();
+            getRes = {
+              ok: true,
+              status: 200,
+              json: async () => matched
+            };
+          }
+        }
+      }
+    } catch (queryErr) {
+      console.warn('[Smartbits] Error buscando orden existente por query:', queryErr);
     }
   }
 

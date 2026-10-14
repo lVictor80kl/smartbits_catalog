@@ -753,6 +753,7 @@ export default function ComprasEbay() {
             !toDeleteIds.includes(c.id) && 
             (
               (rawItemId && String(c.itemId || '').replace(/_u[0-9]+$/, '').trim() === rawItemId) ||
+              (dup.orderId && c.orderId && dup.orderId.trim().toLowerCase() === c.orderId.trim().toLowerCase()) ||
               (dup.titulo && c.titulo && dup.titulo.trim().toLowerCase() === c.titulo.trim().toLowerCase())
             )
           );
