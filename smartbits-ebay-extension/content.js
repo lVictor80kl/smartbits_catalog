@@ -743,6 +743,89 @@ async function autoTriggerLazyLoad() {
   } catch (_) {}
 }
 
+/**
+ * Extrae el identificador canónico de orden de eBay (formato XX-XXXXX-XXXXX, ej: 06-15295-97160)
+ * utilizando múltiples capas jerárquicas para evitar fallbacks erróneos.
+ */
+function extractEbayOrderId(card, orderWrapper) {
+  const EBAY_ORDER_REGEX = /\b([0-9]{2}-[0-9]{5}-[0-9]{5})\b/;
+
+  // 1. Revisar URL actual de la página (por si estamos en vista de detalle de orden o FetchOrderDetails)
+  const urlOrderMatch = window.location.href.match(/orderId=([0-9]{2}-[0-9]{5}-[0-9]{5})/i) ||
+                        window.location.href.match(EBAY_ORDER_REGEX);
+  if (urlOrderMatch) {
+    const bodyMatches = (document.body.innerText || '').match(/\b[0-9]{2}-[0-9]{5}-[0-9]{5}\b/g) || [];
+    const uniqueBodyOrders = Array.from(new Set(bodyMatches));
+    if (uniqueBodyOrders.length <= 1) {
+      return urlOrderMatch[1];
+    }
+  }
+
+  const primaryTarget = orderWrapper || card;
+  if (!primaryTarget) return '';
+
+  // 2. Buscar en atributos HTML de la tarjeta o contenedor
+  const attrCandidates = ['data-order-id', 'data-orderid', 'data-order_id', 'data-order', 'data-id', 'id'];
+  for (const attr of attrCandidates) {
+    const val = primaryTarget.getAttribute?.(attr);
+    if (val && EBAY_ORDER_REGEX.test(val)) {
+      return val.match(EBAY_ORDER_REGEX)[1];
+    }
+  }
+
+  // 3. Buscar enlaces o botones con parámetros orderId en la tarjeta
+  const orderLinks = primaryTarget.querySelectorAll?.('a[href*="orderId="], a[href*="orderid="], a[href*="FetchOrderDetails"], a[href*="purchase-history"], a[href*="/ord/"]') || [];
+  for (const a of orderLinks) {
+    const href = a.getAttribute('href') || '';
+    const m = href.match(/orderId=([0-9]{2}-[0-9]{5}-[0-9]{5})/i) || href.match(EBAY_ORDER_REGEX);
+    if (m) return m[1];
+  }
+
+  // 4. Buscar explícitamente en el texto de la tarjeta ("Order number", "Orden", "Order #", etc.)
+  const cardText = (card?.innerText || '') + '\n' + (orderWrapper?.innerText || '');
+  const labeledMatch = cardText.match(/(?:Order\s*number|Order\s*#|Order\s*id|Orden|Pedido|Número\s*de\s*orden)\s*[:\s#]*([0-9]{2}-[0-9]{5}-[0-9]{5})/i);
+  if (labeledMatch) return labeledMatch[1];
+
+  // 5. Cualquier coincidencia del formato canónico de orden eBay en el texto visible de la tarjeta
+  const simpleMatch = cardText.match(EBAY_ORDER_REGEX);
+  if (simpleMatch) return simpleMatch[1];
+
+  // 6. Subir por los ancestros hasta encontrar el contenedor padre de la orden completa
+  let p = primaryTarget;
+  for (let lvl = 0; lvl < 8; lvl++) {
+    if (!p || p === document.body || p === document.documentElement) break;
+    const pText = p.innerText || p.textContent || '';
+    const pMatches = pText.match(/\b[0-9]{2}-[0-9]{5}-[0-9]{5}\b/g) || [];
+    const uniqueInParent = Array.from(new Set(pMatches));
+    if (uniqueInParent.length === 1) {
+      return uniqueInParent[0];
+    }
+    if (uniqueInParent.length > 1) break;
+    p = p.parentElement;
+  }
+
+  // 7. Buscar en los scripts de la página si es una vista de orden individual
+  try {
+    const scripts = document.querySelectorAll('script');
+    for (const sc of scripts) {
+      const content = sc.textContent || '';
+      if (content.length < 500000) {
+        const scriptMatch = content.match(/"orderId"\s*:\s*"([0-9]{2}-[0-9]{5}-[0-9]{5})"/i) ||
+                            content.match(/\\"orderId\\"\s*:\s*\\"([0-9]{2}-[0-9]{5}-[0-9]{5})\\"/i);
+        if (scriptMatch) {
+          const bodyMatches = (document.body.innerText || '').match(/\b[0-9]{2}-[0-9]{5}-[0-9]{5}\b/g) || [];
+          const uniqueBodyOrders = Array.from(new Set(bodyMatches));
+          if (uniqueBodyOrders.length <= 1) {
+            return scriptMatch[1];
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  return '';
+}
+
 async function extractOrdersFromPage() {
   const processedItemKeys = new Set();
 
@@ -852,17 +935,17 @@ async function extractOrdersFromPage() {
       const fullText = `${cardText}\n${wrapperText}`;
       const fullHtml = orderWrapper ? orderWrapper.innerHTML : (card.innerHTML || '');
 
-      // 1. Número de Orden de eBay
-      let orderId = '';
-      const orderMatch = fullText.match(/(?:Order|Orden|Pedido)\s*(?:number|número|#|:)?\s*([0-9]{2}-[0-9]{5}-[0-9]{5})/i) ||
-                         fullText.match(/\b([0-9]{2}-[0-9]{5}-[0-9]{5})\b/) ||
-                         window.location.href.match(/orderId=([0-9]{2}-[0-9]{5}-[0-9]{5})/i);
-      if (orderMatch) {
-        orderId = orderMatch[1];
-      } else {
-        const attrId = (orderWrapper || card).getAttribute('data-order-id') || (orderWrapper || card).getAttribute('data-orderid');
-        if (attrId) orderId = attrId;
-        else orderId = `order_${cardIndex + 1}`;
+      // 1. Número de Orden de eBay (Extracción exhaustiva multicapa)
+      let orderId = extractEbayOrderId(card, orderWrapper);
+      if (!orderId) {
+        // Si no se encontró por orden, buscar si la tarjeta tiene un itemId único de eBay para evitar colisiones
+        const fallbackItemLink = (orderWrapper || card).querySelector('a[href*="/itm/"]');
+        const fallbackItemMatch = fallbackItemLink ? fallbackItemLink.href.match(/\/itm\/(?:[^\/]+\/)?([0-9]+)/) : null;
+        if (fallbackItemMatch) {
+          orderId = `item_${fallbackItemMatch[1]}`;
+        } else {
+          orderId = `ebay_${Date.now()}_${cardIndex + 1}`;
+        }
       }
 
       if (/3570|5410|precision|latitude|inspiron/i.test(fullText)) {
