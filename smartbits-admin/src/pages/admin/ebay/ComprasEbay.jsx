@@ -159,18 +159,68 @@ export default function ComprasEbay() {
     }
   };
 
-  // Detección inteligente de compras duplicadas reales (mismo itemId exacto, NO por título)
+  // Detección inteligente de compras duplicadas reales (por itemId global, url o colisión de orden)
   const detectedDuplicates = useMemo(() => {
+    if (!compras || compras.length <= 1) return [];
+
+    const duplicatesList = [];
+    const processedIds = new Set();
+
+    // 1. Agrupar por itemId real de eBay (identificador universal único de la publicación)
+    const byItemId = new Map();
+    compras.forEach(item => {
+      const rawItemId = String(item.itemId || '').replace(/_u[0-9]+$/, '').trim();
+      const isValidItemId = rawItemId && /^[0-9]{8,16}$/.test(rawItemId);
+      if (isValidItemId) {
+        if (!byItemId.has(rawItemId)) byItemId.set(rawItemId, []);
+        byItemId.get(rawItemId).push(item);
+      }
+    });
+
+    byItemId.forEach((items) => {
+      if (items.length > 1) {
+        // Ordenar para determinar cuál es el ORIGINAL legítimo y cuáles los DUPLICADOS:
+        items.sort((a, b) => {
+          // Puntuación:
+          // 1° Ficha formalmente asignada o en_inventario
+          const aHasInv = (a.estado === 'en_inventario' || a.inventario_id) ? 100 : 0;
+          const bHasInv = (b.estado === 'en_inventario' || b.inventario_id) ? 100 : 0;
+
+          // 2° Coincidencia de orderId con una laptop de inventario con modelo afín
+          const aLap = laptops.find(l => (l.order_id || '').trim().toLowerCase() === (a.orderId || '').trim().toLowerCase());
+          const bLap = laptops.find(l => (l.order_id || '').trim().toLowerCase() === (b.orderId || '').trim().toLowerCase());
+          const aMatchLap = aLap ? 50 : 0;
+          const bMatchLap = bLap ? 50 : 0;
+
+          // 3° Tiene tracking USA válido
+          const aTrk = a.tracking_usa ? 20 : 0;
+          const bTrk = b.tracking_usa ? 20 : 0;
+
+          const scoreA = aHasInv + aMatchLap + aTrk;
+          const scoreB = bHasInv + bMatchLap + bTrk;
+          return scoreB - scoreA;
+        });
+
+        // El primero (items[0]) se conserva; los demás son duplicados
+        items.slice(1).forEach(dup => {
+          if (!processedIds.has(dup.id)) {
+            processedIds.add(dup.id);
+            duplicatesList.push(dup);
+          }
+        });
+      }
+    });
+
+    // 2. Agrupar por orderId (para casos idénticos dentro de la misma orden)
     const byOrder = {};
     compras.forEach(item => {
+      if (processedIds.has(item.id)) return;
       const ordKey = (item.orderId || 'sin_orden').trim().toLowerCase();
       if (!byOrder[ordKey]) byOrder[ordKey] = [];
       byOrder[ordKey].push(item);
     });
 
-    const duplicatesList = [];
-
-    Object.entries(byOrder).forEach(([ordKey, items]) => {
+    Object.entries(byOrder).forEach(([, items]) => {
       if (items.length <= 1) return;
 
       const subGroups = [];
@@ -178,11 +228,11 @@ export default function ComprasEbay() {
         let placed = false;
         for (const grp of subGroups) {
           const first = grp[0];
-          // Solo se considera duplicado si coincide el itemId exacto con ID de documento diferente o conflicto con id legado
           const isExactSameItem = item.itemId && first.itemId && item.itemId === first.itemId && item.id !== first.id;
+          const isExactSameTitle = item.titulo && first.titulo && item.titulo.trim().toLowerCase() === first.titulo.trim().toLowerCase() && Math.abs(Number(item.precio || 0) - Number(first.precio || 0)) < 0.01;
           const isLegacyConflict = items.length === 2 && (item.id === `ebay_${item.orderId}` || first.id === `ebay_${first.orderId}`);
 
-          if (isExactSameItem || isLegacyConflict) {
+          if (isExactSameItem || isExactSameTitle || isLegacyConflict) {
             grp.push(item);
             placed = true;
             break;
@@ -195,19 +245,34 @@ export default function ComprasEbay() {
 
       subGroups.forEach(grp => {
         if (grp.length > 1) {
-          duplicatesList.push(...grp.slice(1));
+          grp.sort((a, b) => {
+            const scoreA = (a.estado === 'en_inventario' ? 10 : 0) + (a.tracking_usa ? 5 : 0) + (a.inventario_id ? 5 : 0);
+            const scoreB = (b.estado === 'en_inventario' ? 10 : 0) + (b.tracking_usa ? 5 : 0) + (b.inventario_id ? 5 : 0);
+            return scoreB - scoreA;
+          });
+          grp.slice(1).forEach(dup => {
+            if (!processedIds.has(dup.id)) {
+              processedIds.add(dup.id);
+              duplicatesList.push(dup);
+            }
+          });
         }
       });
     });
 
     return duplicatesList;
-  }, [compras]);
+  }, [compras, laptops]);
 
   const detectedDuplicatesCount = detectedDuplicates.length;
 
   // Helper estricto para encontrar la ficha de inventario asociada a una compra de eBay
   const getLinkedInventoryItem = (item) => {
     if (!item) return null;
+
+    // Si este ítem fue catalogado como duplicado inválido, no puede reclamar inventario
+    if (detectedDuplicates.some(d => d.id === item.id)) {
+      return null;
+    }
 
     const cleanOrderId = (item.orderId || '').trim();
 
@@ -263,13 +328,24 @@ export default function ComprasEbay() {
         const lo = (l.order_id || '').replace(/^#/, '').trim().toLowerCase();
         return isValidRealOrderId(lo) && lo === normClean;
       });
-      if (lapByOrd) return { type: 'laptop', item: lapByOrd };
+      if (lapByOrd) {
+        // Verificar que esta laptop no esté ya formalmente asignada a otra compra
+        const isClaimedByOther = compras.some(c => c.id !== item.id && (c.inventario_id === lapByOrd.id || (lapByOrd.ebay_compra_id && lapByOrd.ebay_compra_id === c.id)));
+        if (!isClaimedByOther) {
+          return { type: 'laptop', item: lapByOrd };
+        }
+      }
 
       const compByOrd = componentes.find(c => {
         const co = (c.order_id || '').replace(/^#/, '').trim().toLowerCase();
         return isValidRealOrderId(co) && co === normClean;
       });
-      if (compByOrd) return { type: 'componente', item: compByOrd };
+      if (compByOrd) {
+        const isClaimedByOther = compras.some(c => c.id !== item.id && (c.inventario_id === compByOrd.id || (compByOrd.ebay_compra_id && compByOrd.ebay_compra_id === c.id)));
+        if (!isClaimedByOther) {
+          return { type: 'componente', item: compByOrd };
+        }
+      }
     }
 
     return null;
@@ -655,86 +731,42 @@ export default function ComprasEbay() {
 
   // Limpieza inteligente de compras duplicadas
   const handleCleanDuplicates = async () => {
-    if (compras.length === 0) return;
-
-    const byOrder = {};
-    compras.forEach(item => {
-      const ordKey = (item.orderId || 'sin_orden').trim().toLowerCase();
-      if (!byOrder[ordKey]) byOrder[ordKey] = [];
-      byOrder[ordKey].push(item);
-    });
-
-    const toDeleteIds = [];
-    const updates = [];
-
-    Object.entries(byOrder).forEach(([ordKey, items]) => {
-      if (items.length <= 1) return;
-
-      const subGroups = [];
-      items.forEach(item => {
-        let placed = false;
-        for (const grp of subGroups) {
-          const first = grp[0];
-          if (item.itemId && first.itemId && item.itemId === first.itemId) {
-            grp.push(item);
-            placed = true;
-            break;
-          }
-          if (item.titulo && first.titulo && item.titulo.trim().toLowerCase() === first.titulo.trim().toLowerCase()) {
-            grp.push(item);
-            placed = true;
-            break;
-          }
-          if (items.length === 2 && (item.id === `ebay_${item.orderId}` || first.id === `ebay_${first.orderId}`)) {
-            grp.push(item);
-            placed = true;
-            break;
-          }
-        }
-        if (!placed) {
-          subGroups.push([item]);
-        }
-      });
-
-      subGroups.forEach(grp => {
-        if (grp.length > 1) {
-          // Ordenar: preferir el que está en_inventario, con tracking_usa o vinculado
-          grp.sort((a, b) => {
-            const scoreA = (a.estado === 'en_inventario' ? 10 : 0) + (a.tracking_usa ? 5 : 0) + (a.inventario_id ? 5 : 0) + (a.tracking_id ? 3 : 0);
-            const scoreB = (b.estado === 'en_inventario' ? 10 : 0) + (b.tracking_usa ? 5 : 0) + (b.inventario_id ? 5 : 0) + (b.tracking_id ? 3 : 0);
-            return scoreB - scoreA;
-          });
-
-          const keep = grp[0];
-          const duplicates = grp.slice(1);
-
-          // Si el que eliminamos tenía tracking_usa y el conservado no, transferirlo
-          const missingTracking = !keep.tracking_usa && duplicates.find(d => d.tracking_usa);
-          if (missingTracking) {
-            updates.push({
-              id: keep.id,
-              tracking_usa: missingTracking.tracking_usa,
-              courier_usa: missingTracking.courier_usa || 'usps',
-              tracking_id: missingTracking.tracking_id || null
-            });
-          }
-
-          duplicates.forEach(d => toDeleteIds.push(d.id));
-        }
-      });
-    });
-
-    if (toDeleteIds.length === 0) {
+    if (compras.length === 0 || detectedDuplicates.length === 0) {
       alert('¡Todo limpio! No se encontraron compras duplicadas.');
       return;
     }
 
-    if (!confirm(`Se detectaron ${toDeleteIds.length} compras duplicadas (repetidas tras la resincronización).\n\n¿Deseas limpiarlas ahora? Se conservará automáticamente la versión más completa/vinculada de cada una.`)) {
+    if (!confirm(`Se detectaron ${detectedDuplicates.length} compras duplicadas o con orden cruzada tras la importación.\n\n¿Deseas eliminarlas ahora? Se conservará la versión válida/vinculada de cada equipo y se purgarán los duplicados de la base de datos para resolver las alertas pendientes.`)) {
       return;
     }
 
     setCleaningDuplicates(true);
     try {
+      const toDeleteIds = detectedDuplicates.map(d => d.id);
+      const updates = [];
+
+      // Si el duplicado tenía tracking USA y el ítem conservado no lo tenía, transferirlo
+      detectedDuplicates.forEach(dup => {
+        if (dup.tracking_usa) {
+          const rawItemId = String(dup.itemId || '').replace(/_u[0-9]+$/, '').trim();
+          const kept = compras.find(c => 
+            !toDeleteIds.includes(c.id) && 
+            (
+              (rawItemId && String(c.itemId || '').replace(/_u[0-9]+$/, '').trim() === rawItemId) ||
+              (dup.titulo && c.titulo && dup.titulo.trim().toLowerCase() === c.titulo.trim().toLowerCase())
+            )
+          );
+          if (kept && !kept.tracking_usa) {
+            updates.push({
+              id: kept.id,
+              tracking_usa: dup.tracking_usa,
+              courier_usa: dup.courier_usa || 'usps',
+              tracking_id: dup.tracking_id || null
+            });
+          }
+        }
+      });
+
       for (const u of updates) {
         await updateDoc(doc(db, 'compras_ebay', u.id), {
           tracking_usa: u.tracking_usa,
@@ -750,7 +782,7 @@ export default function ComprasEbay() {
       });
       await batch.commit();
 
-      setAutoLinkNotification(`¡Limpieza exitosa! Se eliminaron ${toDeleteIds.length} compras duplicadas preservando su información.`);
+      setAutoLinkNotification(`¡Limpieza exitosa! Se eliminaron ${toDeleteIds.length} compras duplicadas y se corrigió el estado del inventario.`);
       setTimeout(() => setAutoLinkNotification(''), 7000);
     } catch (err) {
       alert('Error eliminando duplicados: ' + err.message);
@@ -1433,6 +1465,33 @@ export default function ComprasEbay() {
         <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl flex items-center gap-3 text-sm font-medium animate-in fade-in">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
           <span>{autoLinkNotification}</span>
+        </div>
+      )}
+
+      {/* Banner de Compras Duplicadas Detectadas */}
+      {detectedDuplicatesCount > 0 && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-200 dark:bg-amber-900/60 rounded-lg text-amber-800 dark:text-amber-300 flex-shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-900 dark:text-amber-100">
+                Se detectó {detectedDuplicatesCount} compra duplicada con conflicto de orden
+              </h4>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                Hay registros repetidos o con números de orden cruzados. Puedes eliminarlos en 1 clic conservando la versión correcta y limpiando las alertas pendientes.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleCleanDuplicates}
+            disabled={cleaningDuplicates}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition shadow-xs flex-shrink-0"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{cleaningDuplicates ? 'Limpiando...' : `Limpiar Duplicados (${detectedDuplicatesCount})`}</span>
+          </button>
         </div>
       )}
 
