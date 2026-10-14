@@ -561,10 +561,15 @@ export default function TrackingsDashboard() {
                           href={urlVzla}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:text-brand-800 hover:underline bg-white px-2 py-0.5 rounded-md border border-brand-100 shadow-2xs"
+                          className={`flex items-center gap-1 text-[11px] font-bold hover:underline bg-white px-2 py-0.5 rounded-md border shadow-2xs ${
+                            item.courier_vzla === 'liberty'
+                              ? 'text-red-700 hover:text-red-900 border-red-200'
+                              : 'text-brand-600 hover:text-brand-800 border-brand-100'
+                          }`}
+                          title={item.courier_vzla === 'liberty' ? 'Abrir IQpack — Rastreo directo sin login' : `Rastrear en ${item.courier_vzla_otro || courierVzla.nombre}`}
                         >
                           <ExternalLink className="w-3 h-3" />
-                          Rastrear en {item.courier_vzla_otro || courierVzla.nombre}
+                          {item.courier_vzla === 'liberty' ? '🗽 IQpack' : `Rastrear en ${item.courier_vzla_otro || courierVzla.nombre}`}
                         </a>
                       )}
                     </div>

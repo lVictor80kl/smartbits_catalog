@@ -524,10 +524,14 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, initial
                   href={urlVzlaPreview}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg transition-colors border border-brand-200"
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors border ${
+                    formData.courier_vzla === 'liberty'
+                      ? 'text-red-700 hover:text-red-900 bg-red-50 hover:bg-red-100 border-red-200'
+                      : 'text-brand-600 hover:text-brand-800 bg-brand-50 hover:bg-brand-100 border-brand-200'
+                  }`}
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  Rastrear en {getCourierVzlaConfig(formData.courier_vzla).nombre}
+                  {formData.courier_vzla === 'liberty' ? '🗽 Rastrear en IQpack' : `Rastrear en ${getCourierVzlaConfig(formData.courier_vzla).nombre}`}
                 </a>
               )}
             </div>
@@ -535,9 +539,16 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, initial
             <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
               <span>
-                <strong>Nota logística:</strong> El número de guía de Venezuela lo emite la agencia (Liberty, Zoom, Tealca) 
-                una vez que el paquete ha sido recibido, medido y procesado en su almacén de Miami. 
+                <strong>Nota logística:</strong> El número de guía de Venezuela lo emite la agencia (Liberty, Zoom, Tealca)
+                una vez que el paquete ha sido recibido, medido y procesado en su almacén de Miami.
                 Al colocar este número, se valida que ya llegó a Miami.
+                {formData.courier_vzla === 'liberty' && (
+                  <span className="block mt-1 text-red-800">
+                    🗽 <strong>Liberty Express:</strong> El rastreo abre directamente en IQpack
+                    (<code className="bg-red-100 px-1 rounded">iqpack.libertyexpress.com</code>) sin necesidad de login.
+                    Formato de guía: <code className="bg-red-100 px-1 rounded">WR01-XXXXXXXXX</code>
+                  </span>
+                )}
               </span>
             </div>
 
@@ -565,7 +576,7 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, initial
                   name="tracking_vzla"
                   value={formData.tracking_vzla}
                   onChange={handleChange}
-                  placeholder="Ej: LIB-8921200 ó 1009823412 (Zoom)"
+                  placeholder={formData.courier_vzla === 'liberty' ? 'Ej: WR01-502771879' : 'Ej: LIB-8921200 ó 1009823412 (Zoom)'}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono font-medium text-slate-800 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none uppercase"
                 />
               </div>

@@ -116,8 +116,8 @@ export function getTrackingUrlVzla(courierId, trackingNum) {
 
   switch (courierId) {
     case 'liberty':
-      // Si el número contiene letras o sólo dígitos
-      return `https://www.libertyexpress.com/venezuela/rastreo/`;
+      // URL directa de IQpack - no requiere login, muestra estado inmediatamente
+      return `https://iqpack.libertyexpress.com/Tracking?nGuia=${encodeURIComponent(num)}`;
     case 'zoom':
       return `https://www.zoom.red/rastreo/`;
     case 'tealca':
