@@ -15,11 +15,14 @@ import {
 import { 
   getTrackingUrlUsa, getCourierUsaConfig, COURIERS_USA,
   getTrackingUrlVzla, getCourierVzlaConfig, COURIERS_VZLA,
-  ESTADOS_TRACKING, getEstadoConfig
+  ESTADOS_TRACKING, getEstadoConfig,
+  normalizarEstadoTracking, esEstadoEntregado, formatTrackingDate
 } from '../../../utils/couriers';
 import TrackingModal from '../trackings/TrackingModal';
+import GastosAdicionalesModal from '../../../components/GastosAdicionalesModal';
 import { syncTrackingFromEbay } from '../../../utils/syncTrackingFromEbay';
 import { tieneEnvioPagado } from '../../../utils/costos';
+import { sincronizarTrackingsConCouriers } from '../../../services/trackingService';
 
 export default function ComprasEbay() {
   const navigate = useNavigate();
@@ -76,6 +79,20 @@ export default function ComprasEbay() {
   // Edición rápida de Order ID de eBay
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [editingOrderVal, setEditingOrderVal] = useState('');
+
+  // Sincronización inteligente de couriers (Liberty y USA)
+  const [syncingCouriers, setSyncingCouriers] = useState(false);
+  const [syncCourierProgress, setSyncCourierProgress] = useState('');
+  const [syncCourierNotification, setSyncCourierNotification] = useState('');
+
+  // Modal de Gastos Adicionales / Flete (individual o en lote)
+  const [gastosModalState, setGastosModalState] = useState({
+    open: false,
+    item: null,
+    items: null,
+    isBulk: false,
+    collectionName: 'laptops'
+  });
 
   // 1. Escuchar compras de eBay en tiempo real
   useEffect(() => {
@@ -730,6 +747,98 @@ export default function ComprasEbay() {
     }
   };
 
+  // Sincronización maestra de couriers (Liberty Express iQPack y Couriers USA)
+  const handleSyncCouriers = async (isSilent = false) => {
+    if (syncingCouriers) return;
+    setSyncingCouriers(true);
+    setSyncCourierProgress('Iniciando rastreo...');
+
+    try {
+      const res = await sincronizarTrackingsConCouriers({
+        db,
+        trackings,
+        compras,
+        laptops,
+        componentes,
+        onProgress: (current, total, msg) => {
+          setSyncCourierProgress(`${current}/${total} - ${msg}`);
+        }
+      });
+
+      sessionStorage.setItem('last_tracking_sync', String(Date.now()));
+
+      const vzlaCount = res.vzlaDetectados.length;
+      const tallerCount = res.entregadosTaller.length;
+
+      if (vzlaCount > 0 || tallerCount > 0) {
+        const partes = [];
+        if (vzlaCount > 0) partes.push(`🎉 ${vzlaCount} nueva(s) guía(s) VZLA detectada(s)`);
+        if (tallerCount > 0) partes.push(`🛠️ ${tallerCount} paquete(s) pasaron a taller`);
+        const msg = partes.join(' • ');
+        setSyncCourierNotification(msg);
+        setTimeout(() => setSyncCourierNotification(''), 10000);
+      } else if (!isSilent) {
+        setSyncCourierNotification(`✓ Rastreo completado: Todos los paquetes (${res.totalProcesados}) están al día.`);
+        setTimeout(() => setSyncCourierNotification(''), 6000);
+      }
+    } catch (err) {
+      console.error('Error sincronizando couriers:', err);
+      if (!isSilent) {
+        alert('Error en sincronización de rastreo: ' + err.message);
+      }
+    } finally {
+      setSyncingCouriers(false);
+      setSyncCourierProgress('');
+    }
+  };
+
+  // Disparador automático de rastreo con cooldown de 5 min al cargar
+  useEffect(() => {
+    if (trackings.length === 0) return;
+    const lastSync = sessionStorage.getItem('last_tracking_sync');
+    const now = Date.now();
+    if (!lastSync || (now - Number(lastSync)) > 5 * 60 * 1000) {
+      const timer = setTimeout(() => {
+        handleSyncCouriers(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [trackings.length]);
+
+  // Abrir modal de registro de flete / gastos adicionales
+  const handleOpenGastosFlete = (item, trkDoc, invObj) => {
+    const currentInvItem = invObj?.item;
+    const trkItems = Array.isArray(trkDoc?.items) ? trkDoc.items : [];
+
+    if (trkItems.length > 1) {
+      // Modo lote: mapear cada ítem del paquete al inventario para distribuir el flete
+      const fullItems = trkItems.map(ti => {
+        if (ti.tipo === 'componente') {
+          return componentes.find(c => c.id === ti.id) || ti;
+        } else {
+          return laptops.find(l => l.id === ti.id || l.ebay_compra_id === ti.id) || ti;
+        }
+      });
+
+      setGastosModalState({
+        open: true,
+        item: currentInvItem || item,
+        items: fullItems,
+        isBulk: true,
+        collectionName: invObj?.type === 'componente' ? 'componentes' : 'laptops'
+      });
+    } else {
+      // Modo individual
+      setGastosModalState({
+        open: true,
+        item: currentInvItem || item,
+        items: null,
+        isBulk: false,
+        collectionName: invObj?.type === 'componente' ? 'componentes' : 'laptops'
+      });
+    }
+  };
+
   // Limpieza inteligente de compras duplicadas
   const handleCleanDuplicates = async () => {
     if (compras.length === 0 || detectedDuplicates.length === 0) {
@@ -1194,6 +1303,37 @@ export default function ComprasEbay() {
     }
   };
 
+  // Marcar entregado en Almacén Miami (Tramo USA completado por UPS, FedEx, USPS o entrega local)
+  const handleMarcarEntregadoMiami = async (item, trkDoc) => {
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'compras_ebay', item.id), {
+        tracking_usa_entregado: true,
+        tracking_usa_ultimo_estado: 'Entregado en Almacén Miami',
+        fecha_actualizacion: serverTimestamp()
+      });
+
+      if (trkDoc?.id) {
+        const trkUpdates = {
+          tracking_usa_entregado: true,
+          tracking_usa_ultimo_estado: 'Entregado en Almacén Miami',
+          fecha_actualizacion: serverTimestamp()
+        };
+        if (trkDoc.estado === 'por_prealertar' || trkDoc.estado === 'prealertado') {
+          trkUpdates.estado = 'en_miami';
+        }
+        batch.update(doc(db, 'trackings', trkDoc.id), trkUpdates);
+      }
+
+      await batch.commit();
+      setAutoLinkNotification('¡Paquete marcado como Entregado en Almacén Miami! 🏢');
+      setTimeout(() => setAutoLinkNotification(''), 4000);
+    } catch (err) {
+      console.error('Error marcando entrega en Miami:', err);
+      alert('Error actualizando entrega en Miami: ' + err.message);
+    }
+  };
+
   // Generador de impresión en PDF del reporte de compras y logística
   const handlePrintReport = () => {
     const printWindow = window.open('', '_blank');
@@ -1437,6 +1577,17 @@ export default function ComprasEbay() {
             <span>Imprimir</span>
           </button>
 
+          {/* Botón Sincronizar Couriers / Guías VZLA */}
+          <button
+            onClick={() => handleSyncCouriers(false)}
+            disabled={syncingCouriers}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-2xs disabled:opacity-50"
+            title="Consultar Liberty Express y Couriers USA para detectar guías VZLA y llegadas a taller"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncingCouriers ? 'animate-spin' : ''}`} />
+            <span>{syncingCouriers ? (syncCourierProgress || 'Rastreando...') : 'Sincronizar Rastreo'}</span>
+          </button>
+
           {/* Botón Sincronizar Trackings USA a Envíos */}
           <button
             onClick={handleSyncAllTrackingsToEnvios}
@@ -1461,6 +1612,19 @@ export default function ComprasEbay() {
           </button>
         </div>
       </div>
+
+      {/* Notificación de Sincronización de Couriers */}
+      {syncCourierNotification && (
+        <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 rounded-xl flex items-center justify-between gap-3 text-xs sm:text-sm font-medium animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <span>{syncCourierNotification}</span>
+          </div>
+          <button onClick={() => setSyncCourierNotification('')} className="p-1 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded transition">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Notificación de Auto-vinculación */}
       {autoLinkNotification && (
@@ -1813,7 +1977,39 @@ export default function ComprasEbay() {
             const isDisponible = invDisponibilidad === 'Disponible';
             const isVendido = invDisponibilidad === 'No disponible';
             const tieneEnvio = invObj?.item ? tieneEnvioPagado(invObj.item) : false;
+            const tieneEnvioFlete = tieneEnvio || Boolean(trkDoc?.flete_monto && Number(trkDoc.flete_monto) > 0);
             const isEnTaller = !isDisponible && !isVendido && (tieneEnvio || trkDoc?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
+
+            // Variables de Estado en Vivo (Live Shipping Status)
+            const vzlaUltimoEstado = trkDoc?.tracking_vzla_ultimo_estado || item.tracking_vzla_ultimo_estado || null;
+            const vzlaFechaEstado = trkDoc?.tracking_vzla_fecha_estado || item.tracking_vzla_fecha_estado || null;
+            const isAutoVzla = Boolean(trkDoc?.auto_detectado_vzla || item.auto_detectado_vzla);
+            const normVzla = vzlaUltimoEstado ? normalizarEstadoTracking(vzlaUltimoEstado, courierVzla) : null;
+
+            const usaUltimoEstado = trkDoc?.tracking_usa_ultimo_estado || item.tracking_usa_ultimo_estado || null;
+            const normUsa = usaUltimoEstado ? normalizarEstadoTracking(usaUltimoEstado, courierUsa) : null;
+            const esTallerOEntregado = isEnTaller || trkDoc?.estado === 'ya_recogido' || esEstadoEntregado(vzlaUltimoEstado);
+
+            // Determinar si es únicamente prealerta en espera de paquete
+            const isPrealertOnly = Boolean(
+              trkDoc?.prealerta_id ||
+              (vzlaUltimoEstado && /pre\s*alertad|esperando paquete/i.test(vzlaUltimoEstado)) ||
+              (trackingVzla && trackingVzla.startsWith('WRTMP-'))
+            );
+
+            // Determinar si ya fue entregado en Almacén Miami (por UPS, FedEx, eBay o recepción física de Liberty)
+            const isUsaDelivered = Boolean(
+              item.isDelivered ||
+              item.shipping_status === 'delivered' ||
+              item.tracking_usa_entregado ||
+              trkDoc?.tracking_usa_entregado ||
+              (trkDoc?.estado === 'en_miami' && !isPrealertOnly) ||
+              trkDoc?.estado === 'transito_vzla' ||
+              trkDoc?.estado === 'disponible_agencia' ||
+              trkDoc?.estado === 'ya_recogido' ||
+              (usaUltimoEstado && esEstadoEntregado(usaUltimoEstado)) ||
+              (usaUltimoEstado && /delivered|entregad/i.test(usaUltimoEstado))
+            );
 
             // Margen y finanzas calculadas
             const costoNum = Number(item.precio || 0);
@@ -1831,10 +2027,12 @@ export default function ComprasEbay() {
               lifecycleBadge = { label: 'Disponible para Venta', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
             } else if (isEnTaller) {
               lifecycleBadge = { label: 'En Taller • Preparación', dot: 'bg-indigo-500', cls: 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' };
-            } else if (trackingVzla) {
-              lifecycleBadge = { label: 'En Tránsito VZLA', dot: 'bg-sky-500', cls: 'bg-sky-50 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300 border-sky-200 dark:border-sky-800' };
+            } else if (trackingVzla && !isPrealertOnly) {
+              lifecycleBadge = { label: vzlaUltimoEstado || 'En Tránsito VZLA', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800' };
+            } else if (isUsaDelivered) {
+              lifecycleBadge = { label: 'Entregado en Miami', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
             } else if (trackingUsa) {
-              lifecycleBadge = { label: 'En Casillero USA', dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
+              lifecycleBadge = { label: isPrealerted ? 'Prealertado (USA)' : 'En Tránsito USA', dot: isPrealerted ? 'bg-amber-500' : 'bg-blue-500', cls: 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
             } else if (!hasInv) {
               lifecycleBadge = { label: 'Falta en Catálogo', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800' };
             } else {
@@ -1935,14 +2133,6 @@ export default function ComprasEbay() {
                           </span>
                         )}
 
-                        {/* Alerta si falta prealerta en casillero */}
-                        {trackingUsa && !isPrealerted && !isDisponible && !isVendido && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                            <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                            <span>Prealerta pendiente</span>
-                          </span>
-                        )}
-
                         {/* Order ID de eBay */}
                         {editingOrderId === item.id ? (
                           <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700">
@@ -1985,6 +2175,14 @@ export default function ComprasEbay() {
                               <Edit2 className="w-2.5 h-2.5" />
                             </button>
                           </div>
+                        )}
+
+                        {/* Fecha de compra */}
+                        {item.fecha_compra && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-400 dark:text-slate-500 ml-1">
+                            <Calendar className="w-3 h-3 text-slate-400" />
+                            {item.fecha_compra}
+                          </span>
                         )}
                       </div>
 
@@ -2044,8 +2242,8 @@ export default function ComprasEbay() {
                         )}
                       </div>
 
-                      {/* Métricas Financieras, Margen y Fecha */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 dark:text-slate-300 pt-0.5">
+                      {/* Métricas Financieras: Costo, PVP y Margen Discreto */}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300 pt-0.5">
                         {/* Costo de Compra eBay (Editable) */}
                         {editingPriceId === item.id ? (
                           <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700">
@@ -2071,7 +2269,7 @@ export default function ComprasEbay() {
                           </div>
                         ) : (
                           <div className="inline-flex items-center gap-1">
-                            <span className="text-[11px] text-slate-400 uppercase tracking-wider">Costo</span>
+                            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Costo:</span>
                             <span 
                               onClick={() => handleStartEditPrice(item)}
                               className="font-mono font-semibold tabular-nums text-slate-900 dark:text-slate-100 cursor-pointer hover:underline"
@@ -2088,7 +2286,7 @@ export default function ComprasEbay() {
                         {/* Precio de Venta PVP */}
                         {hasInv && (
                           <div className="inline-flex items-center gap-1">
-                            <span className="text-[11px] text-slate-400 uppercase tracking-wider">PVP</span>
+                            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">PVP:</span>
                             {pvpNum > 0 ? (
                               <span className="font-mono font-semibold tabular-nums text-blue-600 dark:text-blue-400">
                                 ${pvpNum.toFixed(2)} USD
@@ -2099,7 +2297,7 @@ export default function ComprasEbay() {
                                   if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
                                   else navigate(`/admin/components/edit/${invObj.item.id}`);
                                 }}
-                                className="font-medium text-amber-700 dark:text-amber-400 text-xs hover:underline"
+                                className="font-medium text-amber-600 dark:text-amber-400 text-xs hover:underline"
                                 title="Clic para ir a la ficha y fijar PVP"
                               >
                                 Falta fijar PVP
@@ -2108,177 +2306,26 @@ export default function ComprasEbay() {
                           </div>
                         )}
 
-                        {/* Margen Calculado si ambos precios existen */}
+                        {/* Margen Calculado Discreto (Sin protagonismo ni color chillón) */}
                         {margenGanancia !== null && (
-                          <div className="inline-flex items-center gap-1 font-mono text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                          <span 
+                            className="inline-flex items-center gap-1 font-mono text-[11px] text-slate-400 dark:text-slate-500 font-normal"
+                            title={`Margen estimado: $${margenGanancia.toFixed(2)} USD (${margenPct}%)`}
+                          >
                             <span>Margen:</span>
-                            <span className="font-semibold tabular-nums">
-                              {margenGanancia >= 0 ? `+$${margenGanancia.toFixed(2)}` : `-$${Math.abs(margenGanancia).toFixed(2)}`}
+                            <span className="tabular-nums font-medium text-slate-600 dark:text-slate-400">
+                              {margenGanancia >= 0 ? `+$${margenGanancia.toFixed(0)}` : `-$${Math.abs(margenGanancia).toFixed(0)}`}
                             </span>
-                            {margenPct !== null && <span className="text-slate-400 dark:text-slate-500">({margenPct}%)</span>}
-                          </div>
-                        )}
-
-                        {/* Fecha de compra */}
-                        {item.fecha_compra && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-400 dark:text-slate-500">
-                            <Calendar className="w-3 h-3 text-slate-400" />
-                            {item.fecha_compra}
+                            {margenPct !== null && <span className="text-[10px]">({margenPct}%)</span>}
                           </span>
                         )}
 
-                        {/* Vendedor */}
+                        {/* Vendedor (Discreto) */}
                         {item.vendedor && (
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Vendedor: <strong className="font-medium text-slate-700 dark:text-slate-300">{item.vendedor}</strong>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                            Vendedor: <span className="text-slate-600 dark:text-slate-400">{item.vendedor}</span>
                           </span>
                         )}
-                      </div>
-
-                      {/* Bloque Logístico Limpio: Tramo USA y Tramo VZLA */}
-                      <div className="flex flex-wrap items-center gap-2 pt-1.5">
-                        {/* 1. TRAMO USA (Casillero) */}
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
-                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">USA:</span>
-                          {trackingUsa ? (
-                            <div className="inline-flex items-center gap-1">
-                              <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px] uppercase">
-                                {courierUsa}:
-                              </span>
-                              {trackingUrlUsa ? (
-                                <a 
-                                  href={trackingUrlUsa} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-medium text-[11px] flex items-center gap-0.5"
-                                  title="Rastrear en la web oficial del courier"
-                                >
-                                  {trackingUsa}
-                                  <ExternalLink className="w-2.5 h-2.5" />
-                                </a>
-                              ) : (
-                                <span className="font-mono font-medium text-slate-800 dark:text-slate-200 text-[11px]">
-                                  {trackingUsa}
-                                </span>
-                              )}
-                              <button 
-                                onClick={() => handleOpenQuickTracking(item)} 
-                                className="p-0.5 text-slate-400 hover:text-blue-600 ml-0.5" 
-                                title="Editar Tracking USA"
-                              >
-                                <Edit2 className="w-2.5 h-2.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="inline-flex items-center gap-1">
-                              <span className="text-slate-400 text-[11px]">Sin tracking</span>
-                              <button 
-                                onClick={() => handleOpenQuickTracking(item)} 
-                                className="text-blue-600 dark:text-blue-400 font-semibold hover:underline text-[11px]"
-                              >
-                                + Agregar
-                              </button>
-                            </div>
-                          )}
-
-                          {/* Prealerta Toggle */}
-                          {trackingUsa && (
-                            <button
-                              type="button"
-                              onClick={() => handleTogglePrealerta(item, trkDoc)}
-                              className={`ml-1 px-2 py-0.5 text-[10px] font-semibold rounded-md transition inline-flex items-center gap-1 ${
-                                isPrealerted
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                                  : 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-200'
-                              }`}
-                              title={isPrealerted ? "Prealertado. Clic para desmarcar" : "Clic para marcar como Prealertado"}
-                            >
-                              {isPrealerted ? (
-                                <>
-                                  <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                  <span>Prealertado</span>
-                                </>
-                              ) : (
-                                <>
-                                  <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                                  <span>Prealertar</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-
-                        {/* 2. TRAMO VENEZUELA (Entrega) */}
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
-                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">VZLA:</span>
-                          {trackingVzla ? (
-                            <div className="inline-flex items-center gap-1">
-                              <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px]">
-                                {courierVzlaConfig?.nombre || courierVzla.toUpperCase()}:
-                              </span>
-                              {trackingUrlVzla ? (
-                                <a 
-                                  href={trackingUrlVzla} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="font-mono text-emerald-700 dark:text-emerald-400 hover:underline font-medium text-[11px] flex items-center gap-0.5"
-                                  title="Rastrear en la web del courier venezolano"
-                                >
-                                  {trackingVzla}
-                                  <ExternalLink className="w-2.5 h-2.5" />
-                                </a>
-                              ) : (
-                                <span className="font-mono font-medium text-slate-800 dark:text-slate-200 text-[11px]">
-                                  {trackingVzla}
-                                </span>
-                              )}
-                              <button 
-                                onClick={() => handleOpenQuickVzla(item, trkDoc)} 
-                                className="p-0.5 text-slate-400 hover:text-emerald-600 ml-0.5" 
-                                title="Editar Guía VZLA"
-                              >
-                                <Edit2 className="w-2.5 h-2.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="inline-flex items-center gap-1">
-                              <span className="text-slate-400 text-[11px]">Sin guía</span>
-                              <button 
-                                onClick={() => handleOpenQuickVzla(item, trkDoc)} 
-                                className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline text-[11px]"
-                              >
-                                + Guía VZLA
-                              </button>
-                            </div>
-                          )}
-
-                          {/* Estado de Llegada a Taller */}
-                          {isVendido ? (
-                            <span className="ml-1 text-[10px] font-medium text-slate-500">
-                              Vendido
-                            </span>
-                          ) : isDisponible ? (
-                            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-200 dark:border-teal-800 flex items-center gap-1">
-                              <Check className="w-2.5 h-2.5" />
-                              <span>En Venta</span>
-                            </span>
-                          ) : !isEnTaller ? (
-                            <button
-                              type="button"
-                              onClick={() => handleMarcarLlegadaTaller(item, trkDoc, invObj)}
-                              className="ml-1 px-2 py-0.5 text-[10px] font-semibold rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-950 hover:opacity-90 transition flex items-center gap-1 shadow-2xs"
-                              title="Marcar que el equipo ya llegó físicamente al taller Smartbits"
-                            >
-                              <MapPin className="w-2.5 h-2.5" />
-                              <span>Llegó a Taller</span>
-                            </button>
-                          ) : (
-                            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
-                              <Check className="w-2.5 h-2.5" />
-                              <span>En Taller</span>
-                            </span>
-                          )}
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -2360,6 +2407,239 @@ export default function ComprasEbay() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                </div>
+
+                {/* Bloque Logístico Unificado: Pipeline Integral USA ➔ VZLA ➔ Taller */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800/60 text-xs">
+                    
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                      {/* TRAMO 1: USA (Hacia Miami) */}
+                      <div className="inline-flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                          <Package className="w-3 h-3 text-amber-500 shrink-0" />
+                          <span>USA</span>
+                        </span>
+
+                        {trackingUsa ? (
+                          <div className="inline-flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                            <span className="font-semibold text-slate-600 dark:text-slate-300 text-[10px] uppercase">
+                              {courierUsa}:
+                            </span>
+                            {trackingUrlUsa ? (
+                              <a 
+                                href={trackingUrlUsa} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="font-mono text-blue-600 dark:text-blue-400 hover:underline font-medium text-[11px] flex items-center gap-0.5"
+                                title="Ver tracking en web oficial"
+                              >
+                                {trackingUsa}
+                                <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                              </a>
+                            ) : (
+                              <span className="font-mono font-medium text-slate-800 dark:text-slate-200 text-[11px]">
+                                {trackingUsa}
+                              </span>
+                            )}
+                            <button 
+                              onClick={() => handleOpenQuickTracking(item)} 
+                              className="p-0.5 text-slate-400 hover:text-blue-600 transition" 
+                              title="Editar Tracking USA"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => handleOpenQuickTracking(item)} 
+                            className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 font-medium hover:underline bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-dashed border-blue-300 dark:border-blue-800"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                            <span>Tracking USA</span>
+                          </button>
+                        )}
+
+                        {/* Estado del Tramo USA */}
+                        {trackingUsa && (
+                          isUsaDelivered ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-100/80 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>En Miami</span>
+                            </span>
+                          ) : (
+                            <div className="inline-flex items-center gap-1">
+                              {usaUltimoEstado ? (
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${normUsa ? normUsa.badge : 'bg-blue-50 text-blue-800 border-blue-200'}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${normUsa ? normUsa.dot : 'bg-blue-500'}`}></span>
+                                  <span className="max-w-[130px] truncate">{usaUltimoEstado}</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-500">En tránsito</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePrealerta(item, trkDoc)}
+                                className={`px-1.5 py-0.5 text-[10px] font-medium rounded transition inline-flex items-center gap-0.5 border ${
+                                  isPrealerted
+                                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                                    : 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100'
+                                }`}
+                                title={isPrealerted ? "Prealertado. Clic para desmarcar" : "Clic para marcar como Prealertado"}
+                              >
+                                {isPrealerted ? <Check className="w-2.5 h-2.5 text-blue-600" /> : <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                                <span>{isPrealerted ? 'Prealertado' : 'Prealertar'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMarcarEntregadoMiami(item, trkDoc)}
+                                className="text-[10px] text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 underline font-medium"
+                                title="Marcar manualmente que ya llegó a Miami"
+                              >
+                                ¿Llegó?
+                              </button>
+                            </div>
+                          )
+                        )}
+                      </div>
+
+                      {/* Divisor de flujo */}
+                      <ArrowRight className="w-3 h-3 text-slate-300 dark:text-slate-600 hidden sm:block shrink-0" />
+
+                      {/* TRAMO 2: VENEZUELA (Hacia Taller) */}
+                      <div className="inline-flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                          <Truck className="w-3 h-3 text-sky-500 shrink-0" />
+                          <span>VZLA</span>
+                        </span>
+
+                        {trackingVzla ? (
+                          <div className="inline-flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                            <span className="font-semibold text-slate-600 dark:text-slate-300 text-[10px] uppercase">
+                              {courierVzlaConfig?.nombre || courierVzla}:
+                            </span>
+                            {trackingUrlVzla ? (
+                              <a 
+                                href={trackingUrlVzla} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="font-mono text-emerald-700 dark:text-emerald-400 hover:underline font-medium text-[11px] flex items-center gap-0.5"
+                                title="Rastrear en web del courier de Venezuela"
+                              >
+                                {trackingVzla}
+                                <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                              </a>
+                            ) : (
+                              <span className="font-mono font-medium text-slate-800 dark:text-slate-200 text-[11px]">
+                                {trackingVzla}
+                              </span>
+                            )}
+                            <button 
+                              onClick={() => handleOpenQuickVzla(item, trkDoc)} 
+                              className="p-0.5 text-slate-400 hover:text-emerald-600 transition" 
+                              title="Editar Guía VZLA"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => handleOpenQuickVzla(item, trkDoc)} 
+                            className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium hover:underline bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-dashed border-emerald-300 dark:border-emerald-800"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                            <span>Guía VZLA</span>
+                          </button>
+                        )}
+
+                        {/* Estado en vivo VZLA */}
+                        {trackingVzla ? (
+                          <div className="inline-flex items-center gap-1">
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${normVzla ? normVzla.badge : 'bg-purple-50 text-purple-800 border-purple-200'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${normVzla ? normVzla.dot : 'bg-purple-500'}`}></span>
+                              <span className="max-w-[130px] truncate">{vzlaUltimoEstado || normVzla?.label || 'En tránsito'}</span>
+                            </span>
+                            {isAutoVzla && (
+                              <span className="px-1 py-0.2 text-[9px] font-semibold rounded bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center gap-0.5" title="Guía detectada automáticamente">
+                                <Sparkles className="w-2 h-2" />
+                                <span>Auto</span>
+                              </span>
+                            )}
+                          </div>
+                        ) : isUsaDelivered ? (
+                          <span className="text-[10px] text-slate-400 italic">Esperando guía</span>
+                        ) : null}
+
+                        {/* Estado / Botón de Taller */}
+                        {isVendido ? (
+                          <span className="text-[10px] font-medium text-slate-400">Vendido</span>
+                        ) : isDisponible ? (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 rounded border border-teal-200 dark:border-teal-800">
+                            <Check className="w-2.5 h-2.5" />
+                            <span>En Venta</span>
+                          </span>
+                        ) : isEnTaller ? (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 rounded border border-indigo-200 dark:border-indigo-800">
+                            <Check className="w-2.5 h-2.5" />
+                            <span>En Taller</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleMarcarLlegadaTaller(item, trkDoc, invObj)}
+                            className="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-900 text-white dark:bg-white dark:text-slate-950 hover:opacity-90 transition flex items-center gap-1 shadow-2xs"
+                            title="Marcar que el equipo ya llegó físicamente al taller Smartbits"
+                          >
+                            <MapPin className="w-2.5 h-2.5" />
+                            <span>Llegó a Taller</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Fecha de actualización / Flete resumen */}
+                    <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                      {tieneEnvioFlete ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Flete pagado {trkDoc?.flete_monto ? `($${Number(trkDoc.flete_monto).toFixed(2)})` : ''}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenGastosFlete(item, trkDoc, invObj)}
+                            className="text-slate-400 hover:text-slate-600 underline text-[10px] ml-0.5"
+                          >
+                            Ver
+                          </button>
+                        </span>
+                      ) : null}
+                      {(vzlaFechaEstado || trkDoc?.fecha_actualizacion) && (
+                        <span className="text-[10px] text-slate-400 font-mono" title="Última actualización de rastreo">
+                          {formatTrackingDate(vzlaFechaEstado || trkDoc?.fecha_actualizacion?.toDate?.())}
+                        </span>
+                      )}
+                    </div>
+
+                  </div>
+
+                  {/* Alerta Compacta si está en Taller y falta registrar el Flete */}
+                  {!tieneEnvioFlete && esTallerOEntregado && (
+                    <div className="mt-2 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span className="text-[11px] font-medium">
+                          <strong>Atención:</strong> En taller sin registrar flete de envío.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenGastosFlete(item, trkDoc, invObj)}
+                        className="px-2.5 py-1 text-[11px] font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-2xs transition flex items-center gap-1 shrink-0"
+                      >
+                        <Truck className="w-3 h-3" />
+                        <span>Registrar Flete</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -2806,6 +3086,19 @@ export default function ComprasEbay() {
         initialData={trackingInitialData}
         onSaved={handleTrackingSaved}
       />
+
+      {/* Gastos Adicionales / Flete Modal */}
+      {gastosModalState.open && (
+        <GastosAdicionalesModal
+          item={gastosModalState.item}
+          items={gastosModalState.items}
+          collectionName={gastosModalState.collectionName || 'laptops'}
+          onClose={() => setGastosModalState({ open: false, item: null, items: null, isBulk: false, collectionName: 'laptops' })}
+          onSuccess={() => {
+            setGastosModalState({ open: false, item: null, items: null, isBulk: false, collectionName: 'laptops' });
+          }}
+        />
+      )}
     </div>
   );
 }

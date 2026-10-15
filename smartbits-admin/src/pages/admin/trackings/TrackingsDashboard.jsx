@@ -6,14 +6,16 @@ import { db } from '../../../firebase';
 import { 
   Truck, Plus, Search, Filter, ExternalLink, Edit, Trash2, 
   AlertCircle, CheckCircle2, Clock, MapPin, Package, Laptop, 
-  Box, ArrowRight, DollarSign, Calendar, ChevronDown, RefreshCw, X, ShieldAlert
+  Box, ArrowRight, DollarSign, Calendar, ChevronDown, RefreshCw, X, ShieldAlert, Sparkles
 } from 'lucide-react';
 import { 
   COURIERS_USA, COURIERS_VZLA, ESTADOS_TRACKING, 
   getEstadoConfig, getCourierUsaConfig, getCourierVzlaConfig, 
-  getTrackingUrlUsa, getTrackingUrlVzla 
+  getTrackingUrlUsa, getTrackingUrlVzla,
+  normalizarEstadoTracking, esEstadoEntregado, formatTrackingDate
 } from '../../../utils/couriers';
 import TrackingModal from './TrackingModal';
+import { sincronizarTrackingsConCouriers } from '../../../services/trackingService';
 
 export default function TrackingsDashboard() {
   const [trackings, setTrackings] = useState([]);
@@ -31,8 +33,29 @@ export default function TrackingsDashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, title: '' });
   const [permissionError, setPermissionError] = useState(false);
 
+  // Sincronización inteligente de couriers
+  const [syncingCouriers, setSyncingCouriers] = useState(false);
+  const [syncCourierProgress, setSyncCourierProgress] = useState('');
+  const [syncCourierNotification, setSyncCourierNotification] = useState('');
+
+  // Colecciones complementarias para propagación
+  const [compras, setCompras] = useState([]);
+  const [laptops, setLaptops] = useState([]);
+  const [componentes, setComponentes] = useState([]);
+
   // Carga en tiempo real de Firestore
   useEffect(() => {
+    const unsubCompras = onSnapshot(collection(db, 'compras_ebay'), snap => {
+      setCompras(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
+
+    const unsubLaptops = onSnapshot(collection(db, 'laptops'), snap => {
+      setLaptops(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
+
+    const unsubComponentes = onSnapshot(collection(db, 'componentes'), snap => {
+      setComponentes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
     const q = query(collection(db, 'trackings'), orderBy('fecha_actualizacion', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(d => ({
@@ -65,8 +88,53 @@ export default function TrackingsDashboard() {
       });
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubCompras();
+      unsubLaptops();
+      unsubComponentes();
+      unsubscribe();
+    };
   }, []);
+
+  const handleSyncCouriers = async () => {
+    if (syncingCouriers) return;
+    setSyncingCouriers(true);
+    setSyncCourierProgress('Iniciando rastreo...');
+
+    try {
+      const res = await sincronizarTrackingsConCouriers({
+        db,
+        trackings,
+        compras,
+        laptops,
+        componentes,
+        onProgress: (current, total, msg) => {
+          setSyncCourierProgress(`${current}/${total} - ${msg}`);
+        }
+      });
+
+      const vzlaCount = res.vzlaDetectados.length;
+      const tallerCount = res.entregadosTaller.length;
+
+      if (vzlaCount > 0 || tallerCount > 0) {
+        const partes = [];
+        if (vzlaCount > 0) partes.push(`🎉 ${vzlaCount} nueva(s) guía(s) VZLA detectada(s)`);
+        if (tallerCount > 0) partes.push(`🛠️ ${tallerCount} paquete(s) pasaron a taller`);
+        const msg = partes.join(' • ');
+        setSyncCourierNotification(msg);
+        setTimeout(() => setSyncCourierNotification(''), 10000);
+      } else {
+        setSyncCourierNotification(`✓ Rastreo completado: Todos los paquetes (${res.totalProcesados}) están sincronizados.`);
+        setTimeout(() => setSyncCourierNotification(''), 6000);
+      }
+    } catch (err) {
+      console.error('Error sincronizando couriers:', err);
+      alert('Error en sincronización de rastreo: ' + err.message);
+    } finally {
+      setSyncingCouriers(false);
+      setSyncCourierProgress('');
+    }
+  };
 
   // KPIs
   const totalTodos = trackings.filter(t => t.estado !== 'ya_recogido').length;
@@ -112,6 +180,14 @@ export default function TrackingsDashboard() {
     }
 
     return true;
+  });
+
+  // Ordenar: Envíos activos primero, los que ya están en taller / recogidos al final
+  const trackingsOrdenados = [...trackingsFiltrados].sort((a, b) => {
+    const aFinalizado = a.estado === 'ya_recogido' || a.en_taller ? 1 : 0;
+    const bFinalizado = b.estado === 'ya_recogido' || b.en_taller ? 1 : 0;
+    if (aFinalizado !== bFinalizado) return aFinalizado - bFinalizado;
+    return 0;
   });
 
   // Cambio rápido de estado desde la tabla
@@ -176,7 +252,17 @@ export default function TrackingsDashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleSyncCouriers}
+            disabled={syncingCouriers}
+            className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/20 transition-all cursor-pointer disabled:opacity-50"
+            title="Consultar Liberty Express para detectar guías VZLA y llegadas a taller"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncingCouriers ? 'animate-spin' : ''}`} />
+            <span>{syncingCouriers ? (syncCourierProgress || 'Rastreando...') : 'Sincronizar Couriers'}</span>
+          </button>
+
           <button
             onClick={() => {
               setSelectedTracking(null);
@@ -189,6 +275,19 @@ export default function TrackingsDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Notificación de Sincronización */}
+      {syncCourierNotification && (
+        <div className="p-3.5 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-2xl flex items-center justify-between gap-3 text-xs sm:text-sm font-semibold shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>{syncCourierNotification}</span>
+          </div>
+          <button onClick={() => setSyncCourierNotification('')} className="p-1 hover:bg-indigo-100 rounded-lg transition">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* KPI CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -408,7 +507,7 @@ export default function TrackingsDashboard() {
         </div>
       ) : (
         <div className="space-y-3">
-          {trackingsFiltrados.map((item) => {
+          {trackingsOrdenados.map((item) => {
             const estadoConfig = getEstadoConfig(item.estado);
             const courierUsa = getCourierUsaConfig(item.courier_usa);
             const courierVzla = getCourierVzlaConfig(item.courier_vzla);
@@ -542,7 +641,15 @@ export default function TrackingsDashboard() {
                           </div>
                         </div>
                       ) : (
-                        item.tracking_usa || <span className="text-slate-400 font-sans font-normal italic">No asignado</span>
+                        <div>
+                          <span>{item.tracking_usa || <span className="text-slate-400 font-sans font-normal italic">No asignado</span>}</span>
+                          {item.tracking_usa_ultimo_estado && (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-sans font-normal text-slate-600">
+                              <span className={`w-2 h-2 rounded-full ${normalizarEstadoTracking(item.tracking_usa_ultimo_estado)?.dot || 'bg-blue-500'}`}></span>
+                              <span className="font-medium text-slate-700">&ldquo;{item.tracking_usa_ultimo_estado}&rdquo;</span>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -575,7 +682,26 @@ export default function TrackingsDashboard() {
                     </div>
                     <div className="font-mono text-sm font-bold text-slate-900 break-all select-all">
                       {item.tracking_vzla ? (
-                        item.tracking_vzla
+                        <div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span>{item.tracking_vzla}</span>
+                            {item.auto_detectado_vzla && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                <Sparkles className="w-2.5 h-2.5" />
+                                <span>Auto-detectado</span>
+                              </span>
+                            )}
+                          </div>
+                          {item.tracking_vzla_ultimo_estado && (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-sans font-normal text-slate-600">
+                              <span className={`w-2 h-2 rounded-full ${normalizarEstadoTracking(item.tracking_vzla_ultimo_estado)?.dot || 'bg-slate-400'}`}></span>
+                              <span className="font-medium text-slate-700">&ldquo;{item.tracking_vzla_ultimo_estado}&rdquo;</span>
+                              {item.tracking_vzla_fecha_estado && (
+                                <span className="text-[10px] text-slate-400 font-mono">({formatTrackingDate(item.tracking_vzla_fecha_estado)})</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <button
                           onClick={() => {
