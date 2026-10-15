@@ -644,6 +644,45 @@ async function fetchEbayTracking(orderId, trackHref, itemId = '') {
   return '';
 }
 
+/**
+ * Extrae el estado literal del envío (ej. "On the way", "Delivered on Oct 14", "In transit")
+ */
+function extractLiteralShippingStatus(node, text = '') {
+  if (!node && !text) return '';
+  const nodeText = node ? (node.innerText || node.textContent || '') : text;
+
+  if (node) {
+    const statusElems = node.querySelectorAll(
+      '[data-testid*="shipping-status"], [data-testid*="delivery-status"], [data-testid*="tracking"], ' +
+      '[class*="shipping-status"], [class*="delivery-status"], [class*="tracking-status"], ' +
+      '[class*="shipment-status"], .order-status, [class*="orderStatus"], [aria-label*="tracking" i], [aria-label*="delivery" i]'
+    );
+    for (const el of statusElems) {
+      const t = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
+      if (t && t.length < 60 && !t.includes('$') && !t.includes('Order') && !t.includes('Paid')) {
+        return t;
+      }
+    }
+  }
+
+  const patterns = [
+    /\b(delivered(?:\s+on\s+[A-Za-z]+,?\s+[0-9]{1,2})?)\b/i,
+    /\b(on\s+the\s+way(?:\s*-\s*[A-Za-z\s0-9]+)?)\b/i,
+    /\b(out\s+for\s+delivery)\b/i,
+    /\b(in\s+transit)\b/i,
+    /\b(shipped(?:\s+on\s+[A-Za-z]+,?\s+[0-9]{1,2})?)\b/i,
+    /\b(entregado(?:\s+el\s+[0-9]{1,2}(?:\s+de\s+[A-Za-z]+)?)?)\b/i,
+    /\b(en\s+camino|en\s+reparto|en\s+tr[áa]nsito)\b/i
+  ];
+
+  for (const pat of patterns) {
+    const m = nodeText.match(pat);
+    if (m && m[1]) return m[1].trim();
+  }
+
+  return '';
+}
+
 function parseEbayOrderDate(card, cardText) {
   const dateElements = card.querySelectorAll('[data-testid*="order-date"], [data-testid*="date"], .order-date, [class*="orderDate"], [class*="order-header"], [class*="orderHeader"], [class*="order-info"]');
   let combinedText = '';
@@ -990,12 +1029,13 @@ async function extractOrdersFromPage() {
         if (sellerMatch) seller = sellerMatch[1];
       }
 
-      // Detección simple de estado del envío en eBay (delivered / shipped / pendiente)
+      // Detección de estado del envío en eBay y captura del texto literal (ej. "On the way", "Delivered")
+      const literalStatus = extractLiteralShippingStatus(orderWrapper || card, fullText);
       const deliveredRegex = /\b(?:delivered|entregado)\b/i;
-      const shippedRegex = /\b(?:shipped|in[\s_-]*transit|enviado|en[\s_-]*tr[aá]nsito)\b/i;
+      const shippedRegex = /\b(?:shipped|in[\s_-]*transit|on\s+the\s+way|out\s+for\s+delivery|enviado|en[\s_-]*tr[aá]nsito)\b/i;
 
-      const isDelivered = deliveredRegex.test(fullText);
-      const isShipped = !isDelivered && shippedRegex.test(fullText);
+      const isDelivered = deliveredRegex.test(literalStatus || fullText);
+      const isShipped = !isDelivered && shippedRegex.test(literalStatus || fullText);
 
       // 4. Tracking general de la orden (extraído EXCLUSIVAMENTE dentro del nodo de esta tarjeta)
       const orderTrackingInfo = extractTrackingFromNode(card, '', orderId);
@@ -1187,6 +1227,7 @@ async function extractOrdersFromPage() {
                 trackHref: effectiveTrackHref,
                 isDelivered: itemDelivered,
                 shipping_status: itemShippingStatus,
+                tracking_usa_ultimo_estado: literalStatus || (itemDelivered ? 'Delivered' : (itemShipped ? 'On the way' : 'Pendiente despacho')),
                 estado: 'pendiente'
               });
             }
@@ -1212,6 +1253,7 @@ async function extractOrdersFromPage() {
               trackHref: effectiveTrackHref,
               isDelivered: itemDelivered,
               shipping_status: itemShippingStatus,
+              tracking_usa_ultimo_estado: literalStatus || (itemDelivered ? 'Delivered' : (itemShipped ? 'On the way' : 'Pendiente despacho')),
               estado: 'pendiente'
             });
           }
@@ -1263,6 +1305,7 @@ async function extractOrdersFromPage() {
             trackHref: trkInfo.trackHref || '',
             isDelivered: isDelivered,
             shipping_status: fallbackShippingStatus,
+            tracking_usa_ultimo_estado: literalStatus || (isDelivered ? 'Delivered' : (isShipped ? 'On the way' : 'Pendiente despacho')),
             estado: 'pendiente'
           });
         }

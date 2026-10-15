@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Smartbits - Sincronizador de Compras eBay",
-  "version": "1.0.0",
-  "description": "Sincroniza tus compras de eBay en tiempo real con el panel administrativo de Smartbits.",
+  "version": "1.1.0",
+  "description": "Sincroniza tus compras de eBay en tiempo real con el panel administrativo de Smartbits y rastreo en vivo de couriers.",
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "alarms"
   ],
   "host_permissions": [
     "*://*.ebay.com/*",
@@ -14,6 +15,15 @@
     "https://securetoken.googleapis.com/*",
     "https://firestore.googleapis.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:3000/*",
+      "https://*.vercel.app/*"
+    ]
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -33,13 +43,9 @@
         "*://*.ebay.com/mye/myebay/purchase*",
         "*://*.ebay.com/mye/buy/purchase-history*",
         "*://*.ebay.com/myb/PurchaseHistory*",
-        "*://*.ebay.com/sh/ovw*",
         "*://*.ebay.com/bin/purchaseHistory*",
-        "*://order.ebay.com/*",
-        "*://*.ebay.com/vod/*",
         "*://*.ebay.com/cnt/TrackPackage*",
-        "*://*.ebay.com/mye/myebay/v2/purchase/tracking*",
-        "*://*.ebay.com/ship/tra*"
+        "*://*.ebay.com/mye/myebay/v2/purchase/tracking*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

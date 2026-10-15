@@ -741,6 +741,7 @@ function formatFirestoreFields(order) {
     tracking_usa: { stringValue: cleanTracking },
     courier_usa: { stringValue: cleanTracking ? String(order.courier_usa || 'otro') : 'otro' },
     shipping_status: { stringValue: String(order.shipping_status || 'pendiente') },
+    tracking_usa_ultimo_estado: { stringValue: String(order.tracking_usa_ultimo_estado || '') },
     fecha_sincronizacion: { timestampValue: new Date().toISOString() }
   };
 
@@ -902,7 +903,7 @@ async function syncOrderToFirestore(order) {
     const rawItemId = String(order.itemId || '').replace(/_u[0-9]+$/, '').trim();
     const rawOrderId = String(order.orderId || '').replace(/[\s-]/g, '').trim();
 
-    const fieldPaths = ['titulo', 'precio', 'fecha_compra', 'vendedor', 'foto_url', 'item_url', 'itemId', 'fecha_sincronizacion', 'shipping_status'];
+    const fieldPaths = ['titulo', 'precio', 'fecha_compra', 'vendedor', 'foto_url', 'item_url', 'itemId', 'fecha_sincronizacion', 'shipping_status', 'tracking_usa_ultimo_estado'];
     const isCorruptedExisting = existingTracking && (
       existingTracking.startsWith('{') || 
       existingTracking.includes('EVENTFAMILY') ||
