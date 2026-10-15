@@ -473,11 +473,23 @@ export async function sincronizarTrackingsConCouriers({
             updatesTrk.tracking_usa_ultimo_estado = "Entregado en Almacén Miami";
           }
         } else if (res.isPrealertOnly) {
-          // Si está prealertado en Liberty esperando el paquete, marcar como prealertado pero NO como entregado en Miami
-          if (trk.estado === 'por_prealertar') {
-            updatesTrk.estado = 'prealertado';
-            updatesTrk.prealertado = true;
-            huboCambios = true;
+          // Si está prealertado en Liberty esperando el paquete, verificar si courier USA ya entregó
+          if (courierUsaYaEntrego) {
+            updatesTrk.tracking_usa_entregado = true;
+            if (!trk.tracking_usa_ultimo_estado || trk.tracking_usa_ultimo_estado.includes("viaje") || trk.tracking_usa_ultimo_estado.includes("tránsito") || trk.tracking_usa_ultimo_estado.includes("esperando")) {
+              updatesTrk.tracking_usa_ultimo_estado = "Entregado en Almacén Miami";
+            }
+            if (trk.estado === 'por_prealertar' || trk.estado === 'prealertado') {
+              updatesTrk.estado = 'en_miami';
+              huboCambios = true;
+            }
+          } else {
+            // Si el courier USA aún no entrega y Liberty solo tiene prealerta: el estado debe ser 'prealertado' (no Miami)
+            if (trk.estado === 'por_prealertar' || trk.estado === 'en_miami') {
+              updatesTrk.estado = 'prealertado';
+              updatesTrk.prealertado = true;
+              huboCambios = true;
+            }
           }
           if (res.trackingVzla && res.trackingVzla.startsWith('WRTMP-') && !trk.prealerta_id) {
             updatesTrk.prealerta_id = res.trackingVzla;

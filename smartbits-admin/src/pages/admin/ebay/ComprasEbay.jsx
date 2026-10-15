@@ -16,7 +16,8 @@ import {
   getTrackingUrlUsa, getCourierUsaConfig, COURIERS_USA,
   getTrackingUrlVzla, getCourierVzlaConfig, COURIERS_VZLA,
   ESTADOS_TRACKING, getEstadoConfig,
-  normalizarEstadoTracking, esEstadoEntregado, formatTrackingDate
+  normalizarEstadoTracking, esEstadoEntregado, formatTrackingDate,
+  evaluarEstadoLogisticoItem
 } from '../../../utils/couriers';
 import TrackingModal from '../trackings/TrackingModal';
 import GastosAdicionalesModal from '../../../components/GastosAdicionalesModal';
@@ -398,27 +399,19 @@ export default function ComprasEbay() {
   // Prioridad operativa para clasificación:
   // 1: Sin agregar a inventario
   // 2: Sin prealertar (tiene tracking USA pero no prealertado)
-  // 3: En tracking USA (prealertado)
-  // 4: En Tracking Vzla (viajando o en agencia)
+  // 3: Tránsito a Casillero (en camino a Miami)
+  // 4: Tránsito a Vzla (en casillero / viaje a VZLA)
   // 5: Ya en el taller
   const getItemPriority = (item, invObj, trk) => {
-    const hasInv = Boolean(invObj?.item);
-    const isDisponible = invObj?.item?.disponibilidad === 'Disponible';
-    const isVendido = invObj?.item?.disponibilidad === 'No disponible';
-    const tieneLlegada = Boolean((invObj?.item && tieneEnvioPagado(invObj.item)) || trk?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
-    const isEnTaller = !isDisponible && !isVendido && tieneLlegada;
+    const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trk);
 
-    const hasTrackingUsa = Boolean(item.tracking_usa || trk?.tracking_usa);
-    const isPrealerted = Boolean(trk?.prealertado || item.prealertado);
-    const hasTrackingVzla = Boolean(trk?.tracking_vzla || item.tracking_vzla);
-
-    if (isVendido) return 7; // 7° Ya Vendido
-    if (isDisponible) return 6; // 6° Ya Disponible (salió de taller)
-    if (!hasInv) return 1; // 1° Sin Inventario
-    if (hasTrackingUsa && !isPrealerted) return 2; // 2° Sin Prealertar
-    if (isEnTaller) return 5; // 5° En taller (en preparación)
-    if (hasTrackingVzla || trk?.estado === 'en_miami' || trk?.estado === 'transito_vzla' || trk?.estado === 'disponible_agencia') return 4; // 4° En tracking VZLA
-    if (hasTrackingUsa) return 3; // 3° En tracking USA
+    if (evalStatus.isVendido) return 7; // 7° Ya Vendido
+    if (evalStatus.isDisponible) return 6; // 6° Ya Disponible (salió de taller)
+    if (!evalStatus.hasInv) return 1; // 1° Sin Inventario
+    if (evalStatus.hasTrackingUsa && !evalStatus.isPrealerted) return 2; // 2° Sin Prealertar
+    if (evalStatus.isEnTaller) return 5; // 5° En taller (en preparación)
+    if (evalStatus.isEnVzla) return 4; // 4° Tránsito a VZLA (recibido en Miami o en camino a Vzla)
+    if (evalStatus.isEnUsa) return 3; // 3° Tránsito a Casillero (en camino a Miami)
     return 2.5; // En inventario esperando tracking
   };
 
@@ -438,27 +431,18 @@ export default function ComprasEbay() {
       if (item.estado === 'descartado') return;
       const invObj = getLinkedInventoryItem(item);
       const trk = getLinkedTrackingDoc(item, invObj);
+      const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trk);
 
-      const hasInv = Boolean(invObj?.item);
-      const isDisponible = invObj?.item?.disponibilidad === 'Disponible';
-      const isVendido = invObj?.item?.disponibilidad === 'No disponible';
-      const tieneLlegada = Boolean((invObj?.item && tieneEnvioPagado(invObj.item)) || trk?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
-      const isEnTaller = !isDisponible && !isVendido && tieneLlegada;
-
-      const hasTrackingUsa = Boolean(item.tracking_usa || trk?.tracking_usa);
-      const isPrealerted = Boolean(trk?.prealertado || item.prealertado);
-      const hasTrackingVzla = Boolean(trk?.tracking_vzla || item.tracking_vzla);
-
-      if (!hasInv) sinInventarioCount++;
-      if (hasTrackingUsa && !isPrealerted) sinPrealertaCount++;
+      if (!evalStatus.hasInv) sinInventarioCount++;
+      if (evalStatus.hasTrackingUsa && !evalStatus.isPrealerted) sinPrealertaCount++;
 
       // En taller solo cuenta equipos en preparación (si ya están disponibles o vendidos, ya salieron del taller)
-      if (isEnTaller) {
+      if (evalStatus.isEnTaller) {
         yaEnTallerCount++;
-      } else if (!isDisponible && !isVendido) {
-        if (hasTrackingVzla || trk?.estado === 'en_miami' || trk?.estado === 'transito_vzla' || trk?.estado === 'disponible_agencia') {
+      } else if (!evalStatus.isDisponible && !evalStatus.isVendido) {
+        if (evalStatus.isEnVzla) {
           enVzlaCount++;
-        } else if (hasTrackingUsa) {
+        } else if (evalStatus.isEnUsa) {
           enUsaCount++;
         }
       }
@@ -489,15 +473,7 @@ export default function ComprasEbay() {
       .filter(item => {
         const invObj = getLinkedInventoryItem(item);
         const trk = getLinkedTrackingDoc(item, invObj);
-        const hasInv = Boolean(invObj?.item);
-        const isDisponible = invObj?.item?.disponibilidad === 'Disponible';
-        const isVendido = invObj?.item?.disponibilidad === 'No disponible';
-        const tieneLlegada = Boolean((invObj?.item && tieneEnvioPagado(invObj.item)) || trk?.estado === 'ya_recogido' || Boolean(item.en_taller) || Boolean(invObj?.item?.en_taller));
-        const isEnTaller = !isDisponible && !isVendido && tieneLlegada;
-
-        const hasTrackingUsa = Boolean(item.tracking_usa || trk?.tracking_usa);
-        const isPrealerted = Boolean(trk?.prealertado || item.prealertado);
-        const hasTrackingVzla = Boolean(trk?.tracking_vzla || item.tracking_vzla);
+        const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trk);
 
         if (filterEstado === 'descartados') {
           return item.estado === 'descartado';
@@ -507,15 +483,15 @@ export default function ComprasEbay() {
         }
 
         if (filterEstado === 'pendientes' || filterEstado === 'sin_inventario') {
-          if (hasInv) return false;
+          if (evalStatus.hasInv) return false;
         } else if (filterEstado === 'sin_prealerta') {
-          if (!hasTrackingUsa || isPrealerted || isVendido || isDisponible) return false;
+          if (!evalStatus.hasTrackingUsa || evalStatus.isPrealerted || evalStatus.isVendido || evalStatus.isDisponible) return false;
         } else if (filterEstado === 'en_usa') {
-          if (!hasTrackingUsa || hasTrackingVzla || isEnTaller || isVendido || isDisponible) return false;
+          if (!evalStatus.isEnUsa) return false;
         } else if (filterEstado === 'en_vzla') {
-          if (!hasTrackingVzla || isEnTaller || isVendido || isDisponible) return false;
+          if (!evalStatus.isEnVzla) return false;
         } else if (filterEstado === 'en_taller') {
-          if (!isEnTaller) return false;
+          if (!evalStatus.isEnTaller) return false;
         } else if (filterEstado === 'disponibles') {
           if (invObj?.item?.disponibilidad !== 'Disponible') return false;
         } else if (filterEstado === 'coming_soon') {
@@ -1224,12 +1200,20 @@ export default function ComprasEbay() {
 
     setQuickVzlaModal(prev => ({ ...prev, saving: true }));
     try {
+      const yaLlegoMiami = Boolean(
+        item.isDelivered ||
+        item.shipping_status === 'delivered' ||
+        item.tracking_usa_entregado
+      );
+      const nuevoEstado = yaLlegoMiami ? 'en_miami' : 'prealertado';
+
       let targetTrkId = tracking_id;
       if (targetTrkId) {
         await updateDoc(doc(db, 'trackings', targetTrkId), {
           tracking_vzla: cleanGuia,
           courier_vzla: courier_vzla || 'liberty',
-          estado: cleanGuia ? 'en_miami' : 'prealertado',
+          estado: nuevoEstado,
+          prealertado: true,
           fecha_actualizacion: serverTimestamp()
         });
       } else {
@@ -1243,7 +1227,8 @@ export default function ComprasEbay() {
           await updateDoc(doc(db, 'trackings', res.id), {
             tracking_vzla: cleanGuia,
             courier_vzla: courier_vzla || 'liberty',
-            estado: cleanGuia ? 'en_miami' : 'prealertado',
+            estado: nuevoEstado,
+            prealertado: true,
             fecha_actualizacion: serverTimestamp()
           });
         }
@@ -1252,6 +1237,7 @@ export default function ComprasEbay() {
       await updateDoc(doc(db, 'compras_ebay', item.id), {
         tracking_vzla: cleanGuia,
         courier_vzla: courier_vzla || 'liberty',
+        prealertado: true,
         ...(targetTrkId ? { tracking_id: targetTrkId } : {}),
         fecha_actualizacion: serverTimestamp()
       });
@@ -1351,9 +1337,12 @@ export default function ComprasEbay() {
       const trkUsa = item.tracking_usa || trk?.tracking_usa || '—';
       const trkVzla = trk?.tracking_vzla || item.tracking_vzla || '—';
       const courierU = trk?.courier_usa || item.courier_usa || 'USA';
-      const courierV = trk?.courier_vzla || item.courier_vzla || 'liberty';
-      const prealert = trk?.prealertado || item.prealertado ? 'Prealertado ✅' : 'Sin Prealerta ⚠️';
-      const statusLabel = trk?.estado === 'ya_recogido' || item.en_taller ? 'En Taller 🏢' : (trk?.tracking_vzla || item.tracking_vzla ? 'En VZLA 🇻🇪' : (trkUsa !== '—' ? 'En USA 🇺🇸' : 'Pendiente'));
+      const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trk);
+      const statusLabel = evalStatus.isEnTaller 
+        ? 'En Taller 🏢' 
+        : (evalStatus.isEnVzla 
+          ? 'Tránsito a Vzla 🇻🇪' 
+          : (evalStatus.isEnUsa ? 'Tránsito Casillero 🇺🇸' : 'Pendiente'));
 
       const invTitle = invObj?.item ? `${invObj.item.marca || ''} ${invObj.item.modelo || invObj.item.nombre || ''}`.trim() : '<span style="color:#dc2626;">Sin Inventario</span>';
 
@@ -1684,7 +1673,7 @@ export default function ComprasEbay() {
           </div>
         </div>
 
-        {/* 2. En USA */}
+        {/* 2. Tránsito a Casillero */}
         <div 
           onClick={() => setFilterEstado('en_usa')}
           className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
@@ -1695,17 +1684,17 @@ export default function ComprasEbay() {
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
-              <span>Casillero USA</span>
+              <span>Tránsito a Casillero</span>
             </span>
             <Package className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold tracking-tight tabular-nums font-mono text-slate-900 dark:text-white">{metrics.enUsa}</span>
-            <span className="text-[11px] text-slate-400 font-normal">en tránsito</span>
+            <span className="text-[11px] text-slate-400 font-normal">en camino a Miami</span>
           </div>
         </div>
 
-        {/* 3. Agencia Envíos Vzla */}
+        {/* 3. Tránsito a Vzla */}
         <div 
           onClick={() => setFilterEstado('en_vzla')}
           className={`cursor-pointer p-3.5 rounded-xl border transition-all ${
@@ -1716,13 +1705,13 @@ export default function ComprasEbay() {
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-sky-700 dark:text-sky-400 uppercase tracking-wider flex items-center gap-1">
-              <span>Tránsito VZLA</span>
+              <span>Tránsito a Vzla</span>
             </span>
             <Truck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
           </div>
           <div className="mt-1 flex items-baseline gap-1.5">
             <span className="text-2xl font-bold tracking-tight tabular-nums font-mono text-slate-900 dark:text-white">{metrics.enVzla}</span>
-            <span className="text-[11px] text-slate-400 font-normal">con guía</span>
+            <span className="text-[11px] text-slate-400 font-normal">en casillero / viaje</span>
           </div>
         </div>
 
@@ -1842,7 +1831,7 @@ export default function ComprasEbay() {
             <span className="text-[11px] font-mono opacity-80">({metrics.sinPrealerta})</span>
           </button>
 
-          {/* 4. En USA */}
+          {/* 4. Tránsito a Casillero */}
           <button
             onClick={() => setFilterEstado('en_usa')}
             className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
@@ -1851,10 +1840,10 @@ export default function ComprasEbay() {
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            En USA ({metrics.enUsa})
+            Tránsito a Casillero ({metrics.enUsa})
           </button>
 
-          {/* 5. En VZLA */}
+          {/* 5. Tránsito a Vzla */}
           <button
             onClick={() => setFilterEstado('en_vzla')}
             className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
@@ -1863,7 +1852,7 @@ export default function ComprasEbay() {
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            En VZLA ({metrics.enVzla})
+            Tránsito a Vzla ({metrics.enVzla})
           </button>
 
           {/* 6. En Taller */}
@@ -1990,26 +1979,9 @@ export default function ComprasEbay() {
             const normUsa = usaUltimoEstado ? normalizarEstadoTracking(usaUltimoEstado, courierUsa) : null;
             const esTallerOEntregado = isEnTaller || trkDoc?.estado === 'ya_recogido' || esEstadoEntregado(vzlaUltimoEstado);
 
-            // Determinar si es únicamente prealerta en espera de paquete
-            const isPrealertOnly = Boolean(
-              trkDoc?.prealerta_id ||
-              (vzlaUltimoEstado && /pre\s*alertad|esperando paquete/i.test(vzlaUltimoEstado)) ||
-              (trackingVzla && trackingVzla.startsWith('WRTMP-'))
-            );
-
-            // Determinar si ya fue entregado en Almacén Miami (por UPS, FedEx, eBay o recepción física de Liberty)
-            const isUsaDelivered = Boolean(
-              item.isDelivered ||
-              item.shipping_status === 'delivered' ||
-              item.tracking_usa_entregado ||
-              trkDoc?.tracking_usa_entregado ||
-              (trkDoc?.estado === 'en_miami' && !isPrealertOnly) ||
-              trkDoc?.estado === 'transito_vzla' ||
-              trkDoc?.estado === 'disponible_agencia' ||
-              trkDoc?.estado === 'ya_recogido' ||
-              (usaUltimoEstado && esEstadoEntregado(usaUltimoEstado)) ||
-              (usaUltimoEstado && /delivered|entregad/i.test(usaUltimoEstado))
-            );
+            const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trkDoc);
+            const isUsaDelivered = evalStatus.isUsaDelivered;
+            const isPrealertOnly = evalStatus.isPrealertOnly;
 
             // Margen y finanzas calculadas
             const costoNum = Number(item.precio || 0);
@@ -2021,19 +1993,25 @@ export default function ComprasEbay() {
             let lifecycleBadge = null;
             if (isDescartado) {
               lifecycleBadge = { label: 'Descartado', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700' };
-            } else if (isVendido) {
+            } else if (evalStatus.isVendido) {
               lifecycleBadge = { label: 'Vendido', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
-            } else if (isDisponible) {
+            } else if (evalStatus.isDisponible) {
               lifecycleBadge = { label: 'Disponible para Venta', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
-            } else if (isEnTaller) {
+            } else if (evalStatus.isEnTaller) {
               lifecycleBadge = { label: 'En Taller • Preparación', dot: 'bg-indigo-500', cls: 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' };
-            } else if (trackingVzla && !isPrealertOnly) {
-              lifecycleBadge = { label: vzlaUltimoEstado || 'En Tránsito VZLA', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800' };
-            } else if (isUsaDelivered) {
-              lifecycleBadge = { label: 'Entregado en Miami', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
-            } else if (trackingUsa) {
-              lifecycleBadge = { label: isPrealerted ? 'Prealertado (USA)' : 'En Tránsito USA', dot: isPrealerted ? 'bg-amber-500' : 'bg-blue-500', cls: 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
-            } else if (!hasInv) {
+            } else if (evalStatus.isEnVzla) {
+              lifecycleBadge = { 
+                label: vzlaUltimoEstado || (evalStatus.isUsaDelivered ? 'Entregado en Miami' : 'Tránsito a Vzla'), 
+                dot: 'bg-purple-500', 
+                cls: 'bg-purple-50 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800' 
+              };
+            } else if (evalStatus.isEnUsa) {
+              lifecycleBadge = { 
+                label: 'En Tránsito USA', 
+                dot: 'bg-blue-500', 
+                cls: 'bg-blue-50 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800' 
+              };
+            } else if (!evalStatus.hasInv) {
               lifecycleBadge = { label: 'Falta en Catálogo', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800' };
             } else {
               lifecycleBadge = { label: 'En Inventario', dot: 'bg-slate-500', cls: 'bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
@@ -2130,6 +2108,14 @@ export default function ComprasEbay() {
                           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-md border ${lifecycleBadge.cls}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${lifecycleBadge.dot}`}></span>
                             <span>{lifecycleBadge.label}</span>
+                          </span>
+                        )}
+
+                        {/* Etiqueta separada de Prealertado (sutil, sin tanto énfasis) */}
+                        {evalStatus.isPrealerted && !evalStatus.isDisponible && !evalStatus.isVendido && !evalStatus.isEnTaller && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-md border bg-slate-100/90 text-slate-600 dark:bg-slate-800/90 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+                            <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Prealertado</span>
                           </span>
                         )}
 

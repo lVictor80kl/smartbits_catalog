@@ -1,4 +1,5 @@
 // Utilidades y configuración de Couriers para Rastreo de Envíos Smartbits
+import { tieneEnvioPagado } from './costos';
 
 export const COURIERS_USA = [
   { id: 'usps', nombre: 'USPS', color: 'bg-blue-600 text-white', icon: '📬' },
@@ -370,7 +371,7 @@ export function esEstadoEntregado(estadoOrText) {
 }
 
 /**
- * Retorna true si el paquete ya llegó al almacén de Miami.
+ * Retorna true si el paquete ya llegó al almacén de Miami o Centro de Distribución.
  */
 export function esEstadoRecibidoMiami(estadoOrText) {
   if (!estadoOrText) return false;
@@ -378,10 +379,109 @@ export function esEstadoRecibidoMiami(estadoOrText) {
   return (
     str === 'EN_MIAMI' ||
     str === 'DELIVERED_MIAMI' ||
+    str.includes('RECIBIDO EN CENTRO DE DISTRIBUCION') ||
+    str.includes('CENTRO DE DISTRIBUCION') ||
+    str.includes('RECIBIDO EN SEDE') ||
+    str.includes('RECIBIDO EN ALMACEN') ||
     str.includes('RECIBIDO EN MIAMI') ||
     str.includes('ALMACEN MIAMI') ||
+    str.includes('PROCESADO MIAMI') ||
+    str.includes('PROCESADO EN ALMACEN') ||
     esEstadoEntregado(str)
   );
+}
+
+/**
+ * Evalúa de forma unificada el estado logístico de un ítem de compra (eBay / Casillero / Taller)
+ * siguiendo la regla operativa:
+ * 1. Disponible o Vendido: Ya salió de taller.
+ * 2. En Taller: Flete pagado, o entregado en agencia/taller, o marcado en_taller.
+ * 3. Tránsito a VZLA: Físicamente recibido en el casillero (Miami) o en vuelo/aduana hacia Venezuela:
+ *    - Courier USA marcó "Delivered" / entregado en Miami.
+ *    - O Liberty Express marcó "Recibido en centro de distribución" / almacén Miami o tránsito internacional.
+ * 4. Tránsito a Casillero: El paquete está viajando dentro de USA hacia el casillero en Miami.
+ *    - Aunque ya tenga guía prealertada generada o asignada (WRTMP-... o prealerta), aún NO ha llegado al casillero.
+ *    - Permanece aquí hasta que el courier USA lo entregue o Liberty lo reciba físicamente.
+ */
+export function evaluarEstadoLogisticoItem(item = {}, invObj = null, trkDoc = null) {
+  const invItem = invObj?.item;
+  const hasInv = Boolean(invItem);
+  const isDisponible = invItem?.disponibilidad === 'Disponible';
+  const isVendido = invItem?.disponibilidad === 'No disponible';
+
+  const tieneEnvio = invItem ? tieneEnvioPagado(invItem) : false;
+  const vzlaUltimoEstado = (trkDoc?.tracking_vzla_ultimo_estado || item?.tracking_vzla_ultimo_estado || '').trim();
+  const usaUltimoEstado = (trkDoc?.tracking_usa_ultimo_estado || item?.tracking_usa_ultimo_estado || '').trim();
+  const trackingUsa = (item?.tracking_usa || trkDoc?.tracking_usa || '').trim().toUpperCase();
+  const trackingVzla = (trkDoc?.tracking_vzla || item?.tracking_vzla || '').trim().toUpperCase();
+
+  const isEnTaller = !isDisponible && !isVendido && Boolean(
+    tieneEnvio ||
+    trkDoc?.estado === 'ya_recogido' ||
+    Boolean(item?.en_taller) ||
+    Boolean(invItem?.en_taller) ||
+    esEstadoEntregado(vzlaUltimoEstado)
+  );
+
+  const isPrealerted = Boolean(trkDoc?.prealertado || item?.prealertado);
+
+  // ¿Es una guía que se encuentra únicamente en fase de prealerta en espera de paquete?
+  const isPrealertOnly = Boolean(
+    trkDoc?.prealerta_id ||
+    (trackingVzla && trackingVzla.startsWith('WRTMP-')) ||
+    (vzlaUltimoEstado && /pre\s*alertad|esperando paquete/i.test(vzlaUltimoEstado))
+  );
+
+  // Físicamente recibido por Liberty en Centro de Distribución o más adelante (viaje a VZLA / agencia)
+  const isRecibidoLiberty = Boolean(
+    vzlaUltimoEstado && (
+      /recibido en centro de distribucion|centro de distribucion|recibido en sede|recibido en almacen|recibido en miami|almacen miami|procesado miami|procesado en almacen/i.test(vzlaUltimoEstado) ||
+      /a bordo|transportado a su destino|listo para ser embarcado|embarcado|empacado|despachado|en vuelo|en barco|transito internacional|transito a venezuela|en aduana|nacionalizacion|disponible en agencia|disponible en sucursal/i.test(vzlaUltimoEstado)
+    )
+  );
+
+  // Courier USA (UPS, FedEx, USPS, Amazon) ya entregó en el almacén de Miami
+  const isUsaDelivered = Boolean(
+    item?.isDelivered ||
+    item?.shipping_status === 'delivered' ||
+    item?.tracking_usa_entregado ||
+    trkDoc?.tracking_usa_entregado ||
+    (usaUltimoEstado && /delivered|entregad|left at|front desk|dock|delivery completed/i.test(usaUltimoEstado))
+  );
+
+  // ¿Ha llegado efectivamente al casillero y/o está en tránsito a Venezuela?
+  const isEnVzla = !isEnTaller && !isDisponible && !isVendido && (
+    isRecibidoLiberty ||
+    isUsaDelivered ||
+    trkDoc?.estado === 'transito_vzla' ||
+    trkDoc?.estado === 'disponible_agencia' ||
+    (trkDoc?.estado === 'en_miami' && !isPrealertOnly) ||
+    (trackingVzla && !isPrealertOnly && !trackingVzla.startsWith('WRTMP-') && vzlaUltimoEstado && !/pre\s*alertad|esperando paquete/i.test(vzlaUltimoEstado))
+  );
+
+  // ¿Está en tránsito hacia el casillero en USA?
+  const isEnUsa = !isEnTaller && !isDisponible && !isVendido && !isEnVzla && Boolean(
+    trackingUsa || isPrealerted || isPrealertOnly || trackingVzla
+  );
+
+  return {
+    hasInv,
+    isDisponible,
+    isVendido,
+    isEnTaller,
+    isEnVzla,
+    isEnUsa,
+    hasTrackingUsa: Boolean(trackingUsa),
+    hasTrackingVzla: Boolean(trackingVzla),
+    isPrealerted,
+    isPrealertOnly,
+    isUsaDelivered,
+    isRecibidoLiberty,
+    trackingUsa,
+    trackingVzla,
+    vzlaUltimoEstado,
+    usaUltimoEstado
+  };
 }
 
 /**

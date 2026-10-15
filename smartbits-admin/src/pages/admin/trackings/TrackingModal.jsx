@@ -153,9 +153,14 @@ export default function TrackingModal({ isOpen, onClose, trackingToEdit, initial
         }
       }
 
-      // Si coloca tracking_vzla y está en estado inicial, sugerir que ya está en Miami
+      // Si coloca tracking_vzla y está en estado inicial, marcar como prealertado (solo pasa a Miami si tracking USA ya fue entregado)
       if (name === 'tracking_vzla' && value.trim().length > 3 && (prev.estado === 'por_prealertar' || prev.estado === 'prealertado')) {
-        updated.estado = 'en_miami';
+        updated.prealertado = true;
+        if (prev.tracking_usa_entregado) {
+          updated.estado = 'en_miami';
+        } else {
+          updated.estado = 'prealertado';
+        }
       }
 
       return updated;
