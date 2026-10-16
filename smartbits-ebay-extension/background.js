@@ -28,6 +28,12 @@ chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => 
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true; // Respuesta asíncrona
   }
+  if (request && request.action === 'query_liberty') {
+    consultarLibertyDirecto(request.guide)
+      .then(res => sendResponse({ success: true, ...res }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
 });
 
 // También escuchar mensajes internos del popup o content scripts
@@ -38,7 +44,72 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
+  if (request && request.action === 'query_liberty') {
+    consultarLibertyDirecto(request.guide)
+      .then(res => sendResponse({ success: true, ...res }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
 });
+
+/**
+ * Consulta directa a Liberty Express desde la extensión sin bloqueos de CORS
+ */
+async function consultarLibertyDirecto(guide) {
+  const cleanGuide = String(guide || '').trim().replace(/\s+/g, '').toUpperCase();
+  if (!cleanGuide) throw new Error('Guía vacía');
+
+  const fetchHeaders = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'es-VE,es;q=0.9,en;q=0.8'
+  };
+
+  // 1. GET directo si ya es formato de guía Liberty (WR01-, WRTMP-, LIB-)
+  if (/^(?:WR|LIB|VE)[0-9A-Z_-]+$/i.test(cleanGuide)) {
+    try {
+      const directUrl = `https://iqpack.libertyexpress.com/Tracking?nGuia=${encodeURIComponent(cleanGuide)}`;
+      const directResp = await fetch(directUrl, { headers: fetchHeaders });
+      if (directResp.ok) {
+        const directHtml = await directResp.text();
+        if (directHtml.includes('tr-summary') || directHtml.includes('tr-timeline')) {
+          return { success: true, html: directHtml, guide: cleanGuide };
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 2. SearchGuide POST con token y cookie
+  const getResp = await fetch('https://iqpack.libertyexpress.com/SearchGuide', { headers: fetchHeaders });
+  const getHtml = await getResp.text();
+  const tokenMatch = getHtml.match(/name=["']__RequestVerificationToken["'][^>]*value=["']([^"']+)["']/i) ||
+                     getHtml.match(/value=["']([^"']+)["'][^>]*name=["']__RequestVerificationToken["']/i);
+  const token = tokenMatch ? tokenMatch[1] : '';
+
+  const formData = new URLSearchParams();
+  if (token) formData.append('__RequestVerificationToken', token);
+  formData.append('FromMobileApp', 'False');
+  formData.append('FromReactApp', 'True');
+  formData.append('hreflang', '');
+  formData.append('NGuia', cleanGuide);
+
+  const postResp = await fetch('https://iqpack.libertyexpress.com/SearchGuide', {
+    method: 'POST',
+    headers: {
+      ...fetchHeaders,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Referer': 'https://iqpack.libertyexpress.com/SearchGuide',
+      'Origin': 'https://iqpack.libertyexpress.com'
+    },
+    body: formData.toString()
+  });
+
+  const finalHtml = await postResp.text();
+  return {
+    success: postResp.status >= 200 && postResp.status < 400,
+    html: finalHtml,
+    guide: cleanGuide
+  };
+}
 
 /**
  * Refresca el token de Firebase si está vencido

@@ -123,6 +123,9 @@ export default function TrackingsDashboard() {
         const msg = partes.join(' • ');
         setSyncCourierNotification(msg);
         setTimeout(() => setSyncCourierNotification(''), 10000);
+      } else if (res.errores && res.errores.length > 0) {
+        setSyncCourierNotification(`⚠️ No se pudo conectar con Liberty Express: ${res.errores[0].error}`);
+        setTimeout(() => setSyncCourierNotification(''), 9000);
       } else {
         setSyncCourierNotification(`✓ Rastreo completado: Todos los paquetes (${res.totalProcesados}) están sincronizados.`);
         setTimeout(() => setSyncCourierNotification(''), 6000);

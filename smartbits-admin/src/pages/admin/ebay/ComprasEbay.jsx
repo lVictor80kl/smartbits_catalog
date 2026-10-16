@@ -389,6 +389,14 @@ export default function ComprasEbay() {
       });
       if (trk) return trk;
     }
+    const cleanVzla = (item.tracking_vzla || invItemObj?.item?.tracking_vzla || '').trim().replace(/[\s-]/g, '').toUpperCase();
+    if (cleanVzla) {
+      const trk = trackings.find(t => {
+        const trkCleanVzla = (t.tracking_vzla || '').trim().replace(/[\s-]/g, '').toUpperCase();
+        return trkCleanVzla && trkCleanVzla === cleanVzla;
+      });
+      if (trk) return trk;
+    }
     const targetId = invItemObj?.item?.id || item.id;
     const trkByItem = trackings.find(t => Array.isArray(t.items) && t.items.some(ti => ti.id === targetId || ti.id === item.id));
     if (trkByItem) return trkByItem;
@@ -753,6 +761,9 @@ export default function ComprasEbay() {
         const msg = partes.join(' • ');
         setSyncCourierNotification(msg);
         setTimeout(() => setSyncCourierNotification(''), 10000);
+      } else if (res.errores && res.errores.length > 0 && !isSilent) {
+        setSyncCourierNotification(`⚠️ No se pudo conectar con Liberty Express: ${res.errores[0].error}`);
+        setTimeout(() => setSyncCourierNotification(''), 9000);
       } else if (!isSilent) {
         setSyncCourierNotification(`✓ Rastreo completado: Todos los paquetes (${res.totalProcesados}) están al día.`);
         setTimeout(() => setSyncCourierNotification(''), 6000);
@@ -2000,10 +2011,14 @@ export default function ComprasEbay() {
             } else if (evalStatus.isEnTaller) {
               lifecycleBadge = { label: 'En Taller • Preparación', dot: 'bg-indigo-500', cls: 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' };
             } else if (evalStatus.isEnVzla) {
+              const labelVzla = vzlaUltimoEstado || (evalStatus.isUsaDelivered ? 'Entregado en Miami' : 'Tránsito a Vzla');
+              const isDisp = /disponible|retiro|agencia|sucursal/i.test(vzlaUltimoEstado || '');
               lifecycleBadge = { 
-                label: vzlaUltimoEstado || (evalStatus.isUsaDelivered ? 'Entregado en Miami' : 'Tránsito a Vzla'), 
-                dot: 'bg-purple-500', 
-                cls: 'bg-purple-50 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800' 
+                label: labelVzla, 
+                dot: isDisp ? 'bg-amber-500' : 'bg-purple-500', 
+                cls: isDisp 
+                  ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800' 
+                  : 'bg-purple-50 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800' 
               };
             } else if (evalStatus.isEnUsa) {
               lifecycleBadge = { 

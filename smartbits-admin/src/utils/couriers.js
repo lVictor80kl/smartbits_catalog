@@ -364,9 +364,12 @@ export function esEstadoEntregado(estadoOrText) {
   return (
     str === 'YA_RECOGIDO' ||
     str === 'ENTREGADO_TALLER' ||
+    str.includes('FACTURAD') ||
     str.includes('ENTREGAD') ||
     str.includes('ENTREGA REALIZADA') ||
-    str.includes('RETIRADO')
+    str.includes('RETIRADO POR') ||
+    str.includes('RETIRADO EN AGENCIA') ||
+    str.includes('PAQUETE RETIRADO')
   );
 }
 
@@ -396,12 +399,10 @@ export function esEstadoRecibidoMiami(estadoOrText) {
  * siguiendo la regla operativa:
  * 1. Disponible o Vendido: Ya salió de taller.
  * 2. En Taller: Flete pagado, o entregado en agencia/taller, o marcado en_taller.
- * 3. Tránsito a VZLA: Físicamente recibido en el casillero (Miami) o en vuelo/aduana hacia Venezuela:
+ * 3. Tránsito a VZLA: Físicamente recibido en el casillero (Miami) o en vuelo/aduana/agencia hacia Venezuela:
  *    - Courier USA marcó "Delivered" / entregado en Miami.
- *    - O Liberty Express marcó "Recibido en centro de distribución" / almacén Miami o tránsito internacional.
+ *    - O Liberty Express reporta cualquier estado de procesamiento o tránsito.
  * 4. Tránsito a Casillero: El paquete está viajando dentro de USA hacia el casillero en Miami.
- *    - Aunque ya tenga guía prealertada generada o asignada (WRTMP-... o prealerta), aún NO ha llegado al casillero.
- *    - Permanece aquí hasta que el courier USA lo entregue o Liberty lo reciba físicamente.
  */
 export function evaluarEstadoLogisticoItem(item = {}, invObj = null, trkDoc = null) {
   const invItem = invObj?.item;
@@ -432,12 +433,9 @@ export function evaluarEstadoLogisticoItem(item = {}, invObj = null, trkDoc = nu
     (vzlaUltimoEstado && /pre\s*alertad|esperando paquete/i.test(vzlaUltimoEstado))
   );
 
-  // Físicamente recibido por Liberty en Centro de Distribución o más adelante (viaje a VZLA / agencia)
+  // Físicamente recibido por Liberty en su red logística (cualquier estatus posterior a prealerta)
   const isRecibidoLiberty = Boolean(
-    vzlaUltimoEstado && (
-      /recibido en centro de distribucion|centro de distribucion|recibido en sede|recibido en almacen|recibido en miami|almacen miami|procesado miami|procesado en almacen/i.test(vzlaUltimoEstado) ||
-      /a bordo|transportado a su destino|listo para ser embarcado|embarcado|empacado|despachado|en vuelo|en barco|transito internacional|transito a venezuela|en aduana|nacionalizacion|disponible en agencia|disponible en sucursal/i.test(vzlaUltimoEstado)
-    )
+    vzlaUltimoEstado && !isPrealertOnly
   );
 
   // Courier USA (UPS, FedEx, USPS, Amazon) ya entregó en el almacén de Miami

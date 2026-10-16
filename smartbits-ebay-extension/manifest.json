@@ -13,7 +13,8 @@
     "*://*.ebay.com/*",
     "https://identitytoolkit.googleapis.com/*",
     "https://securetoken.googleapis.com/*",
-    "https://firestore.googleapis.com/*"
+    "https://firestore.googleapis.com/*",
+    "https://*.libertyexpress.com/*"
   ],
   "background": {
     "service_worker": "background.js"

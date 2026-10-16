@@ -69,10 +69,10 @@ export function parseLibertyHtml(html, trackingBuscado = '') {
     }
   }
 
-  // 2. Detección del Último Estatus LITERAL tal como lo reporta el courier
+  // 2. Detección del Último Estatus LITERAL tal como lo reporta el courier en el <h2> del summary (/html/body/div/main/div/section/div/section[1]/div[2]/h2)
   let ultimoEstado = null;
   if (docParsed) {
-    const h2 = docParsed.querySelector('.tr-summary h2, section[aria-label="Estado actual"] h2');
+    const h2 = docParsed.querySelector('.tr-summary h2, section[aria-label="Estado actual"] h2, .tr-summary div h2');
     if (h2 && h2.textContent.trim()) {
       ultimoEstado = h2.textContent.trim();
     }
@@ -108,11 +108,6 @@ function decodeHtmlEntities(str) {
     ultimoEstado = decodeHtmlEntities(ultimoEstado);
   }
 
-  // Si no se encuentra estatus explícito en el resumen, buscar en título o timeline
-  if (!ultimoEstado && html.includes('Sin movimientos registrados')) {
-    ultimoEstado = 'Sin movimientos registrados en Liberty';
-  }
-
   // 3. Historial de eventos y fecha más reciente
   const historial = [];
   let fechaEstado = null;
@@ -141,12 +136,22 @@ function decodeHtmlEntities(str) {
     }
   } else {
     // Regex fallback para timeline
-    const timelineRegex = /<li[^>]*>[\s\S]*?<time[^>]*>([^<]+)<\/time>[\s\S]*?<h3[^>]*>([^<]+)<\/h3>/gi;
+    const timelineRegex = /<li[^>]*>[\s\S]*?<time[^>]*>([\s\S]*?)<\/time>[\s\S]*?<h3[^>]*>([^<]+)<\/h3>/gi;
     let m;
     while ((m = timelineRegex.exec(html)) !== null) {
-      historial.push({ fecha: m[1].trim(), titulo: m[2].trim(), detalle: '' });
-      if (!fechaEstado) fechaEstado = m[1].trim();
+      const rawTime = m[1].replace(/<[^>]+>/g, '').trim();
+      historial.push({ fecha: rawTime, titulo: m[2].trim(), detalle: '' });
+      if (!fechaEstado) fechaEstado = rawTime;
     }
+  }
+
+  // Si no se detectó h2, usar el primer evento del timeline
+  if (!ultimoEstado && historial.length > 0 && historial[0].titulo) {
+    ultimoEstado = historial[0].titulo;
+  }
+
+  if (!ultimoEstado && html.includes('Sin movimientos registrados')) {
+    ultimoEstado = 'Sin movimientos registrados en Liberty';
   }
 
   let sucursal = null;
@@ -183,30 +188,32 @@ function decodeHtmlEntities(str) {
     fullTextUpper.includes('FACTURAD')
   );
 
-  const isDisponible = (
+  const isDisponible = !isDelivered && (
+    fullTextUpper.includes('DISPONIBLE PARA SU RETIRO') ||
     fullTextUpper.includes('DISPONIBLE EN AGENCIA') ||
     fullTextUpper.includes('DISPONIBLE EN SUCURSAL') ||
     fullTextUpper.includes('LISTO PARA RETIRO') ||
-    (fullTextUpper.includes('DISPONIBLE') && !fullTextUpper.includes('NO DISPONIBLE'))
+    fullTextUpper.includes('DISPONIBLE')
   );
 
-  const isTransitoVzla = (
+  const isTransitoVzla = !isDelivered && !isDisponible && !isPrealertOnly && (
     fullTextUpper.includes('A BORDO') ||
-    fullTextUpper.includes('TRANSPORTADO A SU DESTINO') ||
-    fullTextUpper.includes('LISTO PARA SER EMBARCADO') ||
+    fullTextUpper.includes('TRANSPORTADO') ||
     fullTextUpper.includes('EMBARCADO') ||
     fullTextUpper.includes('EMPACADO') ||
-    fullTextUpper.includes('EN VUELO') ||
-    fullTextUpper.includes('EN BARCO') ||
-    fullTextUpper.includes('DESPACHADO A VENEZUELA') ||
+    fullTextUpper.includes('AUDITORIA') ||
+    fullTextUpper.includes('TRANSFERIDO') ||
+    fullTextUpper.includes('TRASLADO') ||
+    fullTextUpper.includes('VUELO') ||
+    fullTextUpper.includes('BARCO') ||
     fullTextUpper.includes('DESPACHADO') ||
-    fullTextUpper.includes('TRANSITO INTERNACIONAL') ||
-    fullTextUpper.includes('TRANSITO A VENEZUELA') ||
-    fullTextUpper.includes('EN ADUANA') ||
-    fullTextUpper.includes('NACIONALIZACION')
+    fullTextUpper.includes('TRANSITO') ||
+    fullTextUpper.includes('ADUANA') ||
+    fullTextUpper.includes('NACIONALIZACION') ||
+    fullTextUpper.includes('SALIDA')
   );
 
-  // Físicamente recibido en almacén Miami (SOLO si NO es únicamente prealerta en espera)
+  // Físicamente recibido en almacén Miami o en red Liberty
   const isInMiami = !isPrealertOnly && (
     isDelivered ||
     isDisponible ||
@@ -251,7 +258,8 @@ export async function consultarLibertyTracking(trackingNumber) {
     return { success: false, error: 'Número de guía o tracking vacío' };
   }
 
-  // 1. Probar el endpoint unificado de proxy local de Vite (/api/liberty/query?guide=...)
+// 1. Probar el endpoint unificado de proxy (/api/liberty/query?guide=...)
+  // Funciona en Vite dev server y en Vercel Serverless Function
   try {
     const proxyQueryUrl = `/api/liberty/query?guide=${encodeURIComponent(clean)}`;
     const resp = await fetch(proxyQueryUrl, {
@@ -266,7 +274,7 @@ export async function consultarLibertyTracking(trackingNumber) {
         return {
           success: true,
           ...parsed,
-          source: 'vite-proxy'
+          source: 'api-proxy'
         };
       }
     }
@@ -274,7 +282,31 @@ export async function consultarLibertyTracking(trackingNumber) {
     // Si no está disponible el proxy, continuar al fallback
   }
 
-  // 2. Fallback de 2 pasos con manejo de cookies y token
+  // 2. Puente con la extensión de Chrome de Smartbits (sin restricciones CORS en navegador)
+  if (typeof window !== 'undefined' && window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
+    try {
+      const extResp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: 'query_liberty', guide: clean }, (res) => {
+          if (chrome.runtime.lastError || !res) {
+            resolve(null);
+          } else {
+            resolve(res);
+          }
+        });
+      });
+
+      if (extResp && extResp.html) {
+        const parsed = parseLibertyHtml(extResp.html, clean);
+        return {
+          success: true,
+          ...parsed,
+          source: 'chrome-extension'
+        };
+      }
+    } catch (_) {}
+  }
+
+  // 3. Fallback de 2 pasos con manejo de cookies y token
   const endpoints = [
     { base: '/api/liberty', isProxy: true },
     { base: 'https://iqpack.libertyexpress.com', isProxy: false }
@@ -448,12 +480,15 @@ export async function sincronizarTrackingsConCouriers({
         fecha_actualizacion: serverTimestamp()
       };
 
-      // Buscar compras de eBay vinculadas a este tracking
+      // Buscar compras de eBay vinculadas a este tracking (por tracking_id, por Tracking USA o por Tracking VZLA)
       const itemsEnTracking = Array.isArray(trk.items) ? trk.items : [];
       const comprasVinculadas = compras.filter(c => {
         if (c.tracking_id === trk.id) return true;
         const cUsa = cleanTrackingNumber(c.tracking_usa);
         if (cUsa && cleanUsa && cUsa === cleanUsa) return true;
+        const cVzla = cleanTrackingNumber(c.tracking_vzla);
+        if (cVzla && cleanVzla && cVzla === cleanVzla) return true;
+        if (cVzla && res?.trackingVzla && cVzla === cleanTrackingNumber(res.trackingVzla)) return true;
         if (itemsEnTracking.some(it => it.id === c.id || it.id === c.inventario_id)) return true;
         return false;
       });
@@ -574,6 +609,12 @@ export async function sincronizarTrackingsConCouriers({
           }
           huboCambios = true;
         }
+      } else if (res && !res.success) {
+        resultSummary.errores.push({
+          id: trk.id,
+          tracking: cleanVzla || cleanUsa,
+          error: res.error || 'No se pudo conectar con Liberty Express'
+        });
       }
 
       if (huboCambios) {
@@ -583,6 +624,9 @@ export async function sincronizarTrackingsConCouriers({
           const updatesCompra = {
             fecha_actualizacion: serverTimestamp()
           };
+          if (!c.tracking_id) {
+            updatesCompra.tracking_id = trk.id;
+          }
           if (updatesTrk.tracking_usa_entregado) {
             updatesCompra.tracking_usa_entregado = true;
             updatesCompra.tracking_usa_ultimo_estado = updatesTrk.tracking_usa_ultimo_estado || "Entregado en Almacén Miami";
