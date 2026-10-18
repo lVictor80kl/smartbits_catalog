@@ -404,6 +404,51 @@ export default function ComprasEbay() {
     return null;
   };
 
+  // Helper para obtener el link de compra de eBay (desde compras_ebay, observaciones_compra de la ficha o itemId)
+  const getEbayPurchaseUrl = (item, invObj) => {
+    // 1. Si la compra de eBay ya tiene item_url directo
+    if (item?.item_url && typeof item.item_url === 'string' && item.item_url.startsWith('http')) {
+      return item.item_url.trim();
+    }
+    if (item?.url && typeof item.url === 'string' && item.url.startsWith('http')) {
+      return item.url.trim();
+    }
+
+    // 2. Si la ficha de inventario tiene item_url directo
+    if (invObj?.item?.item_url && typeof invObj.item.item_url === 'string' && invObj.item.item_url.startsWith('http')) {
+      return invObj.item.item_url.trim();
+    }
+
+    // 3. Extraer de observaciones_compra de la ficha vinculada (donde la extensión o usuario coloca la URL)
+    const obs = invObj?.item?.observaciones_compra;
+    if (typeof obs === 'string' && obs) {
+      const ebayMatch = obs.match(/https?:\/\/(?:www\.)?ebay\.[a-z.]+\/itm\/[^\s)]+/i);
+      if (ebayMatch) return ebayMatch[0].trim();
+      const anyUrlMatch = obs.match(/https?:\/\/[^\s)]+/i);
+      if (anyUrlMatch) return anyUrlMatch[0].trim();
+    }
+
+    // 4. Extraer de otros o notas
+    const otros = invObj?.item?.otros || invObj?.item?.notas;
+    if (typeof otros === 'string' && otros) {
+      const ebayMatch = otros.match(/https?:\/\/(?:www\.)?ebay\.[a-z.]+\/itm\/[^\s)]+/i);
+      if (ebayMatch) return ebayMatch[0].trim();
+      const anyUrlMatch = otros.match(/https?:\/\/[^\s)]+/i);
+      if (anyUrlMatch) return anyUrlMatch[0].trim();
+    }
+
+    // 5. Si tiene itemId en la compra de eBay o en la ficha
+    const rawItemId = item?.itemId || invObj?.item?.ebay_item_id;
+    if (rawItemId) {
+      const cleanId = String(rawItemId).replace(/_u[0-9]+$/, '').trim();
+      if (/^\d{9,16}$/.test(cleanId)) {
+        return `https://www.ebay.com/itm/${cleanId}`;
+      }
+    }
+
+    return null;
+  };
+
   // Prioridad operativa para clasificación:
   // 1: Sin agregar a inventario
   // 2: Sin prealertar (tiene tracking USA pero no prealertado)
@@ -1959,6 +2004,7 @@ export default function ComprasEbay() {
             const invFoto = invObj?.item?.imagenes?.[0] || invObj?.item?.imagen || null;
             const invPrecioVenta = invObj?.item?.precio ? Number(invObj.item.precio) : null;
             const invDisponibilidad = invObj?.item?.disponibilidad || null;
+            const ebayPurchaseUrl = getEbayPurchaseUrl(item, invObj);
 
             // Datos de Tracking USA
             const trackingUsa = (item.tracking_usa || trkDoc?.tracking_usa || '').trim().toUpperCase();
@@ -2191,25 +2237,29 @@ export default function ComprasEbay() {
                       <div>
                         {hasInv ? (
                           <div className="space-y-0.5">
-                            {/* Título formal en inventario */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);
-                                else navigate(`/admin/components/edit/${invObj.item.id}`);
-                              }}
-                              className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 text-left line-clamp-1 flex items-center gap-1.5 group/inv transition"
-                              title="Clic para abrir la ficha en inventario"
-                            >
-                              <span>{invTitle}</span>
-                              <Edit2 className="w-3 h-3 opacity-0 group-hover/inv:opacity-100 transition text-blue-600 shrink-0" />
-                            </button>
+                            {/* Título formal en inventario -> Redirige al link de compra de eBay en nueva pestaña */}
+                            {ebayPurchaseUrl ? (
+                              <a
+                                href={ebayPurchaseUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 text-left line-clamp-1 inline-flex items-center gap-1.5 group/ebay transition"
+                                title="Abrir publicación de compra en eBay en nueva pestaña"
+                              >
+                                <span>{invTitle}</span>
+                                <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/ebay:text-blue-600 transition shrink-0" />
+                              </a>
+                            ) : (
+                              <h4 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white line-clamp-1">
+                                <span>{invTitle}</span>
+                              </h4>
+                            )}
                             {/* Subtítulo: Título original de compra en eBay */}
                             <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                               <span className="truncate max-w-lg">{item.titulo}</span>
-                              {item.item_url && (
+                              {ebayPurchaseUrl && (
                                 <a 
-                                  href={item.item_url} 
+                                  href={ebayPurchaseUrl} 
                                   target="_blank" 
                                   rel="noreferrer"
                                   title="Ver publicación original en eBay"
@@ -2223,17 +2273,19 @@ export default function ComprasEbay() {
                         ) : (
                           <div className="space-y-0.5">
                             <h4 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white line-clamp-1 flex items-center gap-1.5">
-                              <span>{item.titulo}</span>
-                              {item.item_url && (
-                                <a 
-                                  href={item.item_url} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  title="Ver en eBay"
-                                  className="text-slate-400 hover:text-blue-600 transition shrink-0"
+                              {ebayPurchaseUrl ? (
+                                <a
+                                  href={ebayPurchaseUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Ver publicación de compra en eBay en nueva pestaña"
+                                  className="hover:text-blue-600 dark:hover:text-blue-400 inline-flex items-center gap-1.5 group/ebay transition"
                                 >
-                                  <ExternalLink className="w-3 h-3" />
+                                  <span>{item.titulo}</span>
+                                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/ebay:text-blue-600 transition shrink-0" />
                                 </a>
+                              ) : (
+                                <span>{item.titulo}</span>
                               )}
                             </h4>
                             <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
