@@ -395,13 +395,38 @@ export function esEstadoRecibidoMiami(estadoOrText) {
 }
 
 /**
+ * Retorna true si el estatus reporta tránsito internacional hacia Venezuela.
+ */
+export function esEstadoTransitoVzla(estadoOrText) {
+  if (!estadoOrText) return false;
+  const str = String(estadoOrText).trim().toUpperCase();
+  return (
+    str === 'TRANSITO_VZLA' ||
+    str.includes('A BORDO') ||
+    str.includes('TRANSPORTADO') ||
+    str.includes('EMBARCADO') ||
+    str.includes('EMPACADO') ||
+    str.includes('AUDITORIA') ||
+    str.includes('TRANSFERIDO') ||
+    str.includes('TRASLADO') ||
+    str.includes('VUELO') ||
+    str.includes('BARCO') ||
+    str.includes('DESPACHADO') ||
+    str.includes('TRANSITO') ||
+    str.includes('ADUANA') ||
+    str.includes('NACIONALIZACION') ||
+    str.includes('SALIDA')
+  );
+}
+
+/**
  * Evalúa de forma unificada el estado logístico de un ítem de compra (eBay / Casillero / Taller)
  * siguiendo la regla operativa:
  * 1. Disponible o Vendido: Ya salió de taller.
  * 2. En Taller: Flete pagado, o entregado en agencia/taller, o marcado en_taller.
  * 3. Tránsito a VZLA: Físicamente recibido en el casillero (Miami) o en vuelo/aduana/agencia hacia Venezuela:
  *    - Courier USA marcó "Delivered" / entregado en Miami.
- *    - O Liberty Express reporta cualquier estado de procesamiento o tránsito.
+ *    - O Liberty Express reporta cualquier estado de procesamiento o tránsito internacional ("A bordo...", "Recibido en almacén...", etc.).
  * 4. Tránsito a Casillero: El paquete está viajando dentro de USA hacia el casillero en Miami.
  */
 export function evaluarEstadoLogisticoItem(item = {}, invObj = null, trkDoc = null) {
@@ -426,25 +451,35 @@ export function evaluarEstadoLogisticoItem(item = {}, invObj = null, trkDoc = nu
 
   const isPrealerted = Boolean(trkDoc?.prealertado || item?.prealertado);
 
-  // ¿Es una guía que se encuentra únicamente en fase de prealerta en espera de paquete?
-  const isPrealertOnly = Boolean(
-    trkDoc?.prealerta_id ||
-    (trackingVzla && trackingVzla.startsWith('WRTMP-')) ||
-    (vzlaUltimoEstado && /pre\s*alertad|esperando paquete/i.test(vzlaUltimoEstado))
-  );
-
-  // Físicamente recibido por Liberty en su red logística (cualquier estatus posterior a prealerta)
+  // Físicamente recibido por Liberty o courier VZLA en su red logística (almacén Miami, a bordo, en tránsito o agencia)
   const isRecibidoLiberty = Boolean(
-    vzlaUltimoEstado && !isPrealertOnly
+    esEstadoRecibidoMiami(vzlaUltimoEstado) ||
+    esEstadoTransitoVzla(vzlaUltimoEstado) ||
+    esEstadoEntregado(vzlaUltimoEstado) ||
+    trkDoc?.estado === 'en_miami' ||
+    trkDoc?.estado === 'transito_vzla' ||
+    trkDoc?.estado === 'disponible_agencia' ||
+    trkDoc?.estado === 'ya_recogido' ||
+    (trackingVzla && !trackingVzla.startsWith('WRTMP-') && vzlaUltimoEstado && !/pre\s*alertad|esperando paquete|sin movimientos/i.test(vzlaUltimoEstado))
   );
 
-  // Courier USA (UPS, FedEx, USPS, Amazon) ya entregó en el almacén de Miami
+  // Courier USA (UPS, FedEx, USPS, Amazon) ya entregó en el almacén de Miami.
+  // Regla inviolable: si Liberty ya tiene el paquete físicamente o viaja a Vzla, el courier USA OBLIGATORIAMENTE ya lo entregó en Miami.
   const isUsaDelivered = Boolean(
     item?.isDelivered ||
     item?.shipping_status === 'delivered' ||
     item?.tracking_usa_entregado ||
     trkDoc?.tracking_usa_entregado ||
+    isRecibidoLiberty ||
     (usaUltimoEstado && /delivered|entregad|left at|front desk|dock|delivery completed/i.test(usaUltimoEstado))
+  );
+
+  // ¿Es una guía que se encuentra ÚNICAMENTE en fase de prealerta en espera de que llegue el paquete?
+  // NOTA: Si ya fue recibido por Liberty o entregado en Miami, NUNCA es prealerta única.
+  const isPrealertOnly = !isRecibidoLiberty && !isUsaDelivered && !isEnTaller && Boolean(
+    (trackingVzla && trackingVzla.startsWith('WRTMP-')) ||
+    (vzlaUltimoEstado && /pre\s*alertad|esperando paquete/i.test(vzlaUltimoEstado)) ||
+    (trkDoc?.estado === 'por_prealertar' || trkDoc?.estado === 'prealertado')
   );
 
   // ¿Ha llegado efectivamente al casillero y/o está en tránsito a Venezuela?
@@ -453,8 +488,8 @@ export function evaluarEstadoLogisticoItem(item = {}, invObj = null, trkDoc = nu
     isUsaDelivered ||
     trkDoc?.estado === 'transito_vzla' ||
     trkDoc?.estado === 'disponible_agencia' ||
-    (trkDoc?.estado === 'en_miami' && !isPrealertOnly) ||
-    (trackingVzla && !isPrealertOnly && !trackingVzla.startsWith('WRTMP-') && vzlaUltimoEstado && !/pre\s*alertad|esperando paquete/i.test(vzlaUltimoEstado))
+    trkDoc?.estado === 'en_miami' ||
+    (trackingVzla && !isPrealertOnly && !trackingVzla.startsWith('WRTMP-'))
   );
 
   // ¿Está en tránsito hacia el casillero en USA?

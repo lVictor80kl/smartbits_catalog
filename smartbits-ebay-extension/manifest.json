@@ -14,7 +14,8 @@
     "https://identitytoolkit.googleapis.com/*",
     "https://securetoken.googleapis.com/*",
     "https://firestore.googleapis.com/*",
-    "https://*.libertyexpress.com/*"
+    "https://*.libertyexpress.com/*",
+    "*://*.ups.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -49,6 +50,14 @@
         "*://*.ebay.com/mye/myebay/v2/purchase/tracking*"
       ],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.ups.com/track*",
+        "*://www.ups.com/track*"
+      ],
+      "js": ["ups-content.js"],
       "run_at": "document_idle"
     }
   ]

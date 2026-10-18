@@ -50,7 +50,157 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
+  if (request && request.action === 'sync_ups_status') {
+    actualizarTrackingUpsDirecto(request.trackingNumber, request.status, request.rawStatus)
+      .then(res => sendResponse({ success: true, ...res }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
 });
+
+/**
+ * Actualiza el estatus de un tracking de UPS directamente en Firestore
+ */
+async function actualizarTrackingUpsDirecto(trackingNumber, status = 'Delivered', rawStatus = '') {
+  const cleanTrack = String(trackingNumber || '').trim().replace(/[\s-]/g, '').toUpperCase();
+  if (!cleanTrack) throw new Error('Tracking vacío');
+
+  const token = await getValidToken();
+  if (!token) {
+    console.warn('[Smartbits Background] Sesión no iniciada en la extensión. No se puede escribir en Firestore.');
+    return { success: false, error: 'Sesión no iniciada' };
+  }
+
+  let actualizadosCompras = 0;
+  let actualizadosTrackings = 0;
+
+  // 1. Actualizar en compras_ebay
+  try {
+    const queryComprasUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+    const compResp = await fetch(queryComprasUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'compras_ebay' }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: 'tracking_usa' },
+              op: 'EQUAL',
+              value: { stringValue: cleanTrack }
+            }
+          }
+        }
+      })
+    });
+
+    if (compResp.ok) {
+      const compResults = await compResp.json();
+      for (const item of compResults) {
+        if (item && item.document && item.document.name) {
+          const docPath = item.document.name;
+          const patchFields = {
+            tracking_usa_entregado: { booleanValue: true },
+            tracking_usa_ultimo_estado: { stringValue: rawStatus || status || 'Delivered' },
+            isDelivered: { booleanValue: true },
+            shipping_status: { stringValue: 'delivered' },
+            courier_usa: { stringValue: 'ups' }
+          };
+          const updateMask = [
+            'updateMask.fieldPaths=tracking_usa_entregado',
+            'updateMask.fieldPaths=tracking_usa_ultimo_estado',
+            'updateMask.fieldPaths=isDelivered',
+            'updateMask.fieldPaths=shipping_status',
+            'updateMask.fieldPaths=courier_usa'
+          ];
+          const patchUrl = `https://firestore.googleapis.com/v1/${docPath}?${updateMask.join('&')}`;
+          await fetch(patchUrl, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ fields: patchFields })
+          });
+          actualizadosCompras++;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Smartbits Background] Error actualizando compras_ebay por UPS:', err);
+  }
+
+  // 2. Actualizar en trackings
+  try {
+    const queryTrkUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+    const trkResp = await fetch(queryTrkUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'trackings' }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: 'tracking_usa' },
+              op: 'EQUAL',
+              value: { stringValue: cleanTrack }
+            }
+          }
+        }
+      })
+    });
+
+    if (trkResp.ok) {
+      const trkResults = await trkResp.json();
+      for (const item of trkResults) {
+        if (item && item.document && item.document.name) {
+          const docPath = item.document.name;
+          const currentFields = item.document.fields || {};
+          const currentEstado = currentFields.estado?.stringValue || '';
+
+          const patchFields = {
+            tracking_usa_entregado: { booleanValue: true },
+            tracking_usa_ultimo_estado: { stringValue: rawStatus || status || 'Delivered' }
+          };
+          const updateMask = [
+            'updateMask.fieldPaths=tracking_usa_entregado',
+            'updateMask.fieldPaths=tracking_usa_ultimo_estado'
+          ];
+
+          if (currentEstado === 'por_prealertar' || currentEstado === 'prealertado') {
+            patchFields.estado = { stringValue: 'en_miami' };
+            updateMask.push('updateMask.fieldPaths=estado');
+          }
+
+          const patchUrl = `https://firestore.googleapis.com/v1/${docPath}?${updateMask.join('&')}`;
+          await fetch(patchUrl, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ fields: patchFields })
+          });
+          actualizadosTrackings++;
+        }
+      }
+    }
+  } catch (errTrk) {
+    console.warn('[Smartbits Background] Error actualizando trackings por UPS:', errTrk);
+  }
+
+  return {
+    success: true,
+    actualizadosCompras,
+    actualizadosTrackings
+  };
+}
 
 /**
  * Consulta directa a Liberty Express desde la extensión sin bloqueos de CORS

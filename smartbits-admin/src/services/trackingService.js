@@ -501,11 +501,15 @@ export async function sincronizarTrackingsConCouriers({
       );
 
       if (res && res.success && res.found) {
-        // A) SÓLO si Liberty confirma que FÍSICAMENTE lo recibió en almacén Miami (no solo pre-alerta en espera):
-        if (res.isInMiami) {
-          updatesTrk.tracking_usa_entregado = true;
+        // A) SÓLO si Liberty confirma que FÍSICAMENTE lo recibió en almacén Miami o ya está en tránsito a VZLA:
+        if (res.isInMiami || res.isTransitoVzla || res.isDelivered || res.isDisponible) {
+          if (!trk.tracking_usa_entregado) {
+            updatesTrk.tracking_usa_entregado = true;
+            huboCambios = true;
+          }
           if (!trk.tracking_usa_ultimo_estado || trk.tracking_usa_ultimo_estado.includes("viaje") || trk.tracking_usa_ultimo_estado.includes("tránsito") || trk.tracking_usa_ultimo_estado.includes("esperando")) {
             updatesTrk.tracking_usa_ultimo_estado = "Entregado en Almacén Miami";
+            huboCambios = true;
           }
         } else if (res.isPrealertOnly) {
           // Si está prealertado en Liberty esperando el paquete, verificar si courier USA ya entregó
@@ -627,11 +631,13 @@ export async function sincronizarTrackingsConCouriers({
           if (!c.tracking_id) {
             updatesCompra.tracking_id = trk.id;
           }
-          if (updatesTrk.tracking_usa_entregado) {
+          if (updatesTrk.tracking_usa_entregado || trk.tracking_usa_entregado || res?.isInMiami || res?.isTransitoVzla) {
             updatesCompra.tracking_usa_entregado = true;
-            updatesCompra.tracking_usa_ultimo_estado = updatesTrk.tracking_usa_ultimo_estado || "Entregado en Almacén Miami";
+            updatesCompra.tracking_usa_ultimo_estado = updatesTrk.tracking_usa_ultimo_estado || trk.tracking_usa_ultimo_estado || "Entregado en Almacén Miami";
+            updatesCompra.isDelivered = true;
+            updatesCompra.shipping_status = "delivered";
           }
-          if (updatesTrk.tracking_vzla && !c.tracking_vzla) {
+          if (updatesTrk.tracking_vzla && (!c.tracking_vzla || c.tracking_vzla.startsWith('WRTMP-'))) {
             updatesCompra.tracking_vzla = updatesTrk.tracking_vzla;
             updatesCompra.courier_vzla = "liberty";
             updatesCompra.auto_detectado_vzla = true;
