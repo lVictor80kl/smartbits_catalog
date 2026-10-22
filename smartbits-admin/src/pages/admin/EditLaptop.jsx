@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { doc, getDoc, getDocs, updateDoc, collection, addDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
-import { COMISIONES_POR_CUENTA } from '../../utils/bancos';
+import { obtenerComisionDeCuenta } from '../../utils/bancos';
 import { useCuentasCaja } from '../../utils/useCuentasCaja';
 import { syncTrackingFromEbay } from '../../utils/syncTrackingFromEbay';
 
@@ -60,7 +60,7 @@ export default function EditLaptop() {
   const [pagosCompra, setPagosCompra] = useState([
     { metodoId: 'paypal', bancoNombre: 'PayPal', monto: '', comisionPct: 0 }
   ]);
-  const { todasCuentas, cuentasBS = [], cuentasUSD = [] } = useCuentasCaja();
+  const { todasCuentas, cuentasBS = [], cuentasUSD = [], tasaCambio } = useCuentasCaja();
 
   // Cargar datos actuales del equipo si estamos en modo edición
   useEffect(() => {
@@ -211,17 +211,9 @@ export default function EditLaptop() {
   };
 
   // --- Lógica de Pagos Combinados y Comisiones ---
-  const normalizarLabel = (s) => (s || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
   const getComisionPorCuenta = (cuentaKey, cuentaLabel) => {
-    const key = String(cuentaKey || '').toLowerCase();
-    if (COMISIONES_POR_CUENTA[key] !== undefined) return COMISIONES_POR_CUENTA[key];
-    return COMISIONES_POR_CUENTA[normalizarLabel(cuentaLabel)] ?? 0;
+    const cuentaObj = todasCuentas.find(c => c.key === cuentaKey);
+    return obtenerComisionDeCuenta(cuentaObj, cuentaKey, cuentaLabel);
   };
 
   const handleAddPago = () => {
@@ -336,23 +328,46 @@ export default function EditLaptop() {
 
       // Pago de Compra de Equipo (Solo al CREAR)
       if (!isEditMode) {
+        const deduccionesPorCuenta = {};
+
         pagosCompra.forEach(p => {
-          const montoNum = parseFloat(p.monto);
+          const montoNum = parseFloat(p.monto) || 0;
           if (montoNum > 0 && p.metodoId) {
-            cajaUpdates[p.metodoId] = increment(-montoNum);
+            const cuentaObj = todasCuentas.find(c => c.key === p.metodoId);
+            const comisionPct = Number(p.comisionPct) || 0;
+            const comisionMonto = Math.round(montoNum * (comisionPct / 100) * 100) / 100;
+            const montoTotal = Math.round((montoNum + comisionMonto) * 100) / 100;
+
+            const esBs = cuentaObj?.moneda === 'BS';
+            const montoADescontar = esBs && tasaCambio > 0
+              ? Math.round(montoTotal * tasaCambio * 100) / 100
+              : montoTotal;
+
+            deduccionesPorCuenta[p.metodoId] = (deduccionesPorCuenta[p.metodoId] || 0) + montoADescontar;
+
             movimientosToCreate.push({
               coleccion: 'compras_inventario',
               datos: {
                 categoria: 'compra_inventario',
-                concepto: `Compra equipo: ${formData.marca} ${formData.modelo}`,
-                monto: montoNum,
-                monto_original: montoNum,
-                moneda_original: 'USD',
+                concepto: comisionMonto > 0
+                  ? `Compra equipo: ${formData.marca} ${formData.modelo} ($${montoNum.toFixed(2)} + $${comisionMonto.toFixed(2)} com.)`
+                  : `Compra equipo: ${formData.marca} ${formData.modelo}`,
+                monto: montoTotal,
+                monto_base: montoNum,
+                comision_monto: comisionMonto,
+                comision_pct: comisionPct,
+                monto_original: montoADescontar,
+                moneda_original: esBs ? 'BS' : 'USD',
+                tasa_cambio: esBs ? tasaCambio : 1,
                 metodo_pago: p.metodoId,
                 fecha: serverTimestamp()
               }
             });
           }
+        });
+
+        Object.entries(deduccionesPorCuenta).forEach(([metodoId, totalDeducir]) => {
+          cajaUpdates[metodoId] = increment(-Math.round(totalDeducir * 100) / 100);
         });
       }
 
@@ -384,11 +399,16 @@ export default function EditLaptop() {
         precio_ebay: precioEbay,
         pagos_compra: pagosCompra.map(p => {
           const cuentaObj = todasCuentas.find(c => c.key === p.metodoId);
+          const mNum = parseFloat(p.monto) || 0;
+          const cPct = Number(p.comisionPct) || 0;
+          const cMonto = Math.round(mNum * (cPct / 100) * 100) / 100;
           return {
             ...p,
             moneda: cuentaObj?.moneda || 'USD',
-            monto: parseFloat(p.monto) || 0,
-            comisionMonto: (parseFloat(p.monto) || 0) * ((p.comisionPct || 0) / 100)
+            monto: mNum,
+            comisionPct: cPct,
+            comisionMonto: cMonto,
+            montoTotal: Math.round((mNum + cMonto) * 100) / 100
           };
         }),
         total_comisiones: totalComisiones,
@@ -401,6 +421,7 @@ export default function EditLaptop() {
         ganancia_estimada: gananciaEstimada,
       };
 
+      let newLaptopDoc = null;
       if (isEditMode) {
         const laptopRef = doc(db, 'laptops', id);
         await updateDoc(laptopRef, {
@@ -408,7 +429,7 @@ export default function EditLaptop() {
           actualizadoEn: serverTimestamp(),
         });
       } else {
-        const newLaptopDoc = await addDoc(collection(db, 'laptops'), {
+        newLaptopDoc = await addDoc(collection(db, 'laptops'), {
           ...laptopDataPayload,
           ebay_compra_id: ebayData?.id || null,
           order_id: ebayData?.orderId || null,
@@ -458,8 +479,13 @@ export default function EditLaptop() {
         await updateDoc(doc(db, 'caja', 'saldos'), cajaUpdates);
       }
       for (const mov of movimientosToCreate) {
+        if (!isEditMode && newLaptopDoc?.id) {
+          mov.datos.laptop_id = newLaptopDoc.id;
+          mov.datos.laptop_modelo = `${formData.marca} ${formData.modelo}`.trim();
+        }
         await addDoc(collection(db, mov.coleccion), mov.datos);
       }
+
 
       setShowSuccess(true);
       setTimeout(() => navigate('/admin'), 1500);

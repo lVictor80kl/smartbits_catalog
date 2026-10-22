@@ -8,10 +8,11 @@ import {
   TrendingUp, TrendingDown, Users, Wallet, ArrowRightLeft, PlusCircle, 
   Settings, AlertTriangle, ShieldCheck, DollarSign, Landmark, RefreshCw,
   Clock, CheckCircle, Package, Layers, ArrowDownRight, ArrowUpRight, Plus, Edit3,
-  X, Pencil, Trash2, SlidersHorizontal, ArrowLeft
+  X, Pencil, Trash2, SlidersHorizontal, ArrowLeft, Percent
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CUENTAS_FIJAS, parseDecimalInput } from '../../../utils/useCuentasCaja';
+import { resolverComisionCuenta } from '../../../utils/bancos';
 import TasasCambioModal from '../../../components/TasasCambioModal';
 import TasasChipsSelector from '../../../components/TasasChipsSelector';
 
@@ -40,7 +41,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
   });
   const [modalVenta, setModalVenta] = useState({ open: false, concepto: '', monto: '', metodo_pago: 'efectivo', tasa: '', costo: '', saving: false });
   
-  // Modal unificado de gestión de cuenta (Renombrar, Ajustar Saldo, Borrar)
+  // Modal unificado de gestión de cuenta (Renombrar, Ajustar Saldo, Comisión, Borrar)
   const [modalGestionCuenta, setModalGestionCuenta] = useState({
     open: false,
     cuentaKey: '',
@@ -48,16 +49,26 @@ export default function PanelPrincipal({ onNavigateTab }) {
     moneda: 'USD',
     saldo: 0,
     esDinamica: false,
-    vistaActiva: 'menu', // 'menu' | 'renombrar' | 'ajuste' | 'eliminar'
+    vistaActiva: 'menu', // 'menu' | 'renombrar' | 'ajuste' | 'comision' | 'eliminar'
     nuevoNombre: '',
     nuevoSaldo: '',
+    tieneComision: false,
+    comisionPct: '',
     ajustador: 'Ysmael',
     motivo: '',
     saving: false
   });
 
   // Modal: Nueva Cuenta Personalizada / Banco
-  const [modalNuevaCuenta, setModalNuevaCuenta] = useState({ open: false, nombre: '', moneda: 'USD', saldoInicial: '', saving: false });
+  const [modalNuevaCuenta, setModalNuevaCuenta] = useState({
+    open: false,
+    nombre: '',
+    moneda: 'USD',
+    saldoInicial: '',
+    tieneComision: false,
+    comisionPct: '',
+    saving: false
+  });
 
   // Modal / Edición de Tasa de Cambio Global
   const [modalTasa, setModalTasa] = useState({ open: false, nuevaTasa: '', saving: false });
@@ -145,11 +156,25 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
   // --- Cuentas Dinámicas + Fijas ---
   const nombresCustom = caja._nombres_personalizados || {};
-  const cuentasFijasConNombres = CUENTAS_FIJAS.map(c => ({
-    ...c,
-    label: nombresCustom[c.key] || c.label
-  }));
-  const cuentasDinamicas = caja._cuentas_dinamicas || [];
+  const comisionesCustom = caja._comisiones_cuentas || {};
+  const cuentasFijasConNombres = CUENTAS_FIJAS.map(c => {
+    const label = nombresCustom[c.key] || c.label;
+    const { comision_activa, comision_pct } = resolverComisionCuenta(c.key, label, comisionesCustom);
+    return {
+      ...c,
+      label,
+      comision_activa,
+      comision_pct
+    };
+  });
+  const cuentasDinamicas = (caja._cuentas_dinamicas || []).map(c => {
+    const { comision_activa, comision_pct } = resolverComisionCuenta(c.key, c.label, comisionesCustom, c);
+    return {
+      ...c,
+      comision_activa,
+      comision_pct
+    };
+  });
   const todasCuentas = [...cuentasFijasConNombres, ...cuentasDinamicas];
 
   // --- CÁLCULOS MATEMÁTICOS POST-CORTE ---
@@ -570,6 +595,8 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // 4. Abrir Gestión de Cuenta Unificada (Engranaje)
   const openGestionCuenta = (c, saldo) => {
     const esDinamica = c.key.startsWith('dinamica_');
+    const tieneComision = Boolean(c.comision_activa);
+    const comisionPct = c.comision_pct !== undefined ? c.comision_pct : 0;
     setModalGestionCuenta({
       open: true,
       cuentaKey: c.key,
@@ -580,6 +607,8 @@ export default function PanelPrincipal({ onNavigateTab }) {
       vistaActiva: 'menu',
       nuevoNombre: c.label,
       nuevoSaldo: saldo.toString(),
+      tieneComision,
+      comisionPct: comisionPct ? comisionPct.toString() : '',
       ajustador: 'Ysmael',
       motivo: '',
       saving: false
@@ -650,7 +679,42 @@ export default function PanelPrincipal({ onNavigateTab }) {
     }
   };
 
-  // 4c. Eliminar Cuenta Personalizada
+  // 4c. Configurar Comisión Bancaria
+  const handleGestionComision = async (e) => {
+    e.preventDefault();
+    const { cuentaKey, cuentaLabel, tieneComision, comisionPct, esDinamica } = modalGestionCuenta;
+    const pctNum = tieneComision ? parseDecimalInput(comisionPct) : 0;
+    if (tieneComision && pctNum <= 0) {
+      return alert("Ingresa un porcentaje de comisión válido mayor a 0%.");
+    }
+
+    setModalGestionCuenta(p => ({ ...p, saving: true }));
+    try {
+      const payload = {
+        [`_comisiones_cuentas.${cuentaKey}`]: {
+          tiene_comision: Boolean(tieneComision),
+          porcentaje: pctNum
+        },
+        updated_at: new Date()
+      };
+
+      if (esDinamica) {
+        payload._cuentas_dinamicas = cuentasDinamicas.map(c =>
+          c.key === cuentaKey ? { ...c, comision_activa: Boolean(tieneComision), comision_pct: pctNum } : c
+        );
+      }
+
+      await updateDoc(doc(db, 'caja', 'saldos'), payload);
+      setModalGestionCuenta(p => ({ ...p, open: false, saving: false }));
+      alert(`✅ Comisión de "${cuentaLabel}" guardada exitosamente.`);
+    } catch (err) {
+      console.error(err);
+      alert("Error al guardar comisión: " + err.message);
+      setModalGestionCuenta(p => ({ ...p, saving: false }));
+    }
+  };
+
+  // 4d. Eliminar Cuenta Personalizada
   const handleGestionEliminar = async () => {
     const { cuentaKey, cuentaLabel, esDinamica } = modalGestionCuenta;
     if (!esDinamica) {
@@ -675,10 +739,17 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // 5. Crear Nueva Cuenta / Banco
   const handleCrearCuenta = async (e) => {
     e.preventDefault();
-    const { nombre, moneda, saldoInicial } = modalNuevaCuenta;
+    const { nombre, moneda, saldoInicial, tieneComision, comisionPct } = modalNuevaCuenta;
     if (!nombre.trim()) return alert("Ingresa un nombre para la cuenta.");
     const safeKey = 'dinamica_' + nombre.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now().toString().slice(-4);
-    const nueva = { key: safeKey, label: nombre.trim(), moneda: moneda || 'USD' };
+    const pctNum = tieneComision ? parseDecimalInput(comisionPct) : 0;
+    const nueva = { 
+      key: safeKey, 
+      label: nombre.trim(), 
+      moneda: moneda || 'USD',
+      comision_activa: Boolean(tieneComision),
+      comision_pct: pctNum
+    };
     const saldoNum = parseDecimalInput(saldoInicial);
 
     setModalNuevaCuenta(p => ({ ...p, saving: true }));
@@ -687,9 +758,13 @@ export default function PanelPrincipal({ onNavigateTab }) {
       await updateDoc(doc(db, 'caja', 'saldos'), {
         [safeKey]: saldoNum,
         _cuentas_dinamicas: nuevasDinamicas,
+        [`_comisiones_cuentas.${safeKey}`]: {
+          tiene_comision: Boolean(tieneComision),
+          porcentaje: pctNum
+        },
         updated_at: new Date()
       });
-      setModalNuevaCuenta({ open: false, nombre: '', moneda: 'USD', saldoInicial: '', saving: false });
+      setModalNuevaCuenta({ open: false, nombre: '', moneda: 'USD', saldoInicial: '', tieneComision: false, comisionPct: '', saving: false });
       alert("✅ Nueva cuenta añadida a la caja.");
     } catch (err) {
       console.error(err);
@@ -1043,6 +1118,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
                       >
                         <Settings className="w-4 h-4" />
                       </button>
+
                     </div>
                   );
                 })}
@@ -1907,6 +1983,38 @@ export default function PanelPrincipal({ onNavigateTab }) {
                 </div>
               </div>
 
+              {/* Comisión Bancaria */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-800 block">¿Cobra comisión bancaria?</label>
+                    <p className="text-[10px] text-slate-500">Aplica recargo automático en pagos de inventario</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={modalNuevaCuenta.tieneComision}
+                    onChange={e => setModalNuevaCuenta(p => ({ ...p, tieneComision: e.target.checked }))}
+                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                  />
+                </div>
+                {modalNuevaCuenta.tieneComision && (
+                  <div className="relative animate-in fade-in duration-150">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max="100"
+                      placeholder="Porcentaje de comisión (Ej: 1.5)"
+                      value={modalNuevaCuenta.comisionPct}
+                      onChange={e => setModalNuevaCuenta(p => ({ ...p, comisionPct: e.target.value }))}
+                      className="w-full pl-3 pr-8 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-emerald-500"
+                      required={modalNuevaCuenta.tieneComision}
+                    />
+                    <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 font-bold text-xs">%</span>
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
@@ -2005,7 +2113,29 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   <span className="text-slate-400 text-xs font-bold group-hover:translate-x-0.5 transition-transform">→</span>
                 </button>
 
-                {/* Opción 3: Borrar Cuenta */}
+                {/* Opción 3: Configurar Comisión Bancaria */}
+                <button
+                  type="button"
+                  onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'comision' }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 flex items-center justify-between transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Percent className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">Comisión Bancaria</h4>
+                      <p className="text-[11px] text-slate-500">
+                        {modalGestionCuenta.tieneComision && Number(modalGestionCuenta.comisionPct) > 0
+                          ? `Aplica comisión del ${modalGestionCuenta.comisionPct}%`
+                          : 'Sin comisión configurada (0%)'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-slate-400 text-xs font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+                </button>
+
+                {/* Opción 4: Borrar Cuenta */}
                 {modalGestionCuenta.esDinamica ? (
                   <button
                     type="button"
@@ -2039,6 +2169,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
                     </div>
                   </div>
                 )}
+
 
                 <div className="pt-2">
                   <button
@@ -2233,6 +2364,115 @@ export default function PanelPrincipal({ onNavigateTab }) {
                 </div>
               </div>
             )}
+
+            {/* VISTA 5: CONFIGURAR COMISIÓN */}
+            {modalGestionCuenta.vistaActiva === 'comision' && (
+              <form onSubmit={handleGestionComision} className="space-y-4 py-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'menu' }))}
+                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Volver
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <span>Comisión bancaria en compras</span>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-slate-800 block">¿Aplica comisión bancaria?</label>
+                    <p className="text-[11px] text-slate-500">Recargo cobrado por el banco al pagar inventario</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, tieneComision: !p.tieneComision }))}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      modalGestionCuenta.tieneComision ? 'bg-emerald-600' : 'bg-slate-200'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        modalGestionCuenta.tieneComision ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {modalGestionCuenta.tieneComision && (
+                  <div className="space-y-3 animate-in fade-in duration-200">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Porcentaje de comisión (%) *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          max="100"
+                          required={modalGestionCuenta.tieneComision}
+                          value={modalGestionCuenta.comisionPct}
+                          onChange={e => setModalGestionCuenta(p => ({ ...p, comisionPct: e.target.value }))}
+                          placeholder="Ej: 1.5"
+                          className="w-full pr-8 pl-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                          autoFocus
+                        />
+                        <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 font-bold text-xs">%</span>
+                      </div>
+                    </div>
+
+                    {/* Presets rápidos */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Valores comunes:</span>
+                      {[1.5, 2.0, 2.5, 3.0, 5.0].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setModalGestionCuenta(p => ({ ...p, comisionPct: val.toString() }))}
+                          className={`text-[11px] px-2 py-0.5 rounded-md font-bold transition-colors ${
+                            parseFloat(modalGestionCuenta.comisionPct) === val
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {val}%
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Simulación en tiempo real */}
+                    {parseDecimalInput(modalGestionCuenta.comisionPct) > 0 && (
+                      <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900">
+                        <p className="font-bold mb-0.5">💡 Simulación de Cobro:</p>
+                        <p className="text-[11px] text-emerald-800 leading-relaxed">
+                          Al registrar una compra de <strong>$100.00</strong> con esta cuenta, se debitará un total de <strong>${(100 * (1 + parseDecimalInput(modalGestionCuenta.comisionPct) / 100)).toFixed(2)}</strong> ($100.00 base + ${(100 * parseDecimalInput(modalGestionCuenta.comisionPct) / 100).toFixed(2)} de comisión).
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalGestionCuenta(p => ({ ...p, vistaActiva: 'menu' }))}
+                    className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={modalGestionCuenta.saving}
+                    className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs disabled:opacity-50"
+                  >
+                    {modalGestionCuenta.saving ? 'Guardando...' : 'Guardar Comisión'}
+                  </button>
+                </div>
+              </form>
+            )}
+
 
           </div>
         </div>

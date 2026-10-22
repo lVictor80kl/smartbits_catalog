@@ -5,7 +5,7 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
 import { useCuentasCaja } from '../../utils/useCuentasCaja';
-import { COMISIONES_POR_CUENTA } from '../../utils/bancos';
+import { obtenerComisionDeCuenta } from '../../utils/bancos';
 
 export default function EditComponent() {
   const { id } = useParams();
@@ -117,17 +117,9 @@ export default function EditComponent() {
     fetchComponent();
   }, [id, navigate]);
 
-  const normalizarLabel = (s) => (s || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
   const getComisionPorCuenta = (cuentaKey, cuentaLabel) => {
-    const key = String(cuentaKey || '').toLowerCase();
-    if (COMISIONES_POR_CUENTA[key] !== undefined) return COMISIONES_POR_CUENTA[key];
-    return COMISIONES_POR_CUENTA[normalizarLabel(cuentaLabel)] ?? 0;
+    const cuentaObj = todasCuentas.find(c => c.key === cuentaKey);
+    return obtenerComisionDeCuenta(cuentaObj, cuentaKey, cuentaLabel);
   };
 
   const handleAddPago = () => {
@@ -247,11 +239,16 @@ export default function EditComponent() {
         observaciones_compra: formData.observaciones_compra || '',
         pagos_compra: pagosCompra.map(p => {
           const cuentaObj = todasCuentas.find(c => c.key === p.metodoId);
+          const mNum = parseFloat(p.monto) || 0;
+          const cPct = Number(p.comisionPct) || 0;
+          const cMonto = Math.round(mNum * (cPct / 100) * 100) / 100;
           return {
             ...p,
             moneda: cuentaObj?.moneda || 'USD',
-            monto: parseFloat(p.monto) || 0,
-            comisionMonto: (parseFloat(p.monto) || 0) * ((p.comisionPct || 0) / 100)
+            monto: mNum,
+            comisionPct: cPct,
+            comisionMonto: cMonto,
+            montoTotal: Math.round((mNum + cMonto) * 100) / 100
           };
         }),
         total_comisiones: totalComisiones,

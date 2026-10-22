@@ -6,6 +6,7 @@ import {
   sanitizarNumeroTasa, 
   TIPO_TASA 
 } from '../services/tasasCambioService';
+import { resolverComisionCuenta } from './bancos';
 
 export const CUENTAS_FIJAS = [
   { key: 'efectivo', label: 'Efectivo ($)', moneda: 'USD' },
@@ -47,14 +48,31 @@ export function useCuentasCaja() {
   }, []);
 
   const nombresCustom = saldos._nombres_personalizados || {};
-  const cuentasFijasConNombres = CUENTAS_FIJAS.map(c => ({
-    ...c,
-    label: nombresCustom[c.key] || c.label
-  }));
+  const comisionesCustom = saldos._comisiones_cuentas || {};
+
+  const cuentasFijasConNombres = CUENTAS_FIJAS.map(c => {
+    const label = nombresCustom[c.key] || c.label;
+    const { comision_activa, comision_pct } = resolverComisionCuenta(c.key, label, comisionesCustom);
+    return {
+      ...c,
+      label,
+      comision_activa,
+      comision_pct
+    };
+  });
+
+  const cuentasDinamicasConComision = cuentasDinamicas.map(c => {
+    const { comision_activa, comision_pct } = resolverComisionCuenta(c.key, c.label, comisionesCustom, c);
+    return {
+      ...c,
+      comision_activa,
+      comision_pct
+    };
+  });
 
   const listaCuentasRaw = [
     ...cuentasFijasConNombres,
-    ...cuentasDinamicas
+    ...cuentasDinamicasConComision
   ];
 
   const cuentasBS = listaCuentasRaw.filter(c => c.moneda === 'BS');
@@ -81,15 +99,26 @@ export function useCuentasCaja() {
   };
 
   // Helper para añadir una cuenta nueva
-  const agregarCuenta = async ({ nombre, moneda, saldoInicial = 0 }) => {
+  const agregarCuenta = async ({ nombre, moneda, saldoInicial = 0, tieneComision = false, comisionPct = 0 }) => {
     if (!nombre || !nombre.trim()) throw new Error('Ingresa un nombre para la cuenta.');
     const safeKey = 'dinamica_' + nombre.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now().toString().slice(-4);
-    const nuevaCuenta = { key: safeKey, label: nombre.trim(), moneda: moneda || 'USD' };
+    const pct = tieneComision ? parseDecimalInput(comisionPct) : 0;
+    const nuevaCuenta = { 
+      key: safeKey, 
+      label: nombre.trim(), 
+      moneda: moneda || 'USD',
+      comision_activa: Boolean(tieneComision),
+      comision_pct: pct
+    };
     const nuevasDinamicas = [...cuentasDinamicas, nuevaCuenta];
 
     await updateDoc(doc(db, 'caja', 'saldos'), {
       [safeKey]: parseDecimalInput(saldoInicial),
       _cuentas_dinamicas: nuevasDinamicas,
+      [`_comisiones_cuentas.${safeKey}`]: {
+        tiene_comision: Boolean(tieneComision),
+        porcentaje: pct
+      },
       updated_at: new Date()
     });
 
@@ -203,6 +232,25 @@ export function useCuentasCaja() {
     });
   };
 
+  const actualizarComisionCuenta = async (cuentaKey, { tieneComision, porcentaje }) => {
+    if (!cuentaKey) throw new Error('Cuenta requerida.');
+    const pct = tieneComision ? parseDecimalInput(porcentaje) : 0;
+    const esDinamica = cuentasDinamicas.some(c => c.key === cuentaKey);
+    const payload = {
+      [`_comisiones_cuentas.${cuentaKey}`]: {
+        tiene_comision: Boolean(tieneComision),
+        porcentaje: pct
+      },
+      updated_at: new Date()
+    };
+    if (esDinamica) {
+      payload._cuentas_dinamicas = cuentasDinamicas.map(c =>
+        c.key === cuentaKey ? { ...c, comision_activa: Boolean(tieneComision), comision_pct: pct } : c
+      );
+    }
+    await updateDoc(doc(db, 'caja', 'saldos'), payload);
+  };
+
   const isCuentaBs = (cuentaKey) => {
     const c = todasCuentas.find(acc => acc.key === cuentaKey);
     return c ? c.moneda === 'BS' : false;
@@ -219,6 +267,7 @@ export function useCuentasCaja() {
     loading,
     agregarCuenta,
     renombrarCuenta,
+    actualizarComisionCuenta,
     eliminarCuenta,
     actualizarTasaCambio,
     actualizarTasaCustom,

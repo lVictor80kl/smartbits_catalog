@@ -6,7 +6,7 @@ import { db } from '../../firebase';
 import { uploadToCloudinary } from '../../utils/imageOptimizer';
 import { syncTrackingFromEbay } from '../../utils/syncTrackingFromEbay';
 import { useCuentasCaja } from '../../utils/useCuentasCaja';
-import { COMISIONES_POR_CUENTA } from '../../utils/bancos';
+import { obtenerComisionDeCuenta } from '../../utils/bancos';
 
 export default function NewComponent() {
   const navigate = useNavigate();
@@ -130,19 +130,11 @@ export default function NewComponent() {
     checkDuplicate();
   }, [ebayData]);
 
-  const { todasCuentas, cuentasBS = [], cuentasUSD = [] } = useCuentasCaja();
-
-  const normalizarLabel = (s) => (s || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const { todasCuentas, cuentasBS = [], cuentasUSD = [], tasaCambio } = useCuentasCaja();
 
   const getComisionPorCuenta = (cuentaKey, cuentaLabel) => {
-    const key = String(cuentaKey || '').toLowerCase();
-    if (COMISIONES_POR_CUENTA[key] !== undefined) return COMISIONES_POR_CUENTA[key];
-    return COMISIONES_POR_CUENTA[normalizarLabel(cuentaLabel)] ?? 0;
+    const cuentaObj = todasCuentas.find(c => c.key === cuentaKey);
+    return obtenerComisionDeCuenta(cuentaObj, cuentaKey, cuentaLabel);
   };
 
   const handleAddPago = () => {
@@ -253,25 +245,46 @@ export default function NewComponent() {
       // --- LOGICA DE CAJA Y MOVIMIENTOS FINANCIEROS ---
       let cajaUpdates = {};
       let movimientosToCreate = [];
+      const deduccionesPorCuenta = {};
 
       pagosCompra.forEach(p => {
-        const montoNum = parseFloat(p.monto);
+        const montoNum = parseFloat(p.monto) || 0;
         if (montoNum > 0 && p.metodoId) {
-          cajaUpdates[p.metodoId] = increment(-montoNum);
           const cuentaObj = todasCuentas.find(c => c.key === p.metodoId);
+          const comisionPct = Number(p.comisionPct) || 0;
+          const comisionMonto = Math.round(montoNum * (comisionPct / 100) * 100) / 100;
+          const montoTotal = Math.round((montoNum + comisionMonto) * 100) / 100;
+
+          const esBs = cuentaObj?.moneda === 'BS';
+          const montoADescontar = esBs && tasaCambio > 0
+            ? Math.round(montoTotal * tasaCambio * 100) / 100
+            : montoTotal;
+
+          deduccionesPorCuenta[p.metodoId] = (deduccionesPorCuenta[p.metodoId] || 0) + montoADescontar;
+
           movimientosToCreate.push({
             coleccion: 'compras_inventario',
             datos: {
               categoria: 'compra_componente',
-              concepto: `Compra componente: ${formData.nombre || formData.tipo}`,
-              monto: montoNum,
-              monto_original: montoNum,
-              moneda_original: cuentaObj?.moneda || 'USD',
+              concepto: comisionMonto > 0
+                ? `Compra componente: ${formData.nombre || formData.tipo} ($${montoNum.toFixed(2)} + $${comisionMonto.toFixed(2)} com.)`
+                : `Compra componente: ${formData.nombre || formData.tipo}`,
+              monto: montoTotal,
+              monto_base: montoNum,
+              comision_monto: comisionMonto,
+              comision_pct: comisionPct,
+              monto_original: montoADescontar,
+              moneda_original: esBs ? 'BS' : 'USD',
+              tasa_cambio: esBs ? tasaCambio : 1,
               metodo_pago: p.metodoId,
               fecha: serverTimestamp()
             }
           });
         }
+      });
+
+      Object.entries(deduccionesPorCuenta).forEach(([metodoId, totalDeducir]) => {
+        cajaUpdates[metodoId] = increment(-Math.round(totalDeducir * 100) / 100);
       });
 
       const componentData = {
@@ -294,11 +307,16 @@ export default function NewComponent() {
         observaciones_compra: formData.observaciones_compra || '',
         pagos_compra: pagosCompra.map(p => {
           const cuentaObj = todasCuentas.find(c => c.key === p.metodoId);
+          const mNum = parseFloat(p.monto) || 0;
+          const cPct = Number(p.comisionPct) || 0;
+          const cMonto = Math.round(mNum * (cPct / 100) * 100) / 100;
           return {
             ...p,
             moneda: cuentaObj?.moneda || 'USD',
-            monto: parseFloat(p.monto) || 0,
-            comisionMonto: (parseFloat(p.monto) || 0) * ((p.comisionPct || 0) / 100)
+            monto: mNum,
+            comisionPct: cPct,
+            comisionMonto: cMonto,
+            montoTotal: Math.round((mNum + cMonto) * 100) / 100
           };
         }),
         total_comisiones: totalComisiones,
