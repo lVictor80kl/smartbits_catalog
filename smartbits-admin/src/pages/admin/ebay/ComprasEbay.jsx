@@ -461,7 +461,8 @@ export default function ComprasEbay() {
     if (evalStatus.isVendido) return 7; // 7° Ya Vendido
     if (evalStatus.isDisponible) return 6; // 6° Ya Disponible (salió de taller)
     if (!evalStatus.hasInv) return 1; // 1° Sin Inventario
-    if (evalStatus.hasTrackingUsa && !evalStatus.isPrealerted) return 2; // 2° Sin Prealertar
+    // 2° Sin Prealertar: SOLO si tiene tracking USA y NO está prealertado, NI tiene guía VZLA, NI ha sido recibido en Liberty
+    if (evalStatus.hasTrackingUsa && !evalStatus.isPrealerted && !evalStatus.hasTrackingVzla && !evalStatus.isRecibidoLiberty && !evalStatus.isEnVzla) return 2;
     if (evalStatus.isEnTaller) return 5; // 5° En taller (en preparación)
     if (evalStatus.isEnVzla) return 4; // 4° Tránsito a VZLA (recibido en Miami o en camino a Vzla)
     if (evalStatus.isEnUsa) return 3; // 3° Tránsito a Casillero (en camino a Miami)
@@ -487,7 +488,7 @@ export default function ComprasEbay() {
       const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trk);
 
       if (!evalStatus.hasInv) sinInventarioCount++;
-      if (evalStatus.hasTrackingUsa && !evalStatus.isPrealerted) sinPrealertaCount++;
+      if (evalStatus.hasTrackingUsa && !evalStatus.isPrealerted && !evalStatus.hasTrackingVzla && !evalStatus.isRecibidoLiberty && !evalStatus.isEnVzla) sinPrealertaCount++;
 
       // En taller solo cuenta equipos en preparación (si ya están disponibles o vendidos, ya salieron del taller)
       if (evalStatus.isEnTaller) {
@@ -538,7 +539,7 @@ export default function ComprasEbay() {
         if (filterEstado === 'pendientes' || filterEstado === 'sin_inventario') {
           if (evalStatus.hasInv) return false;
         } else if (filterEstado === 'sin_prealerta') {
-          if (!evalStatus.hasTrackingUsa || evalStatus.isPrealerted || evalStatus.isVendido || evalStatus.isDisponible) return false;
+          if (!evalStatus.hasTrackingUsa || evalStatus.isPrealerted || evalStatus.hasTrackingVzla || evalStatus.isRecibidoLiberty || evalStatus.isEnVzla || evalStatus.isVendido || evalStatus.isDisponible) return false;
         } else if (filterEstado === 'en_usa') {
           if (!evalStatus.isEnUsa) return false;
         } else if (filterEstado === 'en_vzla') {
@@ -1203,7 +1204,7 @@ export default function ComprasEbay() {
   // Alternar estado de Prealerta en 1 clic
   const handleTogglePrealerta = async (item, trkDoc) => {
     try {
-      const isCurrentlyPrealerted = Boolean(trkDoc?.prealertado || item.prealertado);
+      const isCurrentlyPrealerted = Boolean(trkDoc?.prealertado || item.prealertado || trkDoc?.tracking_vzla || item.tracking_vzla);
       const newPrealertStatus = !isCurrentlyPrealerted;
 
       if (trkDoc?.id) {
@@ -1587,17 +1588,7 @@ export default function ComprasEbay() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Botón Revertir Auto-vinculaciones si existen */}
-          {autoLinkedCount > 0 && (
-            <button
-              onClick={handleRevertAllAutoLinks}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-800 dark:text-rose-200 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-lg hover:bg-rose-100 transition shadow-2xs"
-              title="Revertir compras vinculadas automáticamente por el algoritmo previo para corregir inventario"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              <span>Revertir Auto-vinculaciones ({autoLinkedCount})</span>
-            </button>
-          )}
+
 
           {/* Botón Limpiar Duplicados */}
           {detectedDuplicatesCount > 0 && (
@@ -1631,21 +1622,6 @@ export default function ComprasEbay() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncingCouriers ? 'animate-spin' : ''}`} />
             <span>{syncingCouriers ? (syncCourierProgress || 'Rastreando...') : 'Sincronizar Rastreo'}</span>
-          </button>
-
-          {/* Botón Sincronizar Trackings USA a Envíos */}
-          <button
-            onClick={handleSyncAllTrackingsToEnvios}
-            disabled={syncingTrackings}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition shadow-2xs"
-            title="Registrar o actualizar en Envíos todas las compras con Tracking USA"
-          >
-            {syncingTrackings ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-600 dark:text-slate-400" />
-            ) : (
-              <Package className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-            )}
-            <span>{syncingTrackings ? 'Sincronizando...' : 'Sync Envíos'}</span>
           </button>
 
           <button
@@ -2011,13 +1987,18 @@ export default function ComprasEbay() {
             const courierUsa = trkDoc?.courier_usa || item.courier_usa || 'usps';
             const courierUsaConfig = getCourierUsaConfig(courierUsa);
             const trackingUrlUsa = trackingUsa ? getTrackingUrlUsa(courierUsa, trackingUsa) : null;
-            const isPrealerted = Boolean(trkDoc?.prealertado || item.prealertado);
 
             // Datos de Tracking VZLA
             const trackingVzla = (trkDoc?.tracking_vzla || item.tracking_vzla || '').trim().toUpperCase();
             const courierVzla = trkDoc?.courier_vzla || item.courier_vzla || 'liberty';
             const courierVzlaConfig = getCourierVzlaConfig(courierVzla);
             const trackingUrlVzla = trackingVzla ? getTrackingUrlVzla(courierVzla, trackingVzla) : null;
+
+            // Evaluación de Estado Logístico Centralizada
+            const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trkDoc);
+            const isPrealerted = evalStatus.isPrealerted;
+            const isUsaDelivered = evalStatus.isUsaDelivered;
+            const isPrealertOnly = evalStatus.isPrealertOnly;
 
             // Estados operativos de inventario
             const isDisponible = invDisponibilidad === 'Disponible';
@@ -2035,10 +2016,6 @@ export default function ComprasEbay() {
             const usaUltimoEstado = trkDoc?.tracking_usa_ultimo_estado || item.tracking_usa_ultimo_estado || null;
             const normUsa = usaUltimoEstado ? normalizarEstadoTracking(usaUltimoEstado, courierUsa) : null;
             const esTallerOEntregado = isEnTaller || trkDoc?.estado === 'ya_recogido' || esEstadoEntregado(vzlaUltimoEstado);
-
-            const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trkDoc);
-            const isUsaDelivered = evalStatus.isUsaDelivered;
-            const isPrealertOnly = evalStatus.isPrealertOnly;
 
             // Margen y finanzas calculadas
             const costoNum = Number(item.precio || 0);

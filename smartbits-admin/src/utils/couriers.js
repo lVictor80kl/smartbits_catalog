@@ -449,7 +449,21 @@ export function evaluarEstadoLogisticoItem(item = {}, invObj = null, trkDoc = nu
     esEstadoEntregado(vzlaUltimoEstado)
   );
 
-  const isPrealerted = Boolean(trkDoc?.prealertado || item?.prealertado);
+  // Un paquete se considera prealertado si tiene el flag activo,
+  // O si ya tiene guía de Venezuela (WR01-, WRTMP-, LIB-, etc.),
+  // O si Liberty ya lo reconoció/recibió físicamente en Miami o en tránsito.
+  const isPrealerted = Boolean(
+    trkDoc?.prealertado ||
+    item?.prealertado ||
+    trackingVzla ||
+    trkDoc?.tracking_vzla ||
+    item?.tracking_vzla ||
+    trkDoc?.estado === 'prealertado' ||
+    trkDoc?.estado === 'en_miami' ||
+    trkDoc?.estado === 'transito_vzla' ||
+    trkDoc?.estado === 'disponible_agencia' ||
+    trkDoc?.estado === 'ya_recogido'
+  );
 
   // Físicamente recibido por Liberty o courier VZLA en su red logística (almacén Miami, a bordo, en tránsito o agencia)
   const isRecibidoLiberty = Boolean(

@@ -1,7 +1,7 @@
 // src/services/trackingService.js
 // Servicio automatizado de rastreo de envíos y detección de guías VZLA (Liberty Express / Couriers USA)
 
-import { doc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, writeBatch, collection, addDoc } from 'firebase/firestore';
 
 /**
  * Normaliza un número de tracking eliminando espacios y guiones.
@@ -44,35 +44,73 @@ export function parseLibertyHtml(html, trackingBuscado = '') {
     } catch (_) {}
   }
 
+  const isGuiaVzlaFormat = (val) => {
+    if (!val || typeof val !== 'string') return false;
+    const clean = val.trim().toUpperCase();
+    return /^(?:WR(?:01|02|TMP|[A-Z0-9]{2,4})|LIB|VE)[0-9A-Z_-]+$/i.test(clean);
+  };
+
   // 1. Detección de Guía VZLA (ID de seguimiento)
+  // XPath: /html/body/div/main/div/section/div/section[1]/div[2]/p/strong
   let trackingVzla = null;
   if (docParsed) {
-    const summaryP = docParsed.querySelector('.tr-summary p, section[aria-label="Estado actual"] p');
-    if (summaryP) {
-      const strongEl = summaryP.querySelector('strong');
-      if (strongEl && strongEl.textContent.trim()) {
-        trackingVzla = strongEl.textContent.trim();
-      } else {
-        const match = summaryP.textContent.match(/ID de seguimiento:\s*([A-Za-z0-9_-]+)/i);
-        if (match) trackingVzla = match[1].trim();
+    // A) Selector directo al <strong> indicado en el XPath
+    const strongEl = docParsed.querySelector(
+      '.tr-summary p strong, ' +
+      'section[aria-label="Estado actual"] p strong, ' +
+      '.rt-main section:first-of-type div:nth-child(2) p strong, ' +
+      '.tr-summary div:last-child p strong, ' +
+      '.tr-summary strong'
+    );
+    if (strongEl && isGuiaVzlaFormat(strongEl.textContent)) {
+      trackingVzla = strongEl.textContent.trim().toUpperCase();
+    } else {
+      const summaryP = docParsed.querySelector('.tr-summary p, section[aria-label="Estado actual"] p');
+      if (summaryP) {
+        const match = summaryP.textContent.match(/(?:ID de seguimiento|Gu[íi]a|Seguimiento)[:\s]*([A-Za-z0-9_-]+)/i);
+        if (match && isGuiaVzlaFormat(match[1])) {
+          trackingVzla = match[1].trim().toUpperCase();
+        }
       }
     }
   }
 
+  // Fallbacks regex sobre el HTML crudo
   if (!trackingVzla) {
-    const idRegex = /(?:ID de seguimiento|N[úu]mero de gu[íi]a|Gu[íi]a):\s*<[^>]*>([A-Za-z0-9_-]+)<\/[^>]*>/i;
-    const match = html.match(idRegex);
-    if (match) trackingVzla = match[1].trim();
-    else {
-      const plainMatch = html.match(/ID de seguimiento:\s*([A-Za-z0-9_-]+)/i);
-      if (plainMatch) trackingVzla = plainMatch[1].trim();
+    // B1) Buscar etiqueta <p>...<strong>WR...</strong>
+    const pStrongRegex = /(?:ID de seguimiento|N[úu]mero de gu[íi]a|Gu[íi]a)[:\s]*<[^>]*>\s*([A-Za-z0-9_-]+)\s*<\/[^>]*>/i;
+    const matchPStrong = html.match(pStrongRegex);
+    if (matchPStrong && isGuiaVzlaFormat(matchPStrong[1])) {
+      trackingVzla = matchPStrong[1].trim().toUpperCase();
+    }
+  }
+
+  if (!trackingVzla) {
+    // B2) Texto plano: ID de seguimiento: WR...
+    const plainMatch = html.match(/ID de seguimiento:\s*([A-Za-z0-9_-]+)/i);
+    if (plainMatch && isGuiaVzlaFormat(plainMatch[1])) {
+      trackingVzla = plainMatch[1].trim().toUpperCase();
+    }
+  }
+
+  if (!trackingVzla) {
+    // B3) Captura directa por formato oficial de guía Liberty (WR01-, WR02-, WRTMP-, LIB-)
+    const directLibertyRegex = /\b(WR(?:01|02|TMP|[A-Z0-9]{2,4})-\d{6,12}|LIB-\d{6,12})\b/i;
+    const matchDirect = html.match(directLibertyRegex);
+    if (matchDirect) {
+      trackingVzla = matchDirect[1].trim().toUpperCase();
     }
   }
 
   // 2. Detección del Último Estatus LITERAL tal como lo reporta el courier en el <h2> del summary (/html/body/div/main/div/section/div/section[1]/div[2]/h2)
   let ultimoEstado = null;
   if (docParsed) {
-    const h2 = docParsed.querySelector('.tr-summary h2, section[aria-label="Estado actual"] h2, .tr-summary div h2');
+    const h2 = docParsed.querySelector(
+      '.tr-summary h2, ' +
+      'section[aria-label="Estado actual"] h2, ' +
+      '.rt-main section:first-of-type div:nth-child(2) h2, ' +
+      '.tr-summary div h2'
+    );
     if (h2 && h2.textContent.trim()) {
       ultimoEstado = h2.textContent.trim();
     }
@@ -234,7 +272,7 @@ function decodeHtmlEntities(str) {
   return {
     found,
     trackingBuscado,
-    trackingVzla: trackingVzla || (found && trackingBuscado ? trackingBuscado : null),
+    trackingVzla: trackingVzla || (isGuiaVzlaFormat(trackingBuscado) ? trackingBuscado.trim().toUpperCase() : null),
     ultimoEstado: ultimoEstado || (found ? (isTransitoVzla ? 'A bordo, para ser transportado a su destino' : (isInMiami ? 'Recibido en Almacén Miami' : (isPrealertOnly ? 'Guía pre alertada, esperando paquete' : 'Registrado en Liberty Express'))) : 'Sin movimientos'),
     fechaEstado: fechaEstado || (historial[0]?.fecha || null),
     sucursal,
@@ -437,8 +475,143 @@ export async function sincronizarTrackingsConCouriers({
     errores: []
   };
 
+  // 1. Identificar compras activas de eBay que tienen tracking USA pero aún no tienen paquete en trackings
+  // (Filtro estricto que protege e ignora los 64 equipos históricos vendidos, descartados o finalizados)
+  const orphanCompras = compras.filter(c => {
+    if (!c || c.estado === 'descartado' || c.en_taller) return false;
+    const cleanUsa = cleanTrackingNumber(c.tracking_usa);
+    if (!cleanUsa) return false;
+
+    // Descartar si el tracking USA es inválido o corrupto (coincide con orderId, itemId, telemetría, etc.)
+    const rawTrk = (c.tracking_usa || '').trim();
+    const rawItemId = String(c.itemId || '').replace(/_u[0-9]+$/, '').trim();
+    const rawOrderId = String(c.orderId || '').replace(/[\s-]/g, '').trim();
+    const isBogus = (
+      (rawItemId && rawTrk === rawItemId) ||
+      (rawOrderId && rawTrk === rawOrderId) ||
+      /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(rawTrk) ||
+      rawTrk.startsWith('{') ||
+      rawTrk.includes('EVENTFAMILY') ||
+      rawTrk.replace(/\D/g, '').length < 4
+    );
+    if (isBogus) return false;
+
+    // Descartar si ya tiene guía VZLA definitiva
+    const cleanVzla = cleanTrackingNumber(c.tracking_vzla);
+    if (cleanVzla && !cleanVzla.startsWith('WRTMP-')) return false;
+
+    // Descartar si el estatus reportado ya es terminal (facturado, entregado, recogido)
+    const vzlaUltimo = (c.tracking_vzla_ultimo_estado || '').toUpperCase();
+    if (
+      vzlaUltimo.includes('FACTURAD') ||
+      vzlaUltimo.includes('ENTREGAD') ||
+      vzlaUltimo.includes('RETIRADO EN AGENCIA') ||
+      vzlaUltimo.includes('ENTREGA REALIZADA') ||
+      vzlaUltimo.includes('PAQUETE RETIRADO')
+    ) {
+      return false;
+    }
+
+    // Descartar si está vinculado a un inventario vendido (No disponible) o en taller
+    if (c.inventario_id) {
+      const lap = laptops.find(l => l.id === c.inventario_id || l.ebay_compra_id === c.id);
+      if (lap && (lap.disponibilidad === 'No disponible' || lap.en_taller)) return false;
+      const comp = componentes.find(co => co.id === c.inventario_id);
+      if (comp && comp.en_taller) return false;
+    }
+
+    // Verificar si YA existe algún paquete en trackings con este tracking_usa o vinculado a esta compra
+    const alreadyInTrackings = trackings.some(t => {
+      if (c.tracking_id && t.id === c.tracking_id) return true;
+      const tUsa = cleanTrackingNumber(t.tracking_usa);
+      if (tUsa && tUsa === cleanUsa) return true;
+      const tItems = Array.isArray(t.items) ? t.items : [];
+      return tItems.some(it => it.id === c.id || it.id === c.inventario_id);
+    });
+
+    return !alreadyInTrackings;
+  });
+
+  // Auto-crear paquete en trackings para compras activas huérfanas (ej: olvidadas de prealertar)
+  const newTrackingsCreated = [];
+  if (orphanCompras.length > 0 && db) {
+    const groupedByUsa = new Map();
+    for (const c of orphanCompras) {
+      const cleanUsa = cleanTrackingNumber(c.tracking_usa);
+      if (!groupedByUsa.has(cleanUsa)) {
+        groupedByUsa.set(cleanUsa, []);
+      }
+      groupedByUsa.get(cleanUsa).push(c);
+    }
+
+    for (const [cleanUsa, comprasGroup] of groupedByUsa.entries()) {
+      try {
+        const firstC = comprasGroup[0];
+        let detectedCourier = firstC.courier_usa || 'usps';
+        if (!detectedCourier || detectedCourier === 'otro') {
+          const usaRes = consultarTrackingUsa(cleanUsa);
+          detectedCourier = usaRes?.courier || 'usps';
+        }
+
+        const itemsToAdd = comprasGroup.map(c => {
+          let invItem = null;
+          if (c.tipo_inventario === 'laptop' && c.inventario_id) {
+            invItem = laptops.find(l => l.id === c.inventario_id);
+          } else if (c.tipo_inventario === 'componente' && c.inventario_id) {
+            invItem = componentes.find(co => co.id === c.inventario_id);
+          }
+          return {
+            id: invItem?.id || `ebay_${c.id}`,
+            tipo: c.tipo_inventario === 'componente' ? 'componente' : 'laptop',
+            nombre: invItem?.nombre || `${invItem?.marca || ''} ${invItem?.modelo || ''}`.trim() || c.titulo || 'Artículo eBay',
+            modelo: invItem?.modelo || '',
+            costo: Number(invItem?.precio_ebay || invItem?.costo || c.precio) || 0
+          };
+        });
+
+        const newTrkData = {
+          tracking_usa: cleanUsa,
+          courier_usa: detectedCourier,
+          prealertado: false,
+          fecha_prealerta: null,
+          casillero_cuenta: '',
+          tracking_vzla: '',
+          courier_vzla: 'liberty',
+          courier_vzla_otro: '',
+          estado: 'por_prealertar',
+          items: itemsToAdd,
+          notas: `Auto-generado desde compras eBay.\nOrden: #${firstC.orderId || 'S/N'}\nArtículo: ${itemsToAdd[0]?.nombre || 'Artículo'}`,
+          fecha_creacion: serverTimestamp(),
+          fecha_actualizacion: serverTimestamp()
+        };
+
+        const docRef = await addDoc(collection(db, 'trackings'), newTrkData);
+        const createdTrk = {
+          id: docRef.id,
+          ...newTrkData
+        };
+
+        for (const c of comprasGroup) {
+          c.tracking_id = docRef.id;
+          try {
+            await updateDoc(doc(db, 'compras_ebay', c.id), {
+              tracking_id: docRef.id,
+              fecha_actualizacion: serverTimestamp()
+            });
+          } catch (_) {}
+        }
+
+        newTrackingsCreated.push(createdTrk);
+      } catch (errCreate) {
+        console.warn('[Smartbits] Error auto-creando paquete para compra huérfana:', errCreate);
+      }
+    }
+  }
+
+  const todosLosTrackings = [...trackings, ...newTrackingsCreated];
+
   // Filtrar trackings que ameritan consulta automática (excluir ya recogidos, en taller o facturados/entregados)
-  const candidatos = trackings.filter(t => {
+  const candidatos = todosLosTrackings.filter(t => {
     if (t.estado === 'ya_recogido' || t.en_taller) return false;
     const vzlaUpper = (t.tracking_vzla_ultimo_estado || '').toUpperCase();
     if (
@@ -503,6 +676,10 @@ export async function sincronizarTrackingsConCouriers({
       if (res && res.success && res.found) {
         // A) SÓLO si Liberty confirma que FÍSICAMENTE lo recibió en almacén Miami o ya está en tránsito a VZLA:
         if (res.isInMiami || res.isTransitoVzla || res.isDelivered || res.isDisponible) {
+          if (!trk.prealertado) {
+            updatesTrk.prealertado = true;
+            huboCambios = true;
+          }
           if (!trk.tracking_usa_entregado) {
             updatesTrk.tracking_usa_entregado = true;
             huboCambios = true;
@@ -537,17 +714,24 @@ export async function sincronizarTrackingsConCouriers({
         }
 
         // B) DETECCIÓN Y ACTUALIZACIÓN DE GUÍA VZLA:
-        // Caso 1: No tenía guía y se detectó una nueva
+        // Caso 1: No tenía guía y se detectó una nueva (definitiva WR01-... o prealerta WRTMP-...)
         // Caso 2: Tenía guía temporal (WRTMP-...) y ahora Liberty emitió la guía definitiva (WR01-..., LIB-...)
         const tieneGuiaTemporal = cleanVzla && cleanVzla.startsWith('WRTMP-');
         const esNuevaGuiaDefinitiva = res.trackingVzla && !res.trackingVzla.startsWith('WRTMP-');
+        const esNuevaPrealerta = !cleanVzla && res.trackingVzla && res.trackingVzla.startsWith('WRTMP-');
 
         if ((!cleanVzla && res.trackingVzla) || (tieneGuiaTemporal && esNuevaGuiaDefinitiva)) {
           updatesTrk.tracking_vzla = res.trackingVzla;
           updatesTrk.courier_vzla = "liberty";
           updatesTrk.auto_detectado_vzla = true;
+          updatesTrk.prealertado = true;
           if (tieneGuiaTemporal) {
             updatesTrk.prealerta_id = cleanVzla;
+          } else if (esNuevaPrealerta) {
+            updatesTrk.prealerta_id = res.trackingVzla;
+            if (!updatesTrk.estado && (trk.estado === 'por_prealertar' || !trk.estado)) {
+              updatesTrk.estado = 'prealertado';
+            }
           }
           updatesTrk.tracking_vzla_ultimo_estado = res.ultimoEstado;
           updatesTrk.tracking_vzla_fecha_estado = res.fechaEstado || null;
@@ -603,6 +787,16 @@ export async function sincronizarTrackingsConCouriers({
             huboCambios = true;
           }
         }
+      } else if (res && res.success && !res.found) {
+        // Si se consultó con tracking USA y Liberty NO encontró ningún paquete:
+        // Significa que aún NO está prealertado en Liberty.
+        if (cleanUsa && (!cleanVzla || cleanVzla.startsWith('WRTMP-'))) {
+          if (trk.estado === 'prealertado' || trk.prealertado) {
+            updatesTrk.estado = 'por_prealertar';
+            updatesTrk.prealertado = false;
+            huboCambios = true;
+          }
+        }
       } else if (courierUsaYaEntrego) {
         // Si Liberty aún no lo procesa, pero UPS/USPS ya lo entregó en Miami
         if (!trk.tracking_usa_entregado) {
@@ -637,8 +831,9 @@ export async function sincronizarTrackingsConCouriers({
             updatesCompra.isDelivered = true;
             updatesCompra.shipping_status = "delivered";
           }
-          if (updatesTrk.tracking_vzla && (!c.tracking_vzla || c.tracking_vzla.startsWith('WRTMP-'))) {
-            updatesCompra.tracking_vzla = updatesTrk.tracking_vzla;
+          const nuevaVzlaParaCompra = updatesTrk.tracking_vzla || (res?.trackingVzla && !c.tracking_vzla ? res.trackingVzla : null);
+          if (nuevaVzlaParaCompra && (!c.tracking_vzla || c.tracking_vzla.startsWith('WRTMP-') || c.tracking_vzla !== nuevaVzlaParaCompra)) {
+            updatesCompra.tracking_vzla = nuevaVzlaParaCompra;
             updatesCompra.courier_vzla = "liberty";
             updatesCompra.auto_detectado_vzla = true;
           }
@@ -647,6 +842,14 @@ export async function sincronizarTrackingsConCouriers({
           }
           if (updatesTrk.tracking_vzla_fecha_estado) {
             updatesCompra.tracking_vzla_fecha_estado = updatesTrk.tracking_vzla_fecha_estado;
+          }
+          if (updatesTrk.prealertado !== undefined) {
+            updatesCompra.prealertado = updatesTrk.prealertado;
+          } else if (res?.found || res?.trackingVzla) {
+            updatesCompra.prealertado = true;
+          }
+          if (updatesTrk.prealerta_id) {
+            updatesCompra.prealerta_id = updatesTrk.prealerta_id;
           }
           if (res && res.isDelivered) {
             updatesCompra.en_taller = true;
