@@ -1,5 +1,16 @@
 {
   "rewrites": [
+    {
+      "source": "/equipo/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(WhatsApp|facebookexternalhit|TelegramBot|Twitterbot|LinkedInBot|Discordbot|Slackbot).*"
+        }
+      ],
+      "destination": "/api/share?id=:id"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

@@ -1,12 +1,37 @@
 import { useState, useMemo, useEffect } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Search, ChevronDown, PackageSearch, X, Loader2 } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { migrateMockToFirestore } from '../data/migrateData';
 import LaptopCard from '../components/LaptopCard';
 import LaptopModal from '../components/LaptopModal';
+import CompareBar from '../components/CompareBar';
+import CompareModal from '../components/CompareModal';
+import { cpuBenchmarkScore, extractNumber } from '../utils/compare';
+
+const MAX_COMPARE = 5;
+
+const compareFields = [
+  { label: 'Marca', get: (l) => l.marca },
+  { label: 'Modelo', get: (l) => l.modelo },
+  { label: 'Procesador', get: (l) => l.cpu, isCpu: true, benchParse: (l) => cpuBenchmarkScore(l.cpu) },
+  { label: 'RAM', get: (l) => l.ram, parse: (l) => extractNumber(l.ram) },
+  { label: 'Almacenamiento', get: (l) => l.almacenamiento, parse: (l) => extractNumber(l.almacenamiento, { terabyteToGb: true }) },
+  { label: 'Gráficos', get: (l) => l.gpu },
+  { label: 'Pantalla', get: (l) => l.pantalla },
+  { label: 'Sistema', get: (l) => l.windows },
+  { label: 'Batería', get: (l) => l.bateria },
+  { label: 'Precio', get: (l) => `$${l.precio} USD`, parse: (l) => Number(l.precio) },
+  { label: 'Disponibilidad', get: (l) => l.disponibilidad },
+];
+
+const getLaptopImage = (l) =>
+  (l.imagenes && l.imagenes.length > 0 ? l.imagenes[0] : l.imagen) || '/default-laptop.png';
 
 export default function Catalog() {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [laptops, setLaptops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -16,8 +41,9 @@ export default function Catalog() {
   const [selectedStorage, setSelectedStorage] = useState("Todas");
   const [maxPrice, setMaxPrice] = useState(2500);
   const [selectedAvailability, setSelectedAvailability] = useState("Todos");
-  const [selectedLaptop, setSelectedLaptop] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [compareIds, setCompareIds] = useState([]);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   useEffect(() => {
     const q = collection(db, 'laptops');
@@ -40,6 +66,19 @@ export default function Catalog() {
     });
     return () => unsubscribe();
   }, []);
+
+  // La ficha abierta se deriva de la URL (/equipo/:id): sin estado extra,
+  // sin efectos y siempre con los datos frescos de Firestore.
+  const selectedLaptop = useMemo(() => {
+    if (!id || loading) return null;
+    return laptops.find(l => l.id === id && !l.borrador) || null;
+  }, [id, laptops, loading]);
+
+  const notFound = Boolean(id) && !loading && !selectedLaptop;
+
+  const handleCloseLaptop = () => {
+    if (id) navigate('/');
+  };
 
   const brands = ["Todas", ...new Set(laptops.map(l => l.marca))];
   const cpuOptions = ["Todos", "Intel Core i3", "Intel Core i5", "Intel Core i7", "Intel Core i9", "AMD Ryzen 3", "AMD Ryzen 5", "AMD Ryzen 7", "AMD Ryzen 9"];
@@ -94,13 +133,48 @@ export default function Catalog() {
     });
   }, [laptops, searchTerm, selectedBrand, selectedRam, selectedStorage, selectedCpu, maxPrice, selectedAvailability]);
 
-  const chunkedLaptops = useMemo(() => {
-    const chunks = [];
-    for (let i = 0; i < filteredLaptops.length; i += 2) {
-      chunks.push(filteredLaptops.slice(i, i + 2));
-    }
-    return chunks;
-  }, [filteredLaptops]);
+  const compareItems = useMemo(
+    () => compareIds.map((id) => laptops.find((l) => l.id === id)).filter(Boolean),
+    [compareIds, laptops]
+  );
+
+  const toggleCompare = (id) => {
+    setCompareIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_COMPARE) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const clearCompare = () => {
+    setCompareIds([]);
+    setCompareOpen(false);
+  };
+
+  const removeFromCompare = (id) => {
+    const next = compareIds.filter((x) => x !== id);
+    setCompareIds(next);
+    if (next.length < 2) setCompareOpen(false);
+  };
+
+  const activeFilters = [];
+  if (searchTerm.trim()) activeFilters.push({ key: 'search', label: `Búsqueda: "${searchTerm.trim()}"`, onClear: () => setSearchTerm('') });
+  if (selectedBrand !== 'Todas') activeFilters.push({ key: 'brand', label: `Marca: ${selectedBrand}`, onClear: () => setSelectedBrand('Todas') });
+  if (selectedCpu !== 'Todos') activeFilters.push({ key: 'cpu', label: `Procesador: ${selectedCpu}`, onClear: () => setSelectedCpu('Todos') });
+  if (selectedRam !== 'Todas') activeFilters.push({ key: 'ram', label: `RAM: ${selectedRam}`, onClear: () => setSelectedRam('Todas') });
+  if (selectedStorage !== 'Todas') activeFilters.push({ key: 'storage', label: `Disco: ${selectedStorage}`, onClear: () => setSelectedStorage('Todas') });
+  if (selectedAvailability !== 'Todos') activeFilters.push({ key: 'availability', label: `Disponibilidad: ${selectedAvailability}`, onClear: () => setSelectedAvailability('Todos') });
+  if (maxPrice !== 2500) activeFilters.push({ key: 'price', label: `Precio máx: $${maxPrice}`, onClear: () => setMaxPrice(2500) });
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedBrand('Todas');
+    setSelectedCpu('Todos');
+    setSelectedRam('Todas');
+    setSelectedStorage('Todas');
+    setMaxPrice(2500);
+    setSelectedAvailability('Todos');
+  };
 
   if (loading) {
     return (
@@ -137,6 +211,19 @@ export default function Catalog() {
         )}
       </section>
 
+      {/* Equipo no encontrado (enlace directo inválido o equipo no disponible) */}
+      {notFound && (
+        <div className="w-full max-w-[1400px] mx-auto px-6 pt-8">
+          <div className="bg-white dark:bg-brand-900 rounded-3xl border border-brand-100 dark:border-brand-800 p-10 text-center shadow-sm">
+            <h2 className="text-xl font-bold text-brand-800 dark:text-white mb-2">Equipo no encontrado</h2>
+            <p className="text-sm text-brand-500 dark:text-brand-300 mb-6">Es posible que ya no esté disponible o que el enlace sea incorrecto.</p>
+            <Link to="/" className="inline-block text-sm font-bold text-white bg-brand-900 dark:bg-brand-600 hover:bg-brand-800 dark:hover:bg-brand-500 px-6 py-3 rounded-full transition-colors">
+              Volver al catálogo
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Main Container */}
       <div className="w-full max-w-[1400px] mx-auto px-6 py-12">
 
@@ -166,6 +253,28 @@ export default function Catalog() {
             Filtros Avanzados <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
           </button>
         </div>
+
+        {/* Chips de filtros activos */}
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-8 -mt-4">
+            {activeFilters.map((filter) => (
+              <button
+                key={filter.key}
+                onClick={filter.onClear}
+                className="group inline-flex items-center gap-1.5 bg-white dark:bg-brand-900 text-brand-700 dark:text-brand-200 border border-brand-200 dark:border-brand-700 rounded-full pl-3 pr-2 py-1.5 text-xs font-bold shadow-sm hover:border-brand-400 dark:hover:border-brand-500 transition-colors"
+              >
+                {filter.label}
+                <X className="w-3.5 h-3.5 text-brand-400 group-hover:text-brand-700 dark:group-hover:text-white" />
+              </button>
+            ))}
+            <button
+              onClick={clearAllFilters}
+              className="ml-1 text-xs font-black uppercase tracking-wider text-brand-500 dark:text-brand-400 hover:text-brand-800 dark:hover:text-white underline underline-offset-4 transition-colors"
+            >
+              Limpiar todo
+            </button>
+          </div>
+        )}
 
         {/* Inline Advanced Filters */}
         {showFilters && (
@@ -211,12 +320,15 @@ export default function Catalog() {
         <div className="mb-8">
           <p className="text-sm font-semibold text-brand-500 dark:text-brand-300 mb-6 pl-2">Mostrando {filteredLaptops.length} resultados</p>
           {filteredLaptops.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredLaptops.map(laptop => (
                 <LaptopCard
                   key={laptop.id}
                   laptop={laptop}
-                  onClick={() => setSelectedLaptop(laptop)}
+                  onClick={() => navigate(`/equipo/${laptop.id}`)}
+                  isComparing={compareIds.includes(laptop.id)}
+                  onToggleCompare={() => toggleCompare(laptop.id)}
+                  compareDisabled={compareIds.length >= MAX_COMPARE}
                 />
               ))}
             </div>
@@ -233,9 +345,32 @@ export default function Catalog() {
       {/* Modal Selection */}
       {selectedLaptop && (
         <LaptopModal
+          key={selectedLaptop.id}
           laptop={selectedLaptop}
           isOpen={!!selectedLaptop}
-          onClose={() => setSelectedLaptop(null)}
+          onClose={handleCloseLaptop}
+        />
+      )}
+
+      {/* Comparación */}
+      <CompareBar
+        items={compareItems}
+        getImage={getLaptopImage}
+        max={MAX_COMPARE}
+        canCompare={compareIds.length >= 2}
+        onCompare={() => setCompareOpen(true)}
+        onClear={clearCompare}
+      />
+
+      {compareOpen && (
+        <CompareModal
+          items={compareItems}
+          fields={compareFields}
+          getImage={getLaptopImage}
+          bench={{ label: 'Benchmark', get: (l) => cpuBenchmarkScore(l.cpu) }}
+          title="Comparar equipos"
+          onClose={() => setCompareOpen(false)}
+          onRemove={removeFromCompare}
         />
       )}
     </div>

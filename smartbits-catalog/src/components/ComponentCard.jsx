@@ -1,3 +1,4 @@
+import { Check, Plus } from 'lucide-react';
 import { getCloudinaryUrl } from "../utils/imageOptimizer.js";
 
 const tipoBadgeColors = {
@@ -16,7 +17,7 @@ const tipoTextColors = {
   OTROS: 'text-purple-600 dark:text-purple-400',
 };
 
-export default function ComponentCard({ component, onClick }) {
+export default function ComponentCard({ component, onClick, isComparing = false, onToggleCompare, compareDisabled = false }) {
   const isAvailable = component.disponibilidad === "Disponible";
   const rawImage = component.imagenes && component.imagenes.length > 0
     ? component.imagenes[0]
@@ -39,6 +40,22 @@ export default function ComponentCard({ component, onClick }) {
             {component.tipo}
           </span>
         </div>
+
+        {onToggleCompare && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleCompare(); }}
+            disabled={compareDisabled && !isComparing}
+            aria-label={isComparing ? 'Quitar de la comparación' : 'Añadir a la comparación'}
+            title={isComparing ? 'Quitar de la comparación' : 'Añadir a la comparación'}
+            className={`absolute top-4 right-4 z-20 w-8 h-8 rounded-full flex items-center justify-center border backdrop-blur-sm transition-all ${
+              isComparing
+                ? 'bg-brand-900 dark:bg-brand-600 text-white border-brand-900 dark:border-brand-600 scale-105'
+                : 'bg-white/90 dark:bg-brand-950/80 text-brand-500 dark:text-brand-300 border-brand-100 dark:border-brand-700 hover:text-brand-800 dark:hover:text-white hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100'
+            }`}
+          >
+            {isComparing ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          </button>
+        )}
 
         <img
           src={getCloudinaryUrl(image, 'card') || '/default-component.png'}

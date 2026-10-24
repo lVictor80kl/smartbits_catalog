@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import {
   X, Plus, ShieldCheck, BatteryCharging,
   Cpu, MemoryStick, Database, MonitorPlay,
-  Monitor, LayoutDashboard, MessageCircle, ZoomIn,
-  ChevronLeft, ChevronRight
+  Monitor, LayoutDashboard, ZoomIn,
+  ChevronLeft, ChevronRight, Share2, Check
 } from 'lucide-react';
 import { getCloudinaryUrl } from "../utils/imageOptimizer.js";
 
@@ -15,6 +15,7 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [copied, setCopied] = useState(false);
   const touchStartX = useRef(null);
 
   const images = (laptop?.imagenes && laptop.imagenes.length > 0)
@@ -101,6 +102,32 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
 
   const whatsappMessage = `Hola Smartbits, estoy interesado en el equipo ${laptop.modelo} listado a $${precioFinalModal} USD${isOfertaModal ? ' (En Oferta)' : ''}. ¿Pueden brindarme mayor información?`;
   const whatsappUrl = `https://wa.me/584128444445?text=${encodeURIComponent(whatsappMessage)}`;
+
+  const shareUrl = `${window.location.origin}/equipo/${laptop.id}`;
+  const shareTitle = `${laptop.marca} ${laptop.modelo} | Smartbits`;
+  const shareText = `Te recomiendo esta ${laptop.marca} ${laptop.modelo} — $${laptop.precio} USD. Mírala aquí:`;
+
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+      } catch (err) {
+        if (err?.name !== 'AbortError') copyShareLink();
+      }
+    } else {
+      copyShareLink();
+    }
+  };
 
   const handleZoomClick = (e) => {
     e.stopPropagation();
@@ -312,9 +339,18 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
                   rel="noopener noreferrer"
                   className="w-full bg-brand-900 dark:bg-brand-800 hover:bg-brand-800 dark:hover:bg-brand-700 text-white py-6 px-10 rounded-3xl font-black transition-all shadow-2xl shadow-brand-900/20 dark:shadow-none flex items-center justify-center gap-5 text-lg lg:text-xl transform hover:-translate-y-1.5 active:translate-y-0 text-center"
                 >
-                  <MessageCircle className="w-8 h-8 text-brand-400 dark:text-brand-500" />
+                  <img src="/whatsapp.png" alt="WhatsApp" className="w-8 h-8 object-contain" />
                   Más información
                 </a>
+                <button
+                  onClick={handleShare}
+                  className="mt-4 w-full bg-transparent border-2 border-brand-200 dark:border-brand-700 hover:border-brand-500 dark:hover:border-brand-500 text-brand-800 dark:text-white py-4 px-10 rounded-3xl font-black transition-all flex items-center justify-center gap-3 text-base"
+                >
+                  {copied
+                    ? <Check className="w-6 h-6 text-emerald-500" />
+                    : <Share2 className="w-6 h-6" />}
+                  {copied ? '¡Enlace copiado!' : 'Compartir equipo'}
+                </button>
               </div>
             </div>
           </div>
@@ -409,7 +445,8 @@ export default function LaptopModal({ laptop, isOpen, onClose }) {
   return createPortal(modalContent, document.body);
 }
 
-function SpecItem({ icon: Icon, label, value }) {
+function SpecItem({ icon, label, value }) {
+  const Icon = icon;
   return (
     <div className="flex gap-4 group">
       <div className="w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-900 border border-brand-100 dark:border-brand-800 flex items-center justify-center text-brand-500 dark:text-brand-400 group-hover:bg-brand-600 dark:group-hover:bg-brand-600 group-hover:text-white transition-all duration-300 shadow-sm">

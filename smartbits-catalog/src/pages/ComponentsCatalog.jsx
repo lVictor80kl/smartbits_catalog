@@ -4,6 +4,23 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import ComponentCard from '../components/ComponentCard';
 import ComponentModal from '../components/ComponentModal';
+import CompareBar from '../components/CompareBar';
+import CompareModal from '../components/CompareModal';
+import { extractNumber } from '../utils/compare';
+
+const MAX_COMPARE = 5;
+
+const compareFields = [
+  { label: 'Tipo', get: (c) => c.tipo },
+  { label: 'Nombre', get: (c) => c.nombre },
+  { label: 'Marca', get: (c) => c.marca },
+  { label: 'Capacidad', get: (c) => c.capacidad, parse: (c) => extractNumber(c.capacidad, { terabyteToGb: true }) },
+  { label: 'Precio', get: (c) => `$${c.precio} USD`, parse: (c) => Number(c.precio) },
+  { label: 'Disponibilidad', get: (c) => c.disponibilidad },
+];
+
+const getComponentImage = (c) =>
+  (c.imagenes && c.imagenes.length > 0 ? c.imagenes[0] : c.imagen) || '/default-laptop.png';
 
 export default function ComponentsCatalog() {
   const [components, setComponents] = useState([]);
@@ -11,6 +28,8 @@ export default function ComponentsCatalog() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTipo, setSelectedTipo] = useState('Todos');
   const [selectedComponent, setSelectedComponent] = useState(null);
+  const [compareIds, setCompareIds] = useState([]);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'componentes'), (snapshot) => {
@@ -65,6 +84,39 @@ export default function ComponentsCatalog() {
     });
   }, [components, searchTerm, selectedTipo]);
 
+  const compareItems = useMemo(
+    () => compareIds.map((id) => components.find((c) => c.id === id)).filter(Boolean),
+    [compareIds, components]
+  );
+
+  const toggleCompare = (id) => {
+    setCompareIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_COMPARE) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const clearCompare = () => {
+    setCompareIds([]);
+    setCompareOpen(false);
+  };
+
+  const removeFromCompare = (id) => {
+    const next = compareIds.filter((x) => x !== id);
+    setCompareIds(next);
+    if (next.length < 2) setCompareOpen(false);
+  };
+
+  const activeFilters = [];
+  if (searchTerm.trim()) activeFilters.push({ key: 'search', label: `Búsqueda: "${searchTerm.trim()}"`, onClear: () => setSearchTerm('') });
+  if (selectedTipo !== 'Todos') activeFilters.push({ key: 'tipo', label: `Tipo: ${selectedTipo}`, onClear: () => setSelectedTipo('Todos') });
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedTipo('Todos');
+  };
+
   if (loading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-brand-50 dark:bg-brand-950">
@@ -111,6 +163,28 @@ export default function ComponentsCatalog() {
           </div>
         </div>
 
+        {/* Chips de filtros activos */}
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-8 -mt-4">
+            {activeFilters.map((filter) => (
+              <button
+                key={filter.key}
+                onClick={filter.onClear}
+                className="group inline-flex items-center gap-1.5 bg-white dark:bg-brand-900 text-brand-700 dark:text-brand-200 border border-brand-200 dark:border-brand-700 rounded-full pl-3 pr-2 py-1.5 text-xs font-bold shadow-sm hover:border-brand-400 dark:hover:border-brand-500 transition-colors"
+              >
+                {filter.label}
+                <X className="w-3.5 h-3.5 text-brand-400 group-hover:text-brand-700 dark:group-hover:text-white" />
+              </button>
+            ))}
+            <button
+              onClick={clearAllFilters}
+              className="ml-1 text-xs font-black uppercase tracking-wider text-brand-500 dark:text-brand-400 hover:text-brand-800 dark:hover:text-white underline underline-offset-4 transition-colors"
+            >
+              Limpiar todo
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-3 mb-10 justify-center">
           {tipos.map(tipo => (
             <button
@@ -130,12 +204,15 @@ export default function ComponentsCatalog() {
         <div className="mb-8">
           <p className="text-sm font-semibold text-brand-500 dark:text-brand-300 mb-6 pl-2">Mostrando {filteredComponents.length} resultados</p>
           {filteredComponents.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredComponents.map(comp => (
                 <ComponentCard
                   key={comp.id}
                   component={comp}
                   onClick={() => setSelectedComponent(comp)}
+                  isComparing={compareIds.includes(comp.id)}
+                  onToggleCompare={() => toggleCompare(comp.id)}
+                  compareDisabled={compareIds.length >= MAX_COMPARE}
                 />
               ))}
             </div>
@@ -154,6 +231,27 @@ export default function ComponentsCatalog() {
           component={selectedComponent}
           isOpen={!!selectedComponent}
           onClose={() => setSelectedComponent(null)}
+        />
+      )}
+
+      {/* Comparación */}
+      <CompareBar
+        items={compareItems}
+        getImage={getComponentImage}
+        max={MAX_COMPARE}
+        canCompare={compareIds.length >= 2}
+        onCompare={() => setCompareOpen(true)}
+        onClear={clearCompare}
+      />
+
+      {compareOpen && (
+        <CompareModal
+          items={compareItems}
+          fields={compareFields}
+          getImage={getComponentImage}
+          title="Comparar componentes"
+          onClose={() => setCompareOpen(false)}
+          onRemove={removeFromCompare}
         />
       )}
     </div>

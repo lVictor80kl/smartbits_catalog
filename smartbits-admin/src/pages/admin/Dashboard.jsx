@@ -2,17 +2,19 @@ import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { 
-  PlusCircle, Edit, Trash2, Loader2, FileText, Download, 
-  Package, Wrench, Banknote, SlidersHorizontal, RotateCcw, 
+import {
+  PlusCircle, Edit, Trash2, Loader2, FileText, Download,
+  Package, Wrench, Banknote, SlidersHorizontal, RotateCcw,
   ChevronDown, ChevronUp, X, Copy, Flame, MoreVertical,
   LayoutGrid, List, Search, Laptop, DollarSign, CheckCircle2,
   Clock, AlertCircle, ArrowUpDown, Cpu, HardDrive, MemoryStick, Eye,
-  TrendingUp, Truck
+  TrendingUp, Truck, Share2, Check
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
 import { tieneEnvioPagado, tienePagoExtra, getCostoTotal } from '../../utils/costos';
+
+const CATALOG_URL = (import.meta.env.VITE_CATALOG_URL || 'https://smartbits-catalog.vercel.app').replace(/\/$/, '');
 
 export default function Dashboard() {
   const [laptops, setLaptops] = useState([]);
@@ -46,10 +48,11 @@ export default function Dashboard() {
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
   const [gastosModalLaptop, setGastosModalLaptop] = useState(null);
   const [bulkGastosModalOpen, setBulkGastosModalOpen] = useState(false);
-  const [modalOferta, setModalOferta] = useState({ 
-    open: false, laptop: null, en_oferta: false, precio_oferta: '', etiqueta_oferta: '', saving: false 
+  const [modalOferta, setModalOferta] = useState({
+    open: false, laptop: null, en_oferta: false, precio_oferta: '', etiqueta_oferta: '', saving: false
   });
   const [activeMenu, setActiveMenu] = useState(null);
+  const [copiedToast, setCopiedToast] = useState(false);
 
   // Guardar preferencia de vista
   const handleSetViewMode = (mode) => {
@@ -292,6 +295,17 @@ export default function Dashboard() {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+  };
+
+  const handleCopyCatalogLink = async (laptop) => {
+    const url = `${CATALOG_URL}/equipo/${laptop.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedToast(true);
+      setTimeout(() => setCopiedToast(false), 2000);
+    } catch (err) {
+      alert('No se pudo copiar el enlace: ' + err.message);
+    }
   };
 
   const handleExportPDF = () => {
@@ -1458,7 +1472,6 @@ export default function Dashboard() {
                         {laptop.disponibilidad}
                       </span>
                     </td>
-
                     {/* Botón de Acciones */}
                     <td className="px-5 py-3.5 text-right">
                       {duplicatingId === laptop.id ? (
@@ -1957,6 +1970,21 @@ export default function Dashboard() {
               <FileText className="w-4 h-4 text-teal-600 shrink-0" />
               <span>Nota de entrega</span>
             </Link>
+
+            {!activeMenu.laptop.borrador && (
+              <button
+                type="button"
+                onClick={() => {
+                  const lp = activeMenu.laptop;
+                  closeActionMenu();
+                  handleCopyCatalogLink(lp);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-gray-700 hover:text-emerald-700 font-semibold transition-colors text-left"
+              >
+                <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Copiar enlace del catálogo</span>
+              </button>
+            )}
           </div>
 
           <div className="h-px bg-gray-100 my-1" />
@@ -1976,6 +2004,15 @@ export default function Dashboard() {
               <span>Eliminar equipo</span>
             </button>
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Toast de enlace copiado */}
+      {copiedToast && createPortal(
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-2 bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+          <Check className="w-4 h-4 text-emerald-400" />
+          ¡Enlace del catálogo copiado!
         </div>,
         document.body
       )}

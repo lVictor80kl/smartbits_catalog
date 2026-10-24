@@ -1,16 +1,14 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Shield } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 
 export default function ClientLayout() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
     // Default to a dark theme preference visually, or sync with the system
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (prefersDark) {
-      setIsDarkMode(true);
       document.documentElement.classList.add('dark');
     }
   }, []);
@@ -23,25 +21,25 @@ export default function ClientLayout() {
           <Link
             to="/"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center group h-full mr-3"
+            className="flex items-center group h-full mr-2 sm:mr-3 shrink-0"
           >
             <img
               src="/icon-white.png"
               alt="Logo"
-              className="hidden dark:block h-5 object-contain opacity-80 group-hover:opacity-100"
+              className="hidden dark:block h-4 sm:h-5 object-contain opacity-80 group-hover:opacity-100"
             />
             <img
               src="/logo-black.png"
               alt="Logo"
-              className="block dark:hidden h-5 object-contain opacity-80 group-hover:opacity-100"
+              className="block dark:hidden h-4 sm:h-5 object-contain opacity-80 group-hover:opacity-100"
             />
           </Link>
 
-          <div className="flex items-center gap-1 ml-4">
+          <div className="flex items-center gap-1 ml-2 sm:ml-4">
             <Link
               to="/"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all whitespace-nowrap ${
                 location.pathname === '/'
                   ? 'bg-brand-900 dark:bg-brand-700 text-white'
                   : 'text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-800'
@@ -52,7 +50,7 @@ export default function ClientLayout() {
             <Link
               to="/componentes"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all whitespace-nowrap ${
                 location.pathname === '/componentes'
                   ? 'bg-brand-900 dark:bg-brand-700 text-white'
                   : 'text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-800'
@@ -62,15 +60,16 @@ export default function ClientLayout() {
             </Link>
           </div>
 
-          <div className="flex flex-1 items-center justify-end gap-3 text-sm font-semibold text-brand-600 dark:text-brand-300">
+          <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3 text-sm font-semibold text-brand-600 dark:text-brand-300">
 
             <a
               href="https://www.instagram.com/smartbits.ve/"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:opacity-80 transition-opacity flex items-center gap-1.5"
+              className="hover:opacity-80 transition-opacity flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap"
+              aria-label="Instagram"
             >
-              <svg viewBox="0 0 24 24" className="w-4 h-4" xmlns="http://www.w3.org/2000/svg">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <linearGradient id="ig-grad" x1="0" y1="0" x2="24" y2="24">
                     <stop offset="0%" stopColor="#833AB4" />
@@ -82,19 +81,21 @@ export default function ClientLayout() {
                 <circle cx="12" cy="12" r="5" stroke="url(#ig-grad)" strokeWidth="2" fill="none" />
                 <circle cx="17.5" cy="6.5" r="1.5" fill="url(#ig-grad)" />
               </svg>
-              <span className="text-brand-600 dark:text-brand-300 font-semibold text-sm ">Instagram</span>
+              <span className="hidden sm:inline text-brand-600 dark:text-brand-300 font-semibold text-sm">Instagram</span>
             </a>
             <a
               href="https://wa.me/584128444445"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:opacity-80 transition-opacity flex items-center gap-1.5"
+              className="hover:opacity-80 transition-opacity flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap"
+              aria-label="WhatsApp"
             >
-              <svg viewBox="0 0 24 24" className="w-4 h-4" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C6.48 2 2 6.48 2 12c0 2.08.64 4.01 1.73 5.62L2 22l4.53-1.57C8.04 21.4 9.96 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" fill="#25D366" />
-                <path d="M17 13.5c-.27-.14-1.63-.8-1.88-.9s-.44-.1-.62.1-.7.9-.87 1.08c-.16.18-.32.23-.6.1s-1.16-.43-2.21-1.37c-.82-.73-1.37-1.63-1.53-1.9-.16-.28-.02-.43.12-.56.12-.12.28-.32.41-.5.14-.18.18-.32.28-.5.1-.18.04-.37-.02-.5-.08-.14-.62-1.5-.85-2.06-.23-.56-.46-.5-.64-.5-.16 0-.34-.02-.52-.02-.18 0-.46.08-.7.37-.24.3-.92 1.01-.92 2.49 0 1.48.96 2.9 1.1 3.1.14.2 1.88 2.88 4.58 4.06.64.28 1.14.44 1.53.58.64.23 1.24.18 1.71.14.53-.05 1.6-.69 1.82-1.36.23-.66.23-1.24.16-1.35-.07-.11-.23-.18-.5-.32z" fill="white" />
-              </svg>
-              <span className="text-brand-600 dark:text-brand-300 font-semibold text-sm">WhatsApp</span>
+              <img
+                src="/whatsapp.png"
+                alt="WhatsApp"
+                className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0 object-contain"
+              />
+              <span className="hidden sm:inline text-brand-600 dark:text-brand-300 font-semibold text-sm">WhatsApp</span>
             </a>
             {import.meta.env.DEV && (
               <a
@@ -122,8 +123,8 @@ export default function ClientLayout() {
             <img src="/logo-black.png" className="block dark:hidden h-5 opacity-60 hover:opacity-100 transition-opacity" alt="Smartbits" />
           </Link>
           <div className="text-brand-500 dark:text-brand-300 text-sm flex gap-4 mt-4">
-            <a href="https://www.instagram.com/smartbits.ve/" className="hover:opacity-80 transition-opacity flex items-center gap-1.5">
-              <svg viewBox="0 0 24 24" className="w-4 h-4" xmlns="http://www.w3.org/2000/svg">
+            <a href="https://www.instagram.com/smartbits.ve/" className="hover:opacity-80 transition-opacity flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <linearGradient id="ig-grad-f" x1="0" y1="0" x2="24" y2="24">
                     <stop offset="0%" stopColor="#833AB4" />
@@ -137,11 +138,8 @@ export default function ClientLayout() {
               </svg>
               Instagram
             </a>
-            <a href="https://wa.me/584128444445" className="hover:opacity-80 transition-opacity flex items-center gap-1.5">
-              <svg viewBox="0 0 24 24" className="w-4 h-4" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C6.48 2 2 6.48 2 12c0 2.08.64 4.01 1.73 5.62L2 22l4.53-1.57C8.04 21.4 9.96 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z" fill="#25D366" />
-                <path d="M17 13.5c-.27-.14-1.63-.8-1.88-.9s-.44-.1-.62.1-.7.9-.87 1.08c-.16.18-.32.23-.6.1s-1.16-.43-2.21-1.37c-.82-.73-1.37-1.63-1.53-1.9-.16-.28-.02-.43.12-.56.12-.12.28-.32.41-.5.14-.18.18-.32.28-.5.1-.18.04-.37-.02-.5-.08-.14-.62-1.5-.85-2.06-.23-.56-.46-.5-.64-.5-.16 0-.34-.02-.52-.02-.18 0-.46.08-.7.37-.24.3-.92 1.01-.92 2.49 0 1.48.96 2.9 1.1 3.1.14.2 1.88 2.88 4.58 4.06.64.28 1.14.44 1.53.58.64.23 1.24.18 1.71.14.53-.05 1.6-.69 1.82-1.36.23-.66.23-1.24.16-1.35-.07-.11-.23-.18-.5-.32z" fill="white" />
-              </svg>
+            <a href="https://wa.me/584128444445" className="hover:opacity-80 transition-opacity flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap">
+              <img src="/whatsapp.png" alt="WhatsApp" className="w-5 h-5 flex-shrink-0 object-contain" />
               WhatsApp
             </a>
           </div>

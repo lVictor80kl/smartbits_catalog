@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, ShieldCheck,
-  MessageCircle, ZoomIn,
+  ZoomIn,
   ChevronLeft, ChevronRight, Zap, HardDrive, BatteryFull, Package, Keyboard, Mouse
 } from 'lucide-react';
 import { getCloudinaryUrl } from "../utils/imageOptimizer.js";
@@ -17,7 +17,8 @@ const tipoIcons = {
   Otros: Package,
 };
 
-function SpecItem({ icon: Icon, label, value }) {
+function SpecItem({ icon, label, value }) {
+  const Icon = icon;
   return (
     <div className="flex gap-4 group">
       <div className="w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-900 border border-brand-100 dark:border-brand-800 flex items-center justify-center text-brand-500 dark:text-brand-400 group-hover:bg-brand-600 dark:group-hover:bg-brand-600 group-hover:text-white transition-all duration-300 shadow-sm">
@@ -327,7 +328,7 @@ export default function ComponentModal({ component, isOpen, onClose }) {
                   rel="noopener noreferrer"
                   className="w-full bg-brand-900 dark:bg-brand-800 hover:bg-brand-800 dark:hover:bg-brand-700 text-white py-6 px-10 rounded-3xl font-black transition-all shadow-2xl shadow-brand-900/20 dark:shadow-none flex items-center justify-center gap-5 text-lg lg:text-xl transform hover:-translate-y-1.5 active:translate-y-0 text-center"
                 >
-                  <MessageCircle className="w-8 h-8 text-brand-400 dark:text-brand-500" />
+                  <img src="/whatsapp.png" alt="WhatsApp" className="w-8 h-8 object-contain" />
                   Más información
                 </a>
               </div>

@@ -9,6 +9,7 @@ function App() {
       <Routes>
         <Route path="/" element={<ClientLayout />}>
           <Route index element={<Catalog />} />
+          <Route path="equipo/:id" element={<Catalog />} />
           <Route path="componentes" element={<ComponentsCatalog />} />
         </Route>
       </Routes>
