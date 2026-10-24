@@ -4,6 +4,12 @@ import { X, GitCompareArrows, Crown, Gauge } from 'lucide-react';
 import { getCloudinaryUrl } from '../utils/imageOptimizer.js';
 import { percentDiff, formatPercent, powerBarClass } from '../utils/compare.js';
 
+function diffBadgeClass(diff) {
+  if (diff > 0) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+  if (diff < 0) return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
+  return 'bg-brand-100 text-brand-600 dark:bg-brand-800 dark:text-brand-300';
+}
+
 export default function CompareModal({ items, fields, getImage, bench, title = 'Comparar productos', onClose, onRemove }) {
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -35,17 +41,39 @@ export default function CompareModal({ items, fields, getImage, bench, title = '
   const isWinner = (score) => maxScore !== null && score === maxScore && topCount === 1;
   const isTie = (score) => maxScore !== null && score === maxScore && topCount > 1;
 
-  const diffBadgeClass = (diff) => {
-    if (diff > 0) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
-    if (diff < 0) return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
-    return 'bg-brand-100 text-brand-600 dark:bg-brand-800 dark:text-brand-300';
-  };
-
   const headerSubtitle = bench
     ? (hasData
       ? 'Ganador por benchmark · Resto de características: % vs el primero'
       : 'Sin datos de benchmark para estos procesadores')
     : `Diferencial % respecto a ${base.modelo || base.nombre}`;
+
+  const headerSubtitleShort = bench
+    ? (hasData ? 'Ganador por benchmark' : 'Sin datos de benchmark')
+    : `Diferencial % respecto a ${base.modelo || base.nombre}`;
+
+  const mobileFields = fields.filter((f) => f.label !== 'Modelo' && f.label !== 'Nombre');
+
+  const computeField = (field, item, idx) => {
+    const raw = field.get(item);
+    const display = raw === null || raw === undefined || raw === '' ? '—' : raw;
+
+    let diff = null;
+    let benchValue = null;
+
+    if (field.isCpu) {
+      benchValue = field.benchParse ? field.benchParse(item) : null;
+      if (typeof benchValue === 'number' && maxScore !== null) {
+        diff = benchValue === maxScore ? 0 : percentDiff(maxScore, benchValue);
+      }
+    } else if (idx > 0 && field.parse) {
+      diff = percentDiff(field.parse(base), field.parse(item));
+    }
+
+    const cpuWinner = field.isCpu && typeof benchValue === 'number' && benchValue === maxScore && topCount === 1;
+    const cpuTie = field.isCpu && typeof benchValue === 'number' && benchValue === maxScore && topCount > 1;
+
+    return { display, diff, benchValue, cpuWinner, cpuTie, isCpu: Boolean(field.isCpu) };
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4 md:p-6 lg:p-8" role="dialog" aria-modal="true">
@@ -63,7 +91,10 @@ export default function CompareModal({ items, fields, getImage, bench, title = '
             </div>
             <div className="min-w-0">
               <h3 className="text-sm sm:text-base font-black text-brand-900 dark:text-white truncate">{title}</h3>
-              <p className="text-[11px] font-semibold text-brand-400 dark:text-brand-500">{headerSubtitle}</p>
+              <p className="text-[11px] font-semibold text-brand-400 dark:text-brand-500">
+                <span className="hidden sm:inline">{headerSubtitle}</span>
+                <span className="sm:hidden">{headerSubtitleShort}</span>
+              </p>
             </div>
           </div>
           <button
@@ -87,7 +118,7 @@ export default function CompareModal({ items, fields, getImage, bench, title = '
                   {hasData ? 'Benchmark real' : 'Sin datos'}
                 </span>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3">
                 {items.map((item, idx) => {
                   const score = benchScores[idx];
                   const rel = typeof score === 'number' && maxScore ? (score / maxScore) * 100 : 0;
@@ -100,7 +131,7 @@ export default function CompareModal({ items, fields, getImage, bench, title = '
                   return (
                     <div
                       key={item.id}
-                      className={`flex-1 min-w-[120px] rounded-2xl border p-3 bg-white dark:bg-brand-900 transition-colors ${
+                      className={`rounded-2xl border p-3 bg-white dark:bg-brand-900 transition-colors md:flex-1 md:min-w-[120px] ${
                         winner
                           ? 'border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-400/30'
                           : 'border-brand-100 dark:border-brand-800'
@@ -152,104 +183,182 @@ export default function CompareModal({ items, fields, getImage, bench, title = '
             </div>
           )}
 
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr>
-                <th className="sticky left-0 z-10 bg-white dark:bg-brand-950 px-4 sm:px-6 py-4 text-[10px] font-black uppercase tracking-wider text-brand-400 dark:text-brand-500 border-b border-brand-100 dark:border-brand-800 min-w-[120px]">
-                  Característica
-                </th>
-                {items.map((item, idx) => {
-                  const score = benchScores[idx];
-                  return (
-                    <th key={item.id} className="px-3 sm:px-5 py-4 border-b border-brand-100 dark:border-brand-800 align-top min-w-[160px]">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className={`w-20 h-20 rounded-2xl overflow-hidden bg-brand-50 dark:bg-brand-900 border ${isWinner(score) ? 'border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-400/30' : 'border-brand-100 dark:border-brand-800'}`}>
-                          <img
-                            src={getCloudinaryUrl(getImage(item), 'card') || '/default-laptop.png'}
-                            alt={item.modelo || item.nombre}
-                            onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
-                            className="w-full h-full object-contain p-2"
-                          />
-                        </div>
-                        <p className="text-xs font-black text-brand-800 dark:text-white leading-tight text-center line-clamp-2">
-                          {item.modelo || item.nombre}
-                        </p>
+          {/* Vista móvil: tarjetas apiladas, sin scroll horizontal */}
+          <div className="md:hidden p-4 pb-8 space-y-4">
+            {items.map((item, idx) => {
+              const score = benchScores[idx];
+              return (
+                <article
+                  key={item.id}
+                  className={`rounded-2xl border bg-white dark:bg-brand-900 overflow-hidden ${
+                    isWinner(score)
+                      ? 'border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-400/30'
+                      : 'border-brand-100 dark:border-brand-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 p-4 border-b border-brand-100 dark:border-brand-800">
+                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-brand-50 dark:bg-brand-800 border border-brand-100 dark:border-brand-700 shrink-0">
+                      <img
+                        src={getCloudinaryUrl(getImage(item), 'card') || '/default-laptop.png'}
+                        alt={item.modelo || item.nombre}
+                        onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
+                        className="w-full h-full object-contain p-1.5"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-brand-400 dark:text-brand-500 truncate">
+                        {item.marca || item.tipo || ''}
+                      </p>
+                      <h4 className="text-sm font-black text-brand-800 dark:text-white leading-tight line-clamp-2">
+                        {item.modelo || item.nombre}
+                      </h4>
+                      <div className="mt-1 flex items-center gap-1.5">
                         {isWinner(score) && (
                           <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 flex items-center gap-1">
                             <Crown className="w-3 h-3" /> Ganador
                           </span>
                         )}
-                        <button
-                          onClick={() => onRemove(item.id)}
-                          className="text-[10px] font-bold text-brand-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors flex items-center gap-1"
-                        >
-                          <X className="w-3 h-3" /> Quitar
-                        </button>
+                        {isTie(score) && (
+                          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                            Empate
+                          </span>
+                        )}
                       </div>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map((field) => (
-                <tr key={field.label} className="odd:bg-brand-50/40 dark:odd:bg-brand-900/30">
-                  <td className="sticky left-0 z-10 bg-white dark:bg-brand-950 px-4 sm:px-6 py-4 text-[10px] sm:text-xs font-black uppercase tracking-wider text-brand-400 dark:text-brand-500 border-b border-brand-100 dark:border-brand-800">
-                    {field.label}
-                  </td>
-                  {items.map((item, idx) => {
-                    const raw = field.get(item);
-                    const display = raw === null || raw === undefined || raw === '' ? '—' : raw;
-
-                    let diff = null;
-                    let benchValue = null;
-
-                    if (field.isCpu) {
-                      benchValue = field.benchParse ? field.benchParse(item) : null;
-                      if (typeof benchValue === 'number' && maxScore !== null) {
-                        diff = benchValue === maxScore ? 0 : percentDiff(maxScore, benchValue);
-                      }
-                    } else if (idx > 0 && field.parse) {
-                      diff = percentDiff(field.parse(base), field.parse(item));
-                    }
-
-                    const cpuWinner = field.isCpu && typeof benchValue === 'number' && benchValue === maxScore && topCount === 1;
-                    const cpuTie = field.isCpu && typeof benchValue === 'number' && benchValue === maxScore && topCount > 1;
-
-                    return (
-                      <td key={item.id} className="px-3 sm:px-5 py-4 border-b border-brand-100 dark:border-brand-800 align-top">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs sm:text-sm font-bold text-brand-800 dark:text-brand-200 leading-snug">{display}</span>
-
-                          {field.isCpu && typeof benchValue === 'number' && (
-                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-600 dark:bg-brand-800 dark:text-brand-300">
-                              {benchValue.toFixed(2)} bench
-                            </span>
-                          )}
-
-                          {cpuWinner && (
-                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                              Ganador
-                            </span>
-                          )}
-                          {cpuTie && (
-                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                              Empate
-                            </span>
-                          )}
-                          {!cpuWinner && !cpuTie && diff !== null && (
-                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${diffBadgeClass(diff)}`}>
-                              {formatPercent(diff)}
-                            </span>
-                          )}
+                    </div>
+                    <button
+                      onClick={() => onRemove(item.id)}
+                      className="p-2 text-brand-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors shrink-0"
+                      aria-label="Quitar de la comparación"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <dl className="divide-y divide-brand-100 dark:divide-brand-800">
+                    {mobileFields.map((field) => {
+                      const c = computeField(field, item, idx);
+                      return (
+                        <div key={field.label} className="flex items-start justify-between gap-3 px-4 py-2.5">
+                          <dt className="text-[10px] font-black uppercase tracking-wider text-brand-400 dark:text-brand-500 pt-0.5 shrink-0">
+                            {field.label}
+                          </dt>
+                          <dd className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 text-right">
+                            <span className="text-xs font-bold text-brand-800 dark:text-brand-200 leading-snug">{c.display}</span>
+                            {c.isCpu && typeof c.benchValue === 'number' && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-600 dark:bg-brand-800 dark:text-brand-300">
+                                {c.benchValue.toFixed(2)} bench
+                              </span>
+                            )}
+                            {c.cpuWinner && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                Ganador
+                              </span>
+                            )}
+                            {c.cpuTie && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                Empate
+                              </span>
+                            )}
+                            {!c.cpuWinner && !c.cpuTie && c.diff !== null && (
+                              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${diffBadgeClass(c.diff)}`}>
+                                {formatPercent(c.diff)}
+                              </span>
+                            )}
+                          </dd>
                         </div>
-                      </td>
+                      );
+                    })}
+                  </dl>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Vista escritorio: tabla comparativa */}
+          <div className="hidden md:block">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 z-10 bg-white dark:bg-brand-950 px-4 sm:px-6 py-4 text-[10px] font-black uppercase tracking-wider text-brand-400 dark:text-brand-500 border-b border-brand-100 dark:border-brand-800 min-w-[120px]">
+                    Característica
+                  </th>
+                  {items.map((item, idx) => {
+                    const score = benchScores[idx];
+                    return (
+                      <th key={item.id} className="px-3 sm:px-5 py-4 border-b border-brand-100 dark:border-brand-800 align-top min-w-[160px]">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className={`w-20 h-20 rounded-2xl overflow-hidden bg-brand-50 dark:bg-brand-900 border ${isWinner(score) ? 'border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-400/30' : 'border-brand-100 dark:border-brand-800'}`}>
+                            <img
+                              src={getCloudinaryUrl(getImage(item), 'card') || '/default-laptop.png'}
+                              alt={item.modelo || item.nombre}
+                              onError={(e) => { e.target.onerror = null; e.target.src = '/default-laptop.png'; }}
+                              className="w-full h-full object-contain p-2"
+                            />
+                          </div>
+                          <p className="text-xs font-black text-brand-800 dark:text-white leading-tight text-center line-clamp-2">
+                            {item.modelo || item.nombre}
+                          </p>
+                          {isWinner(score) && (
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 flex items-center gap-1">
+                              <Crown className="w-3 h-3" /> Ganador
+                            </span>
+                          )}
+                          <button
+                            onClick={() => onRemove(item.id)}
+                            className="text-[10px] font-bold text-brand-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors flex items-center gap-1"
+                          >
+                            <X className="w-3 h-3" /> Quitar
+                          </button>
+                        </div>
+                      </th>
                     );
                   })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {fields.map((field) => (
+                  <tr key={field.label} className="odd:bg-brand-50/40 dark:odd:bg-brand-900/30">
+                    <td className="sticky left-0 z-10 bg-white dark:bg-brand-950 px-4 sm:px-6 py-4 text-[10px] sm:text-xs font-black uppercase tracking-wider text-brand-400 dark:text-brand-500 border-b border-brand-100 dark:border-brand-800">
+                      {field.label}
+                    </td>
+                    {items.map((item, idx) => {
+                      const c = computeField(field, item, idx);
+
+                      return (
+                        <td key={item.id} className="px-3 sm:px-5 py-4 border-b border-brand-100 dark:border-brand-800 align-top">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs sm:text-sm font-bold text-brand-800 dark:text-brand-200 leading-snug">{c.display}</span>
+
+                            {c.isCpu && typeof c.benchValue === 'number' && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-600 dark:bg-brand-800 dark:text-brand-300">
+                                {c.benchValue.toFixed(2)} bench
+                              </span>
+                            )}
+
+                            {c.cpuWinner && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                Ganador
+                              </span>
+                            )}
+                            {c.cpuTie && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                Empate
+                              </span>
+                            )}
+                            {!c.cpuWinner && !c.cpuTie && c.diff !== null && (
+                              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${diffBadgeClass(c.diff)}`}>
+                                {formatPercent(c.diff)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>,
