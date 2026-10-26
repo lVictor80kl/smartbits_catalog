@@ -6,7 +6,8 @@ import { db } from '../../../firebase';
 import { 
   Truck, Plus, Search, Filter, ExternalLink, Edit, Trash2, 
   AlertCircle, CheckCircle2, Clock, MapPin, Package, Laptop, 
-  Box, ArrowRight, DollarSign, Calendar, ChevronDown, RefreshCw, X, ShieldAlert, Sparkles
+  Box, ArrowRight, DollarSign, Calendar, ChevronDown, RefreshCw, X, ShieldAlert, Sparkles,
+  Chrome, Download
 } from 'lucide-react';
 import { 
   COURIERS_USA, COURIERS_VZLA, ESTADOS_TRACKING, 
@@ -16,6 +17,7 @@ import {
 } from '../../../utils/couriers';
 import TrackingModal from './TrackingModal';
 import { sincronizarTrackingsConCouriers } from '../../../services/trackingService';
+import ExtensionInstallModal from '../../../components/ExtensionInstallModal';
 
 export default function TrackingsDashboard() {
   const [trackings, setTrackings] = useState([]);
@@ -32,6 +34,7 @@ export default function TrackingsDashboard() {
   const [selectedTracking, setSelectedTracking] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, title: '' });
   const [permissionError, setPermissionError] = useState(false);
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
 
   // Sincronización inteligente de couriers
   const [syncingCouriers, setSyncingCouriers] = useState(false);
@@ -256,6 +259,15 @@ export default function TrackingsDashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowExtensionModal(true)}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer"
+            title="Descargar e instalar la extensión oficial de Chrome"
+          >
+            <Chrome className="w-4 h-4 text-blue-600" />
+            <span>Extensión</span>
+          </button>
+
           <button
             onClick={handleSyncCouriers}
             disabled={syncingCouriers}
@@ -827,6 +839,12 @@ export default function TrackingsDashboard() {
           </div>
         </div>
       )}
+
+      {/* MODAL: Instrucciones y Descarga de la Extensión de Chrome */}
+      <ExtensionInstallModal 
+        isOpen={showExtensionModal} 
+        onClose={() => setShowExtensionModal(false)} 
+      />
 
     </div>
   );

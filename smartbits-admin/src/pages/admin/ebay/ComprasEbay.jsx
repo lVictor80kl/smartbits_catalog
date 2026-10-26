@@ -24,6 +24,7 @@ import GastosAdicionalesModal from '../../../components/GastosAdicionalesModal';
 import { syncTrackingFromEbay } from '../../../utils/syncTrackingFromEbay';
 import { tieneEnvioPagado } from '../../../utils/costos';
 import { sincronizarTrackingsConCouriers } from '../../../services/trackingService';
+import ExtensionInstallModal from '../../../components/ExtensionInstallModal';
 
 export default function ComprasEbay() {
   const navigate = useNavigate();
@@ -2837,65 +2838,11 @@ export default function ComprasEbay() {
         </div>
       )}
 
-      {/* MODAL: Instrucciones de la Extensión de Chrome */}
-      {showHelpModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/40 text-blue-600 rounded-lg">
-                  <ShoppingBag className="w-5 h-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                  Instalar Extensión de Chrome
-                </h3>
-              </div>
-              <button 
-                onClick={() => setShowHelpModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <ol className="space-y-3 text-sm text-gray-700 dark:text-gray-300 list-decimal list-inside bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-              <li>
-                Abre Google Chrome y entra en: <code className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-800 rounded text-xs font-mono">chrome://extensions</code>
-              </li>
-              <li>
-                Activa el <strong>Modo de desarrollador</strong> (arriba a la derecha).
-              </li>
-              <li>
-                Haz clic en <strong>Cargar descomprimida</strong> y selecciona:
-                <div className="mt-2 flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <span className="font-mono text-xs text-gray-800 dark:text-gray-200 truncate flex-1">
-                    d:\Laptops\Smartbits\Programa Smartbits\smartbits_catalog\smartbits-ebay-extension
-                  </span>
-                  <button
-                    onClick={copyExtensionPath}
-                    className="px-2.5 py-1 text-xs font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 transition flex items-center gap-1"
-                  >
-                    {copiedPath ? <Check className="w-3.5 h-3.5" /> : null}
-                    <span>{copiedPath ? 'Copiado' : 'Copiar'}</span>
-                  </button>
-                </div>
-              </li>
-              <li>
-                ¡Listo! Abre tu <strong>Purchase History</strong> en eBay, pulsa el icono de la extensión y sincroniza tus compras con un clic.
-              </li>
-            </ol>
-
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => setShowHelpModal(false)}
-                className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
-              >
-                Entendido
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL: Instrucciones y Descarga de la Extensión de Chrome */}
+      <ExtensionInstallModal 
+        isOpen={showHelpModal} 
+        onClose={() => setShowHelpModal(false)} 
+      />
 
       {/* MODAL: Confirmar Eliminación */}
       {deleteConfirm.open && (

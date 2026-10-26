@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "Smartbits - Sincronizador de Compras eBay",
   "version": "1.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwo8eWjiNwcEpTEaH9hpPKbLvZMRZGQsELIKZpgaNGMJP0zmojEVxa0c4DwNhJI0PaOmfcolfEGV660FN/SSfbppckIVZDuRtRjqrFKmuoiHvddlnwRTwbwMALzkl/UmPCQTtj8LCsrXr9fckU8uP1E0VMtGHp4V2Ycm1KAcrTj5n3HcWuv0BWv1m5+3/m0/MuEYaKulSQ40c+uGGCiIHJTaLzjRSoqeFnWyPMGLN1J0F6rcRZDCnnioPnOIr2wvgW1GcVD0/NWEjacC0d2RanNaK5KDU2NULV/sPgh8pKt5We2enLVfUBzuPTi9FJqrL1xmVTP2apoADaKCrHvU+bQIDAQAB",
   "description": "Sincroniza tus compras de eBay en tiempo real con el panel administrativo de Smartbits y rastreo en vivo de couriers.",
   "permissions": [
     "activeTab",
@@ -49,7 +50,9 @@
         "*://*.ebay.com/cnt/TrackPackage*",
         "*://*.ebay.com/mye/myebay/v2/purchase/tracking*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -57,7 +60,9 @@
         "*://*.ups.com/track*",
         "*://www.ups.com/track*"
       ],
-      "js": ["ups-content.js"],
+      "js": [
+        "ups-content.js"
+      ],
       "run_at": "document_idle"
     }
   ]

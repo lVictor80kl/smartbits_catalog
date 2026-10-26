@@ -71,3 +71,7 @@ node_modules/
 # Local agent skills and config
 .agent/
 .agents/
+
+# Extension keys and packed builds
+*.pem
+*.crx
