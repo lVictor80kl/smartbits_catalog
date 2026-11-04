@@ -410,6 +410,7 @@ export default function DeliveryNote() {
 
   // El total principal de la nota va en Bs si existe al menos un pago en Bs
   const totalPrincipal = resumen.principalBs ? fmtBs(resumen.totalBs) : fmtUsd(resumen.totalUsd);
+  const totalPrincipalEq = resumen.principalBs ? `≈ ${fmtUsd(resumen.totalUsd)}` : null;
 
   const handleDownloadPDF = () => {
     if (metodosSinMonto.length > 0) {
@@ -790,6 +791,7 @@ export default function DeliveryNote() {
           {resumen.descuentoActivo && (
             <p className="mt-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1.5">
               Descuento aplicado: {formatMonto(resumen.descuentoPct)}% · {resumen.principalBs ? fmtBs(resumen.descuentoBs) : fmtUsd(resumen.descuentoUsd)}
+              {resumen.principalBs && <span className="ml-1 font-medium">≈ {fmtUsd(resumen.descuentoUsd)}</span>}
             </p>
           )}
         </div>
@@ -800,7 +802,10 @@ export default function DeliveryNote() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-slate-600">Total de la Venta:</span>
-              <span className="font-bold text-slate-900">{totalPrincipal}</span>
+              <span className="font-bold text-slate-900">
+                {totalPrincipal}
+                {totalPrincipalEq && <span className="ml-1 text-xs font-medium text-slate-500">{totalPrincipalEq}</span>}
+              </span>
             </div>
 
             {resumen.descuentoActivo && (
@@ -808,6 +813,7 @@ export default function DeliveryNote() {
                 <span className="text-slate-600">Descuento ({formatMonto(resumen.descuentoPct)}%):</span>
                 <span className="font-bold text-emerald-600">
                   - {resumen.principalBs ? fmtBs(resumen.descuentoBs) : fmtUsd(resumen.descuentoUsd)}
+                  {resumen.principalBs && <span className="ml-1 text-xs font-medium text-slate-500">≈ {fmtUsd(resumen.descuentoUsd)}</span>}
                 </span>
               </div>
             )}
@@ -816,6 +822,7 @@ export default function DeliveryNote() {
               <span className="text-slate-600">Total Pagado:</span>
               <span className="font-bold text-blue-600">
                 {resumen.principalBs ? fmtBs(resumen.pagadoTotalBs) : fmtUsd(resumen.pagadoTotalUsd)}
+                {resumen.principalBs && <span className="ml-1 text-xs font-medium text-slate-500">≈ {fmtUsd(resumen.pagadoTotalUsd)}</span>}
               </span>
             </div>
 
@@ -826,6 +833,11 @@ export default function DeliveryNote() {
                   {resumen.vueltoUsd > 0
                     ? (resumen.principalBs ? fmtBs(resumen.vueltoBs) : fmtUsd(resumen.vueltoUsd))
                     : (resumen.principalBs ? fmtBs(resumen.saldoPendienteBs) : fmtUsd(resumen.saldoPendienteUsd))}
+                  {resumen.principalBs && (
+                    <span className="ml-1 text-xs font-medium text-slate-500">
+                      ≈ {fmtUsd(resumen.vueltoUsd > 0 ? resumen.vueltoUsd : resumen.saldoPendienteUsd)}
+                    </span>
+                  )}
                 </span>
               </div>
             )}
