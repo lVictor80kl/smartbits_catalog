@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:extension-zip": "node scripts/build-extension-zip.mjs",
+    "prebuild": "node scripts/build-extension-zip.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   X, Download, Check, Copy, ExternalLink, ShieldCheck, 
-  Chrome, Sparkles, FolderArchive, ArrowRight, KeyRound
+  Sparkles, FolderArchive, ArrowRight, KeyRound
 } from 'lucide-react';
 
 export default function ExtensionInstallModal({ isOpen, onClose }) {
@@ -24,13 +24,15 @@ export default function ExtensionInstallModal({ isOpen, onClose }) {
         {/* HEADER */}
         <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-50/60 to-indigo-50/40 dark:from-slate-800/60 dark:to-slate-800/20">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20">
-              <Chrome className="w-5 h-5" />
-            </div>
+            <img
+              src="/logo-min.png"
+              alt="Smartbits"
+              className="w-10 h-10 rounded-xl shadow-md shadow-cyan-500/20 bg-white dark:bg-slate-900"
+            />
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 Extensión Smartbits Sync
-                <span className="px-2 py-0.5 text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 rounded-full">
+                <span className="px-2 py-0.5 text-[10px] font-semibold bg-cyan-100 dark:bg-cyan-900/60 text-cyan-700 dark:text-cyan-300 rounded-full">
                   v1.1.0
                 </span>
               </h3>
@@ -51,8 +53,8 @@ export default function ExtensionInstallModal({ isOpen, onClose }) {
         <div className="p-5 overflow-y-auto space-y-4 text-slate-700 dark:text-slate-300 text-xs sm:text-sm">
           
           {/* BOTÓN DESCARGA PRINCIPAL */}
-          <div className="p-4 bg-gradient-to-br from-blue-500/5 via-indigo-500/5 to-purple-500/5 rounded-2xl border border-blue-200/70 dark:border-blue-900/40 text-center space-y-3">
-            <div className="flex items-center justify-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400">
+          <div className="p-4 bg-gradient-to-br from-cyan-500/5 via-sky-500/5 to-blue-500/5 rounded-2xl border border-cyan-200/70 dark:border-cyan-900/40 text-center space-y-3">
+            <div className="flex items-center justify-center gap-2 text-xs font-semibold text-cyan-700 dark:text-cyan-400">
               <FolderArchive className="w-4 h-4" />
               <span>Paquete oficial de instalación para administradores</span>
             </div>
@@ -60,7 +62,7 @@ export default function ExtensionInstallModal({ isOpen, onClose }) {
             <a
               href="/smartbits-ebay-extension.zip"
               download="smartbits-ebay-extension.zip"
-              className="inline-flex items-center justify-center gap-2.5 w-full py-3 px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 transition-all transform active:scale-[0.99] cursor-pointer"
+              className="inline-flex items-center justify-center gap-2.5 w-full py-3 px-5 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-cyan-500/25 transition-all transform active:scale-[0.99] cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>Descargar Extensión (.ZIP)</span>
@@ -87,7 +89,7 @@ export default function ExtensionInstallModal({ isOpen, onClose }) {
                   Descomprime el archivo descargado
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Haz clic derecho en el archivo <code className="font-mono bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-[11px]">smartbits-ebay-extension.zip</code> y selecciona <strong>"Extraer todo..."</strong> en una carpeta de tu preferencia.
+                  Haz clic derecho en el archivo <code className="font-mono bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-[11px]">smartbits-ebay-extension.zip</code> y selecciona <strong>"Extraer todo..."</strong>. Se generará una carpeta que contiene <code className="font-mono bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-[11px]">manifest.json</code> — esa es la que debes cargar en el siguiente paso.
                 </p>
               </div>
             </div>

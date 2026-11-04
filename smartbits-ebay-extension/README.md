@@ -4,17 +4,54 @@ Esta extensión extrae tus compras realizadas en eBay directamente desde tu nave
 
 ## 🚀 Cómo instalarla en Google Chrome (1 minuto)
 
-1. Abre Google Chrome y escribe en la barra de direcciones:
+### Opción A — Descargando el .zip desde el panel administrativo
+
+1. En el panel de Smartbits (Compras eBay o Logística/Trackings) abre el modal
+   **"Instalar extensión"** y pulsa **"Descargar Extensión (.ZIP)"**.
+2. Extrae el archivo descargado (clic derecho → **"Extraer todo..."**). Obtendrás
+   una carpeta con `manifest.json` en la raíz.
+3. Abre Google Chrome y escribe en la barra de direcciones:
    ```
    chrome://extensions
    ```
+4. En la esquina superior derecha, activa el interruptor **"Modo de desarrollador"** (Developer mode).
+5. Haz clic en el botón **"Cargar descomprimida"** (Load unpacked).
+6. Selecciona la carpeta que acabas de extraer.
+7. ¡Listo! Verás el icono de Smartbits en la barra de extensiones de Chrome (puedes fijarlo con el icono de chincheta).
+
+### Opción B — Desde el código fuente
+
+1. Abre Google Chrome y escribe `chrome://extensions` en la barra de direcciones.
 2. En la esquina superior derecha, activa el interruptor **"Modo de desarrollador"** (Developer mode).
 3. Haz clic en el botón **"Cargar descomprimida"** (Load unpacked).
-4. Selecciona esta carpeta:
-   ```
-   d:\Laptops\Smartbits\Programa Smartbits\smartbits_catalog\smartbits-ebay-extension
-   ```
-5. ¡Listo! Verás el icono de Smartbits en la barra de extensiones de Chrome (puedes fijarlo con el icono de chincheta).
+4. Selecciona la carpeta `smartbits-ebay-extension` de este repositorio.
+5. ¡Listo! Verás el icono de Smartbits en la barra de extensiones de Chrome.
+
+---
+
+## 🎨 Iconos / logo
+
+Los iconos de la extensión se generan a partir del logo oficial de Smartbits
+(`icons/logo-source.png`). Para regenerarlos tras un cambio de marca:
+
+```bash
+node icons/generate_icons.js
+```
+
+---
+
+## 📦 Empaquetado para descarga
+
+El `.zip` que se publica en el panel administrativo se genera con:
+
+```bash
+cd smartbits-admin
+npm run build:extension-zip
+```
+
+> Importante: el script escribe un ZIP con rutas relativas limpias (`manifest.json`
+> en la raíz). Si el ZIP se genera con `zip -r` desde Linux, las entradas quedan
+> con prefijo `./` y el extractor nativo de Windows muestra el archivo vacío.
 
 ---
 

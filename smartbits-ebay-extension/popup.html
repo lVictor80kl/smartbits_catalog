@@ -56,15 +56,10 @@
     .brand-logo {
       width: 28px;
       height: 28px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      font-size: 15px;
-      color: white;
-      box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+      border-radius: 50%;
+      object-fit: contain;
+      flex-shrink: 0;
+      filter: drop-shadow(0 2px 6px rgba(92, 225, 230, 0.35));
     }
 
     .brand-title {
@@ -76,7 +71,7 @@
 
     .brand-subtitle {
       font-size: 9px;
-      color: #60a5fa;
+      color: #5ce1e6;
       text-transform: uppercase;
       font-weight: 700;
       letter-spacing: 0.5px;
@@ -392,7 +387,7 @@
 
   <header>
     <div class="brand">
-      <div class="brand-logo">S</div>
+      <img class="brand-logo" src="icons/icon48.png" alt="Smartbits" />
       <div>
         <div class="brand-title">Smartbits Sync</div>
         <div class="brand-subtitle">eBay Purchases</div>
@@ -465,7 +460,7 @@
   </main>
 
   <footer>
-    <span>Smartbits v1.0</span>
+    <span>Smartbits v1.1.0</span>
     <a id="link-admin-panel" href="http://localhost:5173/admin/compras-ebay" target="_blank">Ir al Panel Admin ↗</a>
   </footer>
 
