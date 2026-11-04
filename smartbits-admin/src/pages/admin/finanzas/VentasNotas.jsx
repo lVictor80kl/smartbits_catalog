@@ -685,7 +685,7 @@ export default function VentasNotas() {
               ${metodos.filter(m => (Number(m.monto || m.montoUSD) || 0) > 0).map(m => {
                 const esBs = isPagoBs(m);
                 const montoStr = esBs
-                  ? `Bs ${formatMonto(m.monto)} <span style="color:#777;font-weight:400">(≈ $${formatMonto(m.montoUSD != null ? m.montoUSD : (tasaNum > 0 ? m.monto / tasaNum : 0))})</span>`
+                  ? `Bs ${formatMonto(m.monto)}`
                   : `$ ${formatMonto(m.montoUSD != null ? m.montoUSD : m.monto)}`;
                 return `<tr><td>${m.metodo}</td><td style="text-align:right">${montoStr}</td></tr>`;
               }).join('')}
@@ -698,12 +698,12 @@ export default function VentasNotas() {
               ${descuentoUsd > 0 ? `
               <tr>
                 <td style="color:#166534">Descuento (${formatMonto(descuentoPct)}%):</td>
-                <td style="text-align:right; font-weight:700; color:#166534">- ${principalBs ? `Bs ${formatMonto(descuentoUsd * tasaNum)}` : `$ ${formatMonto(descuentoUsd)}`}${principalBs ? ` <span style="color:#777;font-weight:400">(≈ $${formatMonto(descuentoUsd)})</span>` : ''}</td>
+                <td style="text-align:right; font-weight:700; color:#166534">- ${principalBs ? `Bs ${formatMonto(descuentoUsd * tasaNum)}` : `$ ${formatMonto(descuentoUsd)}`}</td>
               </tr>` : ''}
 
               <tr>
                 <td style="color:#666">Total pagado:</td>
-                <td style="text-align:right; font-weight:700">${principalBs ? `Bs ${formatMonto(resumen.pagadoTotalBs)}` : `$ ${formatMonto(resumen.pagadoTotalUsd)}`}${principalBs ? ` <span style="color:#777;font-weight:400">(≈ $${formatMonto(resumen.pagadoTotalUsd)})</span>` : ''}</td>
+                <td style="text-align:right; font-weight:700">${principalBs ? `Bs ${formatMonto(resumen.pagadoTotalBs)}` : `$ ${formatMonto(resumen.pagadoTotalUsd)}`}</td>
               </tr>
 
               ${descuentoUsd > 0 ? '' : `
