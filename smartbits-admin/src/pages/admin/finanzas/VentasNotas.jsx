@@ -592,8 +592,6 @@ export default function VentasNotas() {
     const descuentoPct = item.aplica_descuento
       ? (item.descuento_pct != null ? Number(item.descuento_pct) : resumen.descuentoPct)
       : 0;
-    const totalFinalUsd = precioDisplay - descuentoUsd;
-    const totalFinalBs = totalFinalUsd * tasaNum;
     const saldoUsd = item.aplica_descuento
       ? 0
       : (item.saldo_pendiente_usd != null ? parseDecimalInput(item.saldo_pendiente_usd) : Math.max(resumen.saldoUsd, 0));
@@ -697,27 +695,18 @@ export default function VentasNotas() {
                 <td style="text-align:right; font-weight:800; font-size:14px">${symbol} ${formatMonto(precioTotalPdf)}</td>
               </tr>
 
-              ${resumen.hayPagosBs ? `
-              <tr>
-                <td style="color:#666">Pagado en Bs:</td>
-                <td style="text-align:right; font-weight:600">Bs ${formatMonto(resumen.pagadoBs)} <span style="color:#777;font-weight:400">(≈ $${formatMonto(resumen.pagadoBsUsd)})</span></td>
-              </tr>` : ''}
-
-              ${resumen.hayPagosUsd ? `
-              <tr>
-                <td style="color:#666">Pagado en $:</td>
-                <td style="text-align:right; font-weight:600">$ ${formatMonto(resumen.pagadoUsd)}</td>
-              </tr>` : ''}
-
               ${descuentoUsd > 0 ? `
               <tr>
                 <td style="color:#166534">Descuento (${formatMonto(descuentoPct)}%):</td>
                 <td style="text-align:right; font-weight:700; color:#166534">- ${principalBs ? `Bs ${formatMonto(descuentoUsd * tasaNum)}` : `$ ${formatMonto(descuentoUsd)}`}${principalBs ? ` <span style="color:#777;font-weight:400">(≈ $${formatMonto(descuentoUsd)})</span>` : ''}</td>
+              </tr>` : ''}
+
+              <tr>
+                <td style="color:#666">Total pagado:</td>
+                <td style="text-align:right; font-weight:700">${principalBs ? `Bs ${formatMonto(resumen.pagadoTotalBs)}` : `$ ${formatMonto(resumen.pagadoTotalUsd)}`}${principalBs ? ` <span style="color:#777;font-weight:400">(≈ $${formatMonto(resumen.pagadoTotalUsd)})</span>` : ''}</td>
               </tr>
-              <tr style="border-top:1px solid #222;">
-                <td style="font-weight:800; font-size:14px">Total a pagar:</td>
-                <td style="text-align:right; font-weight:800; font-size:14px">${principalBs ? `Bs ${formatMonto(totalFinalBs)}` : `$ ${formatMonto(totalFinalUsd)}`}${principalBs ? ` <span style="color:#777;font-weight:400;font-size:11px">(≈ $${formatMonto(totalFinalUsd)})</span>` : ''}</td>
-              </tr>` : `
+
+              ${descuentoUsd > 0 ? '' : `
               <tr>
                 <td style="font-weight:700; color:${saldoUsd > 0 ? '#dc2626' : '#16a34a'}">${vueltoUsd > 0 ? 'Vuelto:' : 'Resta por pagar:'}</td>
                 <td style="text-align:right; font-weight:800; font-size:14px; color:${saldoUsd > 0 ? '#dc2626' : '#16a34a'}">${vueltoUsd > 0 ? (principalBs ? `Bs ${formatMonto(vueltoUsd * tasaNum)}` : `$ ${formatMonto(vueltoUsd)}`) : (principalBs ? `Bs ${formatMonto(saldoUsd * tasaNum)}` : `$ ${formatMonto(saldoUsd)}`)}</td>

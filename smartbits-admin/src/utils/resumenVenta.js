@@ -34,11 +34,18 @@ export function calcularResumenVenta({
 
   let pagadoBs = 0;
   let pagadoUsd = 0;
+  // La moneda se define al escoger el metodo/cuenta, no cuando se escribe el monto
+  let tieneMetodoBs = false;
+  let tieneMetodoUsd = false;
 
   for (const pago of pagos) {
+    const esBs = esPagoBs(pago);
+    if (esBs) tieneMetodoBs = true;
+    else tieneMetodoUsd = true;
+
     const monto = parseMonto(pago?.monto);
     if (monto <= 0) continue;
-    if (esPagoBs(pago)) {
+    if (esBs) {
       pagadoBs += monto;
     } else {
       pagadoUsd += monto;
@@ -75,6 +82,7 @@ export function calcularResumenVenta({
     pagadoUsd: round2(pagadoUsd),
     pagadoBsUsd: round2(pagadoBsUsd),
     pagadoTotalUsd: round2(pagadoTotalUsd),
+    pagadoTotalBs: round2(pagadoTotalUsd * tasa),
 
     // Totales
     totalUsd: round2(totalUsd),
@@ -97,7 +105,9 @@ export function calcularResumenVenta({
     // Banderas de moneda
     hayPagosBs,
     hayPagosUsd,
-    principalBs: hayPagosBs && tasa > 0,
+    tieneMetodoBs,
+    tieneMetodoUsd,
+    principalBs: tieneMetodoBs && tasa > 0,
   };
 }
 
