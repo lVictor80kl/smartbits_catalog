@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useCuentasCaja, parseDecimalInput } from '../../utils/useCuentasCaja';
-import { calcularResumenVenta } from '../../utils/resumenVenta';
+import { calcularResumenVenta, pagosSinMonto } from '../../utils/resumenVenta';
 import TasasCambioModal from '../../components/TasasCambioModal';
 import TasasChipsSelector from '../../components/TasasChipsSelector';
 
@@ -138,6 +138,11 @@ export default function DeliveryNote() {
 
       if (newStatus === 'No disponible') {
         const tasaNum = parseDecimalInput(tasa);
+        if (metodosSinMonto.length > 0) {
+          alert(`Atención: Escribe el monto del método de pago: ${metodosSinMonto.join(', ')}. Cada método de pago seleccionado debe tener su monto.`);
+          setUpdatingStatus(false);
+          return;
+        }
         const hasBsPayment = pagos.some(p => isPagoBs(p));
         if (hasBsPayment && tasaNum <= 0) {
           alert('Atención: Tienes pagos registrados en Bolívares (Bs). Debes ingresar una tasa de cambio válida (ej: 95.50) para poder registrar la venta.');
@@ -400,11 +405,19 @@ export default function DeliveryNote() {
   const fmtUsd = (valor) => `$${formatMonto(valor)}`;
   const fmtBs = (valor) => `Bs ${formatMonto(valor)}`;
 
+  // Si un metodo de pago esta seleccionado, el monto es obligatorio
+  const metodosSinMonto = pagosSinMonto(pagos);
+
   // El total principal de la nota va en Bs si existe al menos un pago en Bs
   const totalPrincipal = resumen.principalBs ? fmtBs(resumen.totalBs) : fmtUsd(resumen.totalUsd);
   const totalPrincipalEq = resumen.principalBs ? `≈ ${fmtUsd(resumen.totalUsd)}` : null;
 
   const handleDownloadPDF = () => {
+    if (metodosSinMonto.length > 0) {
+      alert(`Atención: Escribe el monto del método de pago: ${metodosSinMonto.join(', ')}. Cada método de pago seleccionado debe tener su monto.`);
+      return;
+    }
+
     if (tienePagosEnBs && tasaNum <= 0) {
       alert('Atención: Tienes pagos registrados en Bolívares (Bs). Debes ingresar una tasa de cambio válida (ej: 95.50) para poder calcular el total y generar la nota.');
       return;
@@ -646,7 +659,11 @@ export default function DeliveryNote() {
                       value={pago.monto}
                       onChange={(e) => updatePago(index, 'monto', e.target.value)}
                       placeholder="0.00"
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-semibold"
+                      className={`w-full pl-8 pr-3 py-2 bg-white border rounded-lg text-sm outline-none font-semibold ${
+                        parseDecimalInput(pago.monto) <= 0
+                          ? 'border-red-400 focus:ring-2 focus:ring-red-400'
+                          : 'border-gray-300 focus:ring-2 focus:ring-blue-500'
+                      }`}
                     />
                   </div>
                   {esEnBs && tasaNum > 0 && (
@@ -669,6 +686,11 @@ export default function DeliveryNote() {
           >
             <Plus className="w-4 h-4" /> Agregar método de pago
           </button>
+          {metodosSinMonto.length > 0 && (
+            <p className="mt-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-md px-2.5 py-1.5">
+              ⚠️ Escribe el monto de: {metodosSinMonto.join(', ')}. Cada método de pago seleccionado debe tener su monto.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4 mt-4">

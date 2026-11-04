@@ -112,6 +112,16 @@ export function calcularResumenVenta({
 }
 
 /**
+ * Devuelve la lista de metodos de pago seleccionados que aun no tienen monto.
+ * Si un metodo esta abierto/seleccionado, el monto es obligatorio.
+ */
+export function pagosSinMonto(pagos = []) {
+  return pagos
+    .filter(p => parseMonto(p?.monto) <= 0)
+    .map(p => p?.metodo || 'Efectivo $');
+}
+
+/**
  * Formatea un monto en USD con el estilo local.
  */
 export const fmtUsd = (valor, formatMonto) => `$${formatMonto(valor)}`;
