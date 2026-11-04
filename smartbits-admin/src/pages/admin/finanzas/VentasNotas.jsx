@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, getDocs, doc, updateDoc, deleteDoc, 
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
 import { useCuentasCaja, parseDecimalInput } from '../../../utils/useCuentasCaja';
+import { calcularResumenVenta } from '../../../utils/resumenVenta';
 import { 
   Search, Download, Edit2, Trash2, Printer, X, Save, AlertTriangle, 
   Loader2, Plus, CreditCard, User, Laptop, RefreshCw, FileText
@@ -229,8 +230,11 @@ export default function VentasNotas() {
       const c = todasCuentas.find(acc => acc.key === pago.cuentaKey);
       if (c) return c.moneda === 'BS';
     }
-    if (pago.moneda === 'BS') return true;
-    return METODOS_BS_DEFAULT.includes(pago.metodo);
+    if (pago.moneda) return pago.moneda === 'BS';
+    if (METODOS_BS_DEFAULT.includes(pago.metodo)) return true;
+    const label = (pago.metodo || '').toLowerCase();
+    return label.includes('bs') || label.includes('pago móvil') || label.includes('pago movil')
+      || label.includes('transferencia') || label.includes('bolivar');
   };
 
   // --- ABRIR MODAL EDICIÓN PAGOS ---
@@ -399,19 +403,53 @@ export default function VentasNotas() {
       const costoTotal = item.costo_total || 0;
       const nuevaGanancia = parseFloat((nuevoTotalVentaUSD - costoTotal).toFixed(2));
 
+      // Recalcular resumen (total bruto, descuento y saldo pendiente)
+      const tienePrecioTotal = item.precio_total_usd != null;
+      const precioTotalBruto = tienePrecioTotal
+        ? parseDecimalInput(item.precio_total_usd)
+        : parseDecimalInput(item.precio_venta_usd);
+      const aplicaDescuento = Boolean(item.aplica_descuento);
+      const descuentoUSD = aplicaDescuento ? Math.max(precioTotalBruto - nuevoTotalVentaUSD, 0) : 0;
+      const descuentoPct = precioTotalBruto > 0 ? (descuentoUSD / precioTotalBruto) * 100 : 0;
+      const descuentoActivo = aplicaDescuento && descuentoUSD > 0;
+      const saldoPendienteUSD = (!descuentoActivo && nuevoTotalVentaUSD < precioTotalBruto)
+        ? precioTotalBruto - nuevoTotalVentaUSD
+        : 0;
+      const precioTotalFinal = tienePrecioTotal ? precioTotalBruto : nuevoTotalVentaUSD;
+
+      const resumenFields = {
+        precio_total_usd: parseFloat(precioTotalFinal.toFixed(2)),
+        monto_pagado_usd: parseFloat(nuevoTotalVentaUSD.toFixed(2)),
+        aplica_descuento: descuentoActivo,
+        descuento_usd: parseFloat(descuentoUSD.toFixed(2)),
+        descuento_pct: parseFloat(descuentoPct.toFixed(2)),
+        saldo_pendiente_usd: parseFloat(saldoPendienteUSD.toFixed(2)),
+      };
+
       await updateDoc(doc(db, 'ventas', item.id), {
         metodos_pago: metodosLimpios,
         precio_venta_usd: parseFloat(nuevoTotalVentaUSD.toFixed(2)),
         ganancia: nuevaGanancia,
         tasa_cambio: tasaNum || null,
-        tasa_venta: tasaNum || null
+        tasa_venta: tasaNum || null,
+        ...resumenFields
       });
 
       if (item.laptopId) {
         await updateDoc(doc(db, 'laptops', item.laptopId), {
           metodos_pago: metodosLimpios,
           precio_final_venta: parseFloat(nuevoTotalVentaUSD.toFixed(2)),
-          tasa_venta: tasaNum || null
+          tasa_venta: tasaNum || null,
+          ...resumenFields
+        });
+      }
+
+      if (item.componenteId) {
+        await updateDoc(doc(db, 'componentes', item.componenteId), {
+          metodos_pago: metodosLimpios,
+          precio_final_venta: parseFloat(nuevoTotalVentaUSD.toFixed(2)),
+          tasa_venta: tasaNum || null,
+          ...resumenFields
         });
       }
 
@@ -426,7 +464,12 @@ export default function VentasNotas() {
           moneda_original: primerPagoBs ? 'BS' : 'USD',
           tasa_cambio: tasaNum || null,
           metodo_pago: metodosLimpios[0]?.metodo || '',
-          cuenta: metodosLimpios[0]?.cuentaKey || ''
+          cuenta: metodosLimpios[0]?.cuentaKey || '',
+          precio_total_usd: parseFloat(precioTotalFinal.toFixed(2)),
+          monto_pagado_usd: parseFloat(nuevoTotalVentaUSD.toFixed(2)),
+          descuento_usd: parseFloat(descuentoUSD.toFixed(2)),
+          descuento_pct: parseFloat(descuentoPct.toFixed(2)),
+          saldo_pendiente_usd: parseFloat(saldoPendienteUSD.toFixed(2)),
         };
         for (const docH of snapH.docs) {
           await updateDoc(doc(db, 'historico_ingresos', docH.id), hUpdates);
@@ -516,11 +559,45 @@ export default function VentasNotas() {
     const obs = item.observaciones || '';
     const cant = item.unidades || 1;
     const garan = item.garantia || '3 meses';
-    const isBs = (m) => ['Pago Móvil', 'Transferencia', 'Otro'].includes(m);
-    const tasaNum = item.tasa_venta || 0;
     const formatMonto = (val) => Number(val || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 });
-    const precioDisplay = item.precio_venta_usd || 0;
+    const tasaNum = parseDecimalInput(item.tasa_venta) || parseDecimalInput(item.tasa_cambio) || 0;
+
+    // Total bruto de la venta. Si no existe (ventas anteriores a este feature) se usa lo pagado.
+    const precioDisplay = parseDecimalInput(item.precio_total_usd) || parseDecimalInput(item.precio_venta_usd) || 0;
     const precioUnitDisplay = precioDisplay / cant;
+
+    // Resumen por moneda (Bs / USD) con descuento aplicado
+    const resumen = calcularResumenVenta({
+      precioTotalUsd: precioDisplay,
+      pagos: metodos.map(m => ({
+        metodo: m.metodo,
+        cuentaKey: m.cuentaKey,
+        moneda: m.moneda,
+        monto: m.monto,
+      })),
+      tasaNum,
+      esPagoBs: isPagoBs,
+      aplicaDescuento: Boolean(item.aplica_descuento),
+    });
+
+    // Si existe al menos un pago en Bs, el total principal se muestra en Bs
+    const principalBs = resumen.principalBs;
+    const symbol = principalBs ? 'Bs' : '$';
+    const precioUnitPdf = principalBs ? precioUnitDisplay * tasaNum : precioUnitDisplay;
+    const precioTotalPdf = principalBs ? precioDisplay * tasaNum : precioDisplay;
+
+    const descuentoUsd = item.aplica_descuento
+      ? (item.descuento_usd != null ? parseDecimalInput(item.descuento_usd) : resumen.descuentoUsd)
+      : 0;
+    const descuentoPct = item.aplica_descuento
+      ? (item.descuento_pct != null ? Number(item.descuento_pct) : resumen.descuentoPct)
+      : 0;
+    const totalFinalUsd = precioDisplay - descuentoUsd;
+    const totalFinalBs = totalFinalUsd * tasaNum;
+    const saldoUsd = item.aplica_descuento
+      ? 0
+      : (item.saldo_pendiente_usd != null ? parseDecimalInput(item.saldo_pendiente_usd) : Math.max(resumen.saldoUsd, 0));
+    const vueltoUsd = !item.aplica_descuento && resumen.saldoUsd < 0 ? Math.abs(resumen.saldoUsd) : 0;
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -582,8 +659,8 @@ export default function VentasNotas() {
               <tr>
                 <td>${cant}</td>
                 <td style="font-weight:600">${item.modelo}</td>
-                <td style="text-align:right">$ ${formatMonto(precioUnitDisplay)}</td>
-                <td style="text-align:right; font-weight:700">$ ${formatMonto(precioDisplay)}</td>
+                <td style="text-align:right">${symbol} ${formatMonto(precioUnitPdf)}</td>
+                <td style="text-align:right; font-weight:700">${symbol} ${formatMonto(precioTotalPdf)}</td>
               </tr>
             </tbody>
           </table>
@@ -608,16 +685,43 @@ export default function VentasNotas() {
             </thead>
             <tbody>
               ${metodos.filter(m => (Number(m.monto || m.montoUSD) || 0) > 0).map(m => {
-                const montoVal = Number(m.montoUSD || m.monto || 0);
-                const montoStr = isBs(m.metodo) && tasaNum > 0
-                  ? `Bs ${formatMonto(montoVal * tasaNum)} (≈ $${formatMonto(montoVal)})`
-                  : `$ ${formatMonto(montoVal)}`;
+                const esBs = isPagoBs(m);
+                const montoStr = esBs
+                  ? `Bs ${formatMonto(m.monto)} <span style="color:#777;font-weight:400">(≈ $${formatMonto(m.montoUSD != null ? m.montoUSD : (tasaNum > 0 ? m.monto / tasaNum : 0))})</span>`
+                  : `$ ${formatMonto(m.montoUSD != null ? m.montoUSD : m.monto)}`;
                 return `<tr><td>${m.metodo}</td><td style="text-align:right">${montoStr}</td></tr>`;
               }).join('')}
+
               <tr style="border-top: 2px solid #222;">
-                <td style="font-weight:800; font-size:14px">Total:</td>
-                <td style="text-align:right; font-weight:800; font-size:14px">$ ${formatMonto(precioDisplay)}</td>
+                <td style="font-weight:800; font-size:14px">Total de la venta:</td>
+                <td style="text-align:right; font-weight:800; font-size:14px">${symbol} ${formatMonto(precioTotalPdf)}</td>
               </tr>
+
+              ${resumen.hayPagosBs ? `
+              <tr>
+                <td style="color:#666">Pagado en Bs:</td>
+                <td style="text-align:right; font-weight:600">Bs ${formatMonto(resumen.pagadoBs)} <span style="color:#777;font-weight:400">(≈ $${formatMonto(resumen.pagadoBsUsd)})</span></td>
+              </tr>` : ''}
+
+              ${resumen.hayPagosUsd ? `
+              <tr>
+                <td style="color:#666">Pagado en $:</td>
+                <td style="text-align:right; font-weight:600">$ ${formatMonto(resumen.pagadoUsd)}</td>
+              </tr>` : ''}
+
+              ${descuentoUsd > 0 ? `
+              <tr>
+                <td style="color:#166534">Descuento (${formatMonto(descuentoPct)}%):</td>
+                <td style="text-align:right; font-weight:700; color:#166534">- ${principalBs ? `Bs ${formatMonto(descuentoUsd * tasaNum)}` : `$ ${formatMonto(descuentoUsd)}`}${principalBs ? ` <span style="color:#777;font-weight:400">(≈ $${formatMonto(descuentoUsd)})</span>` : ''}</td>
+              </tr>
+              <tr style="border-top:1px solid #222;">
+                <td style="font-weight:800; font-size:14px">Total a pagar:</td>
+                <td style="text-align:right; font-weight:800; font-size:14px">${principalBs ? `Bs ${formatMonto(totalFinalBs)}` : `$ ${formatMonto(totalFinalUsd)}`}${principalBs ? ` <span style="color:#777;font-weight:400;font-size:11px">(≈ $${formatMonto(totalFinalUsd)})</span>` : ''}</td>
+              </tr>` : `
+              <tr>
+                <td style="font-weight:700; color:${saldoUsd > 0 ? '#dc2626' : '#16a34a'}">${vueltoUsd > 0 ? 'Vuelto:' : 'Resta por pagar:'}</td>
+                <td style="text-align:right; font-weight:800; font-size:14px; color:${saldoUsd > 0 ? '#dc2626' : '#16a34a'}">${vueltoUsd > 0 ? (principalBs ? `Bs ${formatMonto(vueltoUsd * tasaNum)}` : `$ ${formatMonto(vueltoUsd)}`) : (principalBs ? `Bs ${formatMonto(saldoUsd * tasaNum)}` : `$ ${formatMonto(saldoUsd)}`)}</td>
+              </tr>`}
             </tbody>
           </table>
 
@@ -709,6 +813,15 @@ export default function VentasNotas() {
                     </td>
                     <td className="px-5 py-4 text-right font-black text-slate-900">
                       ${Number(item.precio_venta_usd || 0).toFixed(2)}
+                      {item.aplica_descuento && Number(item.descuento_pct) > 0 ? (
+                        <div className="text-[11px] font-bold text-emerald-600">
+                          Desc. {Number(item.descuento_pct).toFixed(2)}%
+                        </div>
+                      ) : Number(item.saldo_pendiente_usd) > 0 ? (
+                        <div className="text-[11px] font-bold text-red-500">
+                          Saldo ${Number(item.saldo_pendiente_usd).toFixed(2)}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-5 py-4 text-right font-bold text-emerald-600">
                       {item.ganancia != null ? `+$${Number(item.ganancia).toFixed(2)}` : '—'}

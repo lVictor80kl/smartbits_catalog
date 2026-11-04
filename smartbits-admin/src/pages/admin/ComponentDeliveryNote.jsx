@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useCuentasCaja, parseDecimalInput } from '../../utils/useCuentasCaja';
+import { calcularResumenVenta } from '../../utils/resumenVenta';
 import TasasChipsSelector from '../../components/TasasChipsSelector';
 import TasasCambioModal from '../../components/TasasCambioModal';
 
@@ -71,6 +72,9 @@ export default function ComponentDeliveryNote() {
   const [pagos, setPagos] = useState([
     { metodo: 'Efectivo $', cuentaKey: 'efectivo', monto: '' }
   ]);
+
+  // Si es true, el saldo pendiente se considera un descuento y se refleja en %
+  const [aplicaDescuento, setAplicaDescuento] = useState(false);
 
   const [unidades, setUnidades] = useState(1);
   const [garantia, setGarantia] = useState('3 meses');
@@ -172,6 +176,13 @@ export default function ComponentDeliveryNote() {
         updateData.porcentaje_ganancia = porcentaje_ganancia;
         updateData.metodos_pago = metodosPago;
         updateData.tasa_venta = tasaNum;
+        // Datos del resumen de venta (bruto, pagado, descuento y saldo pendiente)
+        updateData.precio_total_usd = precioDisplay;
+        updateData.monto_pagado_usd = totalPagadoUSD;
+        updateData.aplica_descuento = Boolean(resumen.descuentoActivo);
+        updateData.descuento_pct = resumen.descuentoPct;
+        updateData.descuento_usd = resumen.descuentoUsd;
+        updateData.saldo_pendiente_usd = resumen.saldoPendienteUsd;
         updateData.cliente_venta = {
           nombre: cliente.nombre,
           cedula: cliente.cedula ? `${cliente.tipoDoc}${cliente.cedula}` : '',
@@ -228,6 +239,11 @@ export default function ComponentDeliveryNote() {
           moneda_original: monedaOriginal,
           tasa_cambio: tasaNum > 0 ? tasaNum : null,
           ganancia: ganancia,
+          precio_total_usd: precioDisplay,
+          monto_pagado_usd: totalPagadoUSD,
+          descuento_usd: resumen.descuentoUsd,
+          descuento_pct: resumen.descuentoPct,
+          saldo_pendiente_usd: resumen.saldoPendienteUsd,
           componenteId: id,
           tipo: 'venta_componente',
           metodo_pago: metodoPagoKey,
@@ -241,6 +257,12 @@ export default function ComponentDeliveryNote() {
           cliente: updateData.cliente_venta,
           metodos_pago: metodosPago,
           precio_venta_usd: totalPagadoUSD,
+          precio_total_usd: precioDisplay,
+          monto_pagado_usd: totalPagadoUSD,
+          aplica_descuento: Boolean(resumen.descuentoActivo),
+          descuento_pct: resumen.descuentoPct,
+          descuento_usd: resumen.descuentoUsd,
+          saldo_pendiente_usd: resumen.saldoPendienteUsd,
           costo_total: costoTotal,
           ganancia: ganancia,
           tasa_venta: tasaNum,
@@ -334,13 +356,6 @@ export default function ComponentDeliveryNote() {
     } : p));
   };
 
-  const isBs = (metodo) => {
-    const def = METODOS_PAGO_OPCIONES.find(m => m.label === metodo);
-    if (def) return def.moneda === 'BS';
-    const mLower = (metodo || '').toLowerCase();
-    return mLower.includes('pago') || mLower.includes('bs') || mLower.includes('transferencia') || mLower.includes('bolivar');
-  };
-
   const subtotal = component ? component.precio * unidades : 0;
 
   const [tasa, setTasa] = useState('');
@@ -357,18 +372,25 @@ export default function ComponentDeliveryNote() {
 
   const precioUnitUSD = component?.precio ?? 0;
   const precioDisplay = subtotal;
-  const precioUnitDisplay = precioUnitUSD;
 
-  const getMontoUSD = (pago) => {
-    const monto = parseDecimalInput(pago.monto);
-    if (isPagoBs(pago) && tasaNum > 0) return monto / tasaNum;
-    return monto;
-  };
-
-  const totalPaidUSD = pagos.reduce((sum, p) => sum + getMontoUSD(p), 0);
-  const remainingUSD = precioDisplay - totalPaidUSD;
   const tienePagosEnBs = pagos.some(p => isPagoBs(p) && parseDecimalInput(p.monto) > 0);
   const tasaRequeridaFaltante = tienePagosEnBs && tasaNum <= 0;
+
+  // Resumen por moneda (Bs / USD) con descuento aplicado
+  const resumen = calcularResumenVenta({
+    precioTotalUsd: precioDisplay,
+    pagos,
+    tasaNum,
+    esPagoBs: isPagoBs,
+    aplicaDescuento,
+  });
+
+  const fmtUsd = (valor) => `$${formatMonto(valor)}`;
+  const fmtBs = (valor) => `Bs ${formatMonto(valor)}`;
+
+  // El total principal de la nota va en Bs si existe al menos un pago en Bs
+  const totalPrincipal = resumen.principalBs ? fmtBs(resumen.totalBs) : fmtUsd(resumen.totalUsd);
+  const totalPrincipalEq = resumen.principalBs ? `≈ ${fmtUsd(resumen.totalUsd)}` : null;
 
   const handleDownloadPDF = () => {
     if (tienePagosEnBs && tasaNum <= 0) {
@@ -714,24 +736,98 @@ export default function ComponentDeliveryNote() {
           )}
         </div>
 
+        {/* Descuento */}
+        <div className="mt-4 p-3 bg-white border border-slate-200 rounded-lg">
+          <label className="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={aplicaDescuento}
+              onChange={(e) => setAplicaDescuento(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-2 focus:ring-purple-500 cursor-pointer"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-slate-800">El saldo pendiente corresponde a un descuento</span>
+              <span className="block text-xs text-slate-500">
+                Al marcarlo, la diferencia se calcula automáticamente como descuento en % y el total a pagar queda igual a lo pagado.
+              </span>
+            </span>
+          </label>
+          {resumen.descuentoActivo && (
+            <p className="mt-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1.5">
+              Descuento aplicado: {formatMonto(resumen.descuentoPct)}% · {resumen.principalBs ? fmtBs(resumen.descuentoBs) : fmtUsd(resumen.descuentoUsd)}
+              {resumen.principalBs && <span className="ml-1 font-medium">≈ {fmtUsd(resumen.descuentoUsd)}</span>}
+            </p>
+          )}
+        </div>
+
         <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
           <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wider">Resumen de Venta</h3>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-slate-600">Total de la Venta:</span>
-              <span className="font-bold text-slate-900">${formatMonto(precioDisplay)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-600">Pagado (Equivalente USD):</span>
-              <span className="font-bold text-blue-600">${formatMonto(totalPaidUSD)}</span>
-            </div>
-            <hr className="border-slate-200" />
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-600">Resta por Pagar:</span>
-              <span className={`font-bold ${remainingUSD > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                ${formatMonto(remainingUSD)}
+              <span className="font-bold text-slate-900">
+                {totalPrincipal}
+                {totalPrincipalEq && <span className="ml-1 text-xs font-medium text-slate-500">{totalPrincipalEq}</span>}
               </span>
             </div>
+
+            {resumen.hayPagosBs && (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Pagado en Bs:</span>
+                <span className="font-bold text-blue-600">
+                  {fmtBs(resumen.pagadoBs)}
+                  <span className="ml-1 text-xs font-medium text-slate-500">≈ {fmtUsd(resumen.pagadoBsUsd)}</span>
+                </span>
+              </div>
+            )}
+
+            {resumen.hayPagosUsd && (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Pagado en $:</span>
+                <span className="font-bold text-blue-600">{fmtUsd(resumen.pagadoUsd)}</span>
+              </div>
+            )}
+
+            {resumen.descuentoActivo ? (
+              <>
+                <hr className="border-slate-200" />
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Descuento ({formatMonto(resumen.descuentoPct)}%):</span>
+                  <span className="font-bold text-emerald-600">
+                    - {resumen.principalBs ? fmtBs(resumen.descuentoBs) : fmtUsd(resumen.descuentoUsd)}
+                    {resumen.principalBs && <span className="ml-1 text-xs font-medium text-slate-500">≈ {fmtUsd(resumen.descuentoUsd)}</span>}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Total a Pagar:</span>
+                  <span className="font-bold text-slate-900">
+                    {resumen.principalBs ? fmtBs(resumen.totalFinalBs) : fmtUsd(resumen.totalFinalUsd)}
+                    {resumen.principalBs && <span className="ml-1 text-xs font-medium text-slate-500">≈ {fmtUsd(resumen.totalFinalUsd)}</span>}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <hr className="border-slate-200" />
+                {resumen.vueltoUsd > 0 ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Vuelto:</span>
+                    <span className="font-bold text-green-600">
+                      {resumen.principalBs ? fmtBs(resumen.vueltoBs) : fmtUsd(resumen.vueltoUsd)}
+                      {resumen.principalBs && <span className="ml-1 text-xs font-medium text-slate-500">≈ {fmtUsd(resumen.vueltoUsd)}</span>}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Resta por Pagar:</span>
+                    <span className={`font-bold ${resumen.saldoPendienteUsd > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {resumen.principalBs ? fmtBs(resumen.saldoPendienteBs) : fmtUsd(resumen.saldoPendienteUsd)}
+                      {resumen.principalBs && <span className="ml-1 text-xs font-medium text-slate-500">≈ {fmtUsd(resumen.saldoPendienteUsd)}</span>}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
@@ -872,16 +968,73 @@ export default function ComponentDeliveryNote() {
                           <td style={{ padding: '7px 10px', fontWeight: '500' }}>{p.metodo}</td>
                           <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: '600' }}>
                             {esEnBs ? `Bs ${formatMonto(montoParsed)}` : `$ ${formatMonto(montoParsed)}`}
+                            {esEnBs && tasaNum > 0 && (
+                              <span style={{ color: '#777', fontWeight: '400', fontSize: '11px' }}> (≈ ${formatMonto(montoParsed / tasaNum)})</span>
+                            )}
                           </td>
                         </tr>
                       );
                     })}
+
                     <tr style={{ borderTop: '2px solid #222' }}>
-                      <td style={{ padding: '10px', fontWeight: '800', fontSize: '14px' }}>Total:</td>
+                      <td style={{ padding: '10px', fontWeight: '800', fontSize: '14px' }}>Total de la venta:</td>
                       <td style={{ padding: '10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>
                         {currencySymbol} {formatMonto(precioTotalPdf)}
                       </td>
                     </tr>
+
+                    {resumen.hayPagosBs && (
+                      <tr>
+                        <td style={{ padding: '5px 10px', color: '#666' }}>Pagado en Bs:</td>
+                        <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: '600' }}>
+                          Bs {formatMonto(resumen.pagadoBs)} <span style={{ color: '#777', fontWeight: '400' }}>(≈ ${formatMonto(resumen.pagadoBsUsd)})</span>
+                        </td>
+                      </tr>
+                    )}
+
+                    {resumen.hayPagosUsd && (
+                      <tr>
+                        <td style={{ padding: '5px 10px', color: '#666' }}>Pagado en $:</td>
+                        <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: '600' }}>
+                          $ {formatMonto(resumen.pagadoUsd)}
+                        </td>
+                      </tr>
+                    )}
+
+                    {resumen.descuentoActivo ? (
+                      <>
+                        <tr>
+                          <td style={{ padding: '5px 10px', color: '#166534' }}>Descuento ({formatMonto(resumen.descuentoPct)}%):</td>
+                          <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: '700', color: '#166534' }}>
+                            - {resumen.principalBs ? `Bs ${formatMonto(resumen.descuentoBs)}` : `$ ${formatMonto(resumen.descuentoUsd)}`}
+                            {resumen.principalBs && <span style={{ color: '#777', fontWeight: '400' }}> (≈ ${formatMonto(resumen.descuentoUsd)})</span>}
+                          </td>
+                        </tr>
+                        <tr style={{ borderTop: '1px solid #222' }}>
+                          <td style={{ padding: '8px 10px', fontWeight: '800', fontSize: '14px' }}>Total a pagar:</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', fontSize: '14px' }}>
+                            {resumen.principalBs ? `Bs ${formatMonto(resumen.totalFinalBs)}` : `$ ${formatMonto(resumen.totalFinalUsd)}`}
+                            {resumen.principalBs && <span style={{ color: '#777', fontWeight: '400', fontSize: '11px' }}> (≈ ${formatMonto(resumen.totalFinalUsd)})</span>}
+                          </td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr>
+                        <td style={{ padding: '8px 10px', fontWeight: '700', color: resumen.saldoPendienteUsd > 0 ? '#dc2626' : '#16a34a' }}>
+                          {resumen.vueltoUsd > 0 ? 'Vuelto:' : 'Resta por pagar:'}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', fontSize: '14px', color: resumen.saldoPendienteUsd > 0 ? '#dc2626' : '#16a34a' }}>
+                          {resumen.vueltoUsd > 0
+                            ? (resumen.principalBs ? `Bs ${formatMonto(resumen.vueltoBs)}` : `$ ${formatMonto(resumen.vueltoUsd)}`)
+                            : (resumen.principalBs ? `Bs ${formatMonto(resumen.saldoPendienteBs)}` : `$ ${formatMonto(resumen.saldoPendienteUsd)}`)}
+                          {(resumen.principalBs) && (
+                            <span style={{ color: '#777', fontWeight: '400', fontSize: '11px' }}>
+                              {' '}(≈ ${formatMonto(resumen.vueltoUsd > 0 ? resumen.vueltoUsd : resumen.saldoPendienteUsd)})
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </>
