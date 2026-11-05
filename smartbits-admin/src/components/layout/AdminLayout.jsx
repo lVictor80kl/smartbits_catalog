@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { fetchTasasVenezolanas } from '../../services/tasasCambioService';
+import { normalizarTasas, esTasaAceptable } from '../../utils/tasasCambio';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -39,10 +40,21 @@ export default function AdminLayout() {
         const res = await fetchTasasVenezolanas();
         if (cancel) return;
 
-        const cleanTasas = {
+        const cleanTasasBase = {
           bcv_usd: res.bcv_usd ?? tasasData.bcv_usd ?? null,
           bcv_eur: res.bcv_eur ?? tasasData.bcv_eur ?? null,
-          binance_usdt: res.binance_usdt ?? tasasData.binance_usdt ?? null,
+          binance_usdt: res.binance_usdt ?? tasasData.binance_usdt ?? null
+        };
+
+        // Se normalizan juntas (nuevas + guardadas): esto corrige el error de
+        // separador de miles de la API ("1.006" en vez de "1.006,03" Bs).
+        const { tasas: normalizadas, correcciones } = normalizarTasas(cleanTasasBase);
+        correcciones.forEach(c => console.warn(`[Tasas Admin] ${c}`));
+
+        const cleanTasas = {
+          bcv_usd: normalizadas.bcv_usd,
+          bcv_eur: normalizadas.bcv_eur,
+          binance_usdt: normalizadas.binance_usdt,
           custom: tasasData.custom ?? null,
           tasa_predeterminada: predeterminada,
           updated_at: res.updated_at || new Date().toISOString(),
@@ -55,8 +67,12 @@ export default function AdminLayout() {
           updated_at: new Date()
         };
 
-        if (nuevaTasaEfectiva && nuevaTasaEfectiva > 0) {
+        // Nunca se guarda una tasa inválida: si la API devuelve basura se
+        // conserva la última tasa válida que ya tenía el sistema.
+        if (esTasaAceptable(nuevaTasaEfectiva)) {
           payload.tasa_cambio = nuevaTasaEfectiva;
+        } else {
+          console.warn('[Tasas Admin] Tasa activa inválida; se conserva la tasa anterior.');
         }
 
         await updateDoc(doc(db, 'caja', 'saldos'), payload);

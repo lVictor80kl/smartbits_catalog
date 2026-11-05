@@ -4,6 +4,7 @@ import { db } from '../../../firebase';
 import { ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, RefreshCw, Layers, DollarSign, Users, Landmark, Sparkles, Trash2 } from 'lucide-react';
 import { useCorteContable } from '../../../utils/useCorteContable';
 import { getCostoTotal, getGastosExtraTotal } from '../../../utils/costos';
+import { normalizarTasas, resolverTasaCalculo, UMBRAL_TASA_MINIMA } from '../../../utils/tasasCambio';
 
 const CUENTAS_BASE = [
   { key: 'efectivo', label: 'Efectivo', moneda: 'USD' },
@@ -70,7 +71,12 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
           });
 
           setSaldosCaja(initialSaldos);
-          if (d.tasa_cambio) setTasaCambio(d.tasa_cambio);
+          if (d.tasa_cambio) {
+            // Se usa la tasa ya validada/corregida (algunas APIs devuelven
+            // "1.006" en vez de "1.006,03" y hay que corregirlo)
+            const { tasas: tasasCaja } = normalizarTasas(d.tasas || {});
+            setTasaCambio(resolverTasaCalculo(d.tasa_cambio, tasasCaja).tasa);
+          }
         }
 
         // Calcular costo del inventario activo actual
@@ -104,7 +110,18 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
     } else {
       // Si ya hay corte cargado, precargar sus valores para edición si se requiere
       setSaldosCaja({ ...corte.saldos_iniciales });
-      setTasaCambio(corte.tasa_cambio_corte || 1);
+      // La tasa del corte solo se usa si es válida; si no, se resuelve con las
+      // tasas de mercado actuales (nunca se deja en 1).
+      const tasaCorteNum = Number(corte.tasa_cambio_corte) || 0;
+      if (tasaCorteNum >= UMBRAL_TASA_MINIMA) {
+        setTasaCambio(tasaCorteNum);
+      } else {
+        getDoc(doc(db, 'caja', 'saldos')).then(s => {
+          if (!s.exists()) return;
+          const { tasas: tasasCaja } = normalizarTasas(s.data().tasas || {});
+          setTasaCambio(resolverTasaCalculo(s.data().tasa_cambio, tasasCaja).tasa);
+        });
+      }
       setCapitalYsmael(corte.capital_inicial_ysmael || 0);
       setCapitalVictor(corte.capital_inicial_victor || 0);
       setInventarioManual(corte.inventario_inicial || 0);
@@ -223,6 +240,13 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
     if (isNaN(Number(capitalYsmael)) || isNaN(Number(capitalVictor))) {
       return alert("Ingresa valores numéricos válidos para el capital de ambos socios.");
     }
+    const tasaNum = Number(tasaCambio);
+    if (isNaN(tasaNum) || tasaNum < UMBRAL_TASA_MINIMA) {
+      return alert(
+        `La tasa de cambio referencial debe ser mayor a ${UMBRAL_TASA_MINIMA} Bs por dólar (ej: 1006.03). ` +
+        `Valor recibido: ${tasaNum || tasaCambio}. Con una tasa menor, los saldos en bolívares se contabilizarían mal.`
+      );
+    }
 
     const confirmar = window.confirm(
       "⚠️ ¿Confirmas ejecutar el Corte Contable con estos valores de Punto Cero?\n\n" +
@@ -245,7 +269,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
         activo: true,
         fecha_corte: serverTimestamp(),
         saldos_iniciales: saldosFinales,
-        tasa_cambio_corte: Number(tasaCambio) || 1,
+        tasa_cambio_corte: tasaNum,
         inventario_inicial: invFinal,
         capital_inicial_ysmael: Number(capitalYsmael),
         capital_inicial_victor: Number(capitalVictor),
@@ -256,7 +280,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       //    y reiniciar la apertura del rastreo de saldos por cuenta (nuevo punto cero)
       await setDoc(doc(db, 'caja', 'saldos'), {
         ...saldosFinales,
-        tasa_cambio: Number(tasaCambio) || 1,
+        tasa_cambio: tasaNum,
         updated_at: new Date(),
         _rastreo_saldos: {
           fecha: serverTimestamp(),

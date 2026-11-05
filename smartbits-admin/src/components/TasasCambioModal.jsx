@@ -10,7 +10,8 @@ import {
   Edit2,
   Loader2,
   Euro,
-  Coins
+  Coins,
+  AlertTriangle
 } from 'lucide-react';
 import { useCuentasCaja } from '../utils/useCuentasCaja';
 import { TIPO_TASA } from '../services/tasasCambioService';
@@ -210,6 +211,20 @@ export default function TasasCambioModal({ isOpen, onClose }) {
               >
                 Reintentar
               </button>
+            </div>
+          )}
+
+          {/* AVISO DE TASAS CORREGIDAS AUTOMÁTICAMENTE */}
+          {Array.isArray(tasas.correcciones) && tasas.correcciones.length > 0 && (
+            <div className="p-3.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl text-xs font-medium shadow-xs flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-black">Tasa corregida automáticamente</p>
+                <p className="mt-0.5">
+                  La fuente devolvió el valor con el separador de miles mal interpretado. Corrección aplicada:
+                  {' '}{tasas.correcciones.join(' | ')}.
+                </p>
+              </div>
             </div>
           )}
 

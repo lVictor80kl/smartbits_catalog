@@ -12,6 +12,12 @@
  * 4. Peticiones de solo lectura (GET) sin envío de credenciales ni tokens sensibles.
  */
 
+import {
+  sanitizarNumeroTasa,
+  normalizarTasas,
+  UMBRAL_TASA_MINIMA,
+} from '../utils/tasasCambio';
+
 export const TIPO_TASA = {
   BCV_USD: 'bcv_usd',
   BCV_EUR: 'bcv_eur',
@@ -26,18 +32,8 @@ export const TIPO_TASA_LABELS = {
   [TIPO_TASA.CUSTOM]: 'Personalizada (Custom)'
 };
 
-/**
- * Valida y sanitiza que el valor sea un número positivo dentro de un rango económico válido.
- */
-export function sanitizarNumeroTasa(val) {
-  if (val === null || val === undefined) return null;
-  const num = typeof val === 'number' ? val : parseFloat(String(val).trim().replace(',', '.'));
-  if (isNaN(num) || !Number.isFinite(num) || num <= 0 || num > 50000000) {
-    return null;
-  }
-  // Redondeo seguro a 2 decimales para operaciones comerciales
-  return Math.round(num * 100) / 100;
-}
+// Se re-exporta para mantener compatibilidad con las importaciones existentes
+export { sanitizarNumeroTasa, UMBRAL_TASA_MINIMA };
 
 /**
  * Realiza un fetch con timeout estricto de seguridad.
@@ -150,7 +146,8 @@ export async function fetchTasasVenezolanas() {
     binance_usdt: binanceResult.status === 'fulfilled' ? binanceResult.value.tasa : null,
     updated_at: new Date().toISOString(),
     errores: {},
-    fuentes: {}
+    fuentes: {},
+    correcciones: []
   };
 
   if (bcvUsdResult.status === 'fulfilled') {
@@ -170,6 +167,33 @@ export async function fetchTasasVenezolanas() {
   } else {
     resultado.errores.binance_usdt = binanceResult.reason?.message || 'Error al consultar Binance P2P';
   }
+
+  // VALIDACIÓN CRUZADA: algunas APIs devuelven el valor con el separador de
+  // miles mal interpretado (ej: "1.006" en vez de "1.006,03" Bs), lo que deja
+  // la tasa 1000 veces por debajo de la realidad. Aquí se corrige y se
+  // descartan las tasas que siguen siendo imposibles.
+  const { tasas, correcciones, invalidas } = normalizarTasas({
+    bcv_usd: resultado.bcv_usd,
+    bcv_eur: resultado.bcv_eur,
+    binance_usdt: resultado.binance_usdt
+  });
+
+  resultado.bcv_usd = tasas.bcv_usd;
+  resultado.bcv_eur = tasas.bcv_eur;
+  resultado.binance_usdt = tasas.binance_usdt;
+  resultado.correcciones = correcciones;
+
+  invalidas.forEach(clave => {
+    resultado.errores[clave] = 'La API devolvió un valor fuera de rango (posible error de separador de miles). Tasa descartada.';
+    if (resultado.fuentes[clave]) {
+      resultado.fuentes[clave] = `${resultado.fuentes[clave]} — valor descartado`;
+    }
+    console.warn(`[Tasas] La tasa ${clave} es inválida y fue descartada.`);
+  });
+
+  correcciones.forEach(correccion => {
+    console.warn(`[Tasas] ${correccion}`);
+  });
 
   return resultado;
 }

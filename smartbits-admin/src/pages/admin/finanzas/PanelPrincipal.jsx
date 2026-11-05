@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CUENTAS_FIJAS, parseDecimalInput } from '../../../utils/useCuentasCaja';
+import { normalizarTasas, resolverTasaCalculo } from '../../../utils/tasasCambio';
 import { resolverComisionCuenta } from '../../../utils/bancos';
 import TasasCambioModal from '../../../components/TasasCambioModal';
 import TasasChipsSelector from '../../../components/TasasChipsSelector';
@@ -178,7 +179,20 @@ export default function PanelPrincipal({ onNavigateTab }) {
   const todasCuentas = [...cuentasFijasConNombres, ...cuentasDinamicas];
 
   // --- CÁLCULOS MATEMÁTICOS POST-CORTE ---
-  const tasaCambio = Number(caja.tasa_cambio) || Number(corte?.tasa_cambio_corte) || 1;
+  // La tasa activa se valida antes de usarla: algunas APIs devuelven el valor
+  // con el separador de miles mal interpretado (ej: "1.006" en vez de
+  // "1.006,03" Bs) y eso convertiría los bolívares a dólares 1:1.
+  const { tasas: tasasCaja } = normalizarTasas(caja.tasas || {});
+  const tasaCorte = Number(corte?.tasa_cambio_corte) || null;
+  const resolucionTasa = resolverTasaCalculo(
+    Number(caja.tasa_cambio) || tasaCorte || 1,
+    tasasCaja,
+    tasaCorte ? [tasaCorte] : []
+  );
+  const tasaCambio = resolucionTasa.tasa;
+  const tasaEsValida = resolucionTasa.esValida;
+  const tasaAdvertencia = resolucionTasa.nota;
+  const hayCuentasBs = todasCuentas.some(c => c.moneda === 'BS');
   const tasaActivaKey = caja.tasas?.tasa_predeterminada || 'binance_usdt';
   const getTasaActivaBadge = () => {
     switch (tasaActivaKey) {
@@ -828,6 +842,29 @@ export default function PanelPrincipal({ onNavigateTab }) {
         </div>
       )}
 
+      {/* BANNER DE TASA DE CAMBIO INVÁLIDA */}
+      {hayCuentasBs && !tasaEsValida && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center text-red-600 flex-shrink-0">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-red-800">Tasa de cambio no válida</h3>
+              <p className="text-sm text-red-700 mt-0.5">
+                {tasaAdvertencia || 'No se pudo obtener una tasa de cambio confiable.'} Los saldos en bolívares no se están convirtiendo a dólares correctamente, por lo que el Capital Total no es confiable.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setModalTasa({ open: true, nuevaTasa: tasaCambio.toString(), saving: false })}
+            className="bg-red-600 text-white font-bold px-5 py-2.5 rounded-xl text-sm hover:bg-red-700 transition-colors flex-shrink-0 shadow"
+          >
+            Corregir tasa →
+          </button>
+        </div>
+      )}
+
       {/* TARJETAS PRINCIPALES DE CAPITAL */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* CAPITAL TOTAL */}
@@ -1011,10 +1048,22 @@ export default function PanelPrincipal({ onNavigateTab }) {
             >
               <Edit3 className="w-3.5 h-3.5 text-brand-600" />
               <span>Tasa: <strong className="text-slate-900 font-black">Bs {tasaCambio.toFixed(2)}</strong>/$</span>
-              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shadow-2xs ${tasaBadge.color}`}>
-                {tasaBadge.label}
-              </span>
+              {tasaEsValida ? (
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shadow-2xs ${tasaBadge.color}`}>
+                  {tasaBadge.label}
+                </span>
+              ) : (
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shadow-2xs bg-red-100 text-red-800 border-red-300">
+                  Inválida
+                </span>
+              )}
             </button>
+
+            {tasaAdvertencia && (
+              <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                {tasaAdvertencia}
+              </span>
+            )}
 
             {/* Botón Añadir Cuenta */}
             <button

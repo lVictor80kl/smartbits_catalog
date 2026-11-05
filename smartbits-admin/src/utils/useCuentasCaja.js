@@ -3,9 +3,16 @@ import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { 
   fetchTasasVenezolanas, 
-  sanitizarNumeroTasa, 
-  TIPO_TASA 
+  TIPO_TASA,
+  TIPO_TASA_LABELS
 } from '../services/tasasCambioService';
+import {
+  sanitizarNumeroTasa,
+  normalizarTasas,
+  resolverTasaCalculo,
+  esTasaAceptable,
+  UMBRAL_TASA_MINIMA,
+} from './tasasCambio';
 import { resolverComisionCuenta } from './bancos';
 
 export const CUENTAS_FIJAS = [
@@ -86,16 +93,28 @@ export function useCuentasCaja() {
   // Configuración de tasas con retrocompatibilidad
   const rawTasas = saldos.tasas || {};
   const tasaPredeterminada = rawTasas.tasa_predeterminada || TIPO_TASA.BINANCE;
-  const tasaCambio = Number(saldos.tasa_cambio) || 1;
+
+  // Las tasas guardadas se normalizan al leerlas: algunas APIs devolvieron el
+  // valor con el separador de miles mal interpretado (ej: "1.006" en vez de
+  // "1.006,03" Bs) y esa basura no debe llegar a los cálculos contables.
+  const normalizacion = normalizarTasas(rawTasas);
+  const tasasNormales = normalizacion.tasas;
+
+  // Tasa activa: se corrige o se descarta si es inválida
+  const resolucionTasa = resolverTasaCalculo(saldos.tasa_cambio, tasasNormales);
+  const tasaCambio = resolucionTasa.tasa;
+  const tasaCambioEsValida = resolucionTasa.esValida;
+  const tasaCambioAdvertencia = resolucionTasa.nota;
 
   const tasas = {
-    bcv_usd: sanitizarNumeroTasa(rawTasas.bcv_usd) || null,
-    bcv_eur: sanitizarNumeroTasa(rawTasas.bcv_eur) || null,
-    binance_usdt: sanitizarNumeroTasa(rawTasas.binance_usdt) || null,
-    custom: sanitizarNumeroTasa(rawTasas.custom) || (tasaCambio > 1 ? tasaCambio : null),
+    bcv_usd: tasasNormales.bcv_usd,
+    bcv_eur: tasasNormales.bcv_eur,
+    binance_usdt: tasasNormales.binance_usdt,
+    custom: sanitizarNumeroTasa(rawTasas.custom) || (tasaCambio > UMBRAL_TASA_MINIMA ? tasaCambio : null),
     tasa_predeterminada: tasaPredeterminada,
     updated_at: rawTasas.updated_at || null,
-    fuente: rawTasas.fuente || null
+    fuente: rawTasas.fuente || null,
+    correcciones: normalizacion.correcciones
   };
 
   // Helper para añadir una cuenta nueva
@@ -159,20 +178,24 @@ export function useCuentasCaja() {
   // Sincroniza las tasas online desde DolarApi y CriptoYa con reintentos y seguridad
   const sincronizarTasasOnline = async () => {
     const res = await fetchTasasVenezolanas();
-    const cleanTasas = {
+
+    // Se mezclan las tasas nuevas con las guardadas y se normalizan juntas:
+    // así una tasa guardada corrupta también queda corregida.
+    const { tasas: cleanTasas } = normalizarTasas({
       bcv_usd: res.bcv_usd ?? tasas.bcv_usd ?? null,
       bcv_eur: res.bcv_eur ?? tasas.bcv_eur ?? null,
-      binance_usdt: res.binance_usdt ?? tasas.binance_usdt ?? null,
-      custom: tasas.custom ?? null,
-      tasa_predeterminada: tasaPredeterminada || TIPO_TASA.BINANCE,
-      updated_at: res.updated_at || new Date().toISOString(),
-      fuentes: res.fuentes || {}
-    };
+      binance_usdt: res.binance_usdt ?? tasas.binance_usdt ?? null
+    });
+
+    cleanTasas.custom = tasas.custom ?? null;
+    cleanTasas.tasa_predeterminada = tasaPredeterminada || TIPO_TASA.BINANCE;
+    cleanTasas.updated_at = res.updated_at || new Date().toISOString();
+    cleanTasas.fuentes = res.fuentes || {};
 
     // Determinar la tasa activa efectiva para retrocompatibilidad
     let tasaEfectiva = cleanTasas[tasaPredeterminada];
-    if (!tasaEfectiva || tasaEfectiva <= 0) {
-      tasaEfectiva = cleanTasas.binance_usdt || cleanTasas.bcv_usd || tasaCambio;
+    if (!esTasaAceptable(tasaEfectiva)) {
+      tasaEfectiva = cleanTasas.binance_usdt || cleanTasas.bcv_usd || null;
     }
 
     const payload = {
@@ -180,8 +203,12 @@ export function useCuentasCaja() {
       updated_at: new Date()
     };
 
-    if (tasaEfectiva > 0) {
+    // Nunca se guarda una tasa inválida: si la API trae basura, se conserva
+    // la última tasa válida que ya tenía el sistema.
+    if (esTasaAceptable(tasaEfectiva)) {
       payload.tasa_cambio = tasaEfectiva;
+    } else {
+      console.warn('[Tasas] La tasa obtenida no es válida; se conserva la tasa activa anterior.');
     }
 
     await updateDoc(doc(db, 'caja', 'saldos'), payload);
@@ -194,13 +221,17 @@ export function useCuentasCaja() {
       throw new Error('Tipo de tasa no reconocido.');
     }
     const valorSeleccionado = tasas[claveTasa];
+    if (!esTasaAceptable(valorSeleccionado)) {
+      throw new Error(
+        `La tasa de "${TIPO_TASA_LABELS[claveTasa] || claveTasa}" no es válida (valor recibido: ${valorSeleccionado ?? 'sin valor'}). ` +
+        'Sincroniza las tasas o fija una tasa personalizada antes de usarla como referencia.'
+      );
+    }
     const payload = {
       'tasas.tasa_predeterminada': claveTasa,
       updated_at: new Date()
     };
-    if (valorSeleccionado && valorSeleccionado > 0) {
-      payload.tasa_cambio = valorSeleccionado;
-    }
+    payload.tasa_cambio = valorSeleccionado;
     await updateDoc(doc(db, 'caja', 'saldos'), payload);
   };
 
@@ -209,6 +240,11 @@ export function useCuentasCaja() {
     const valorSanitizado = sanitizarNumeroTasa(nuevoValor);
     if (!valorSanitizado || valorSanitizado <= 0) {
       throw new Error('Ingresa un valor de tasa válido.');
+    }
+    if (!esTasaAceptable(valorSanitizado)) {
+      throw new Error(
+        `La tasa debe ser mayor a ${UMBRAL_TASA_MINIMA} Bs por dólar (ej: 1006.03). Valor recibido: ${valorSanitizado}.`
+      );
     }
     const payload = {
       'tasas.custom': valorSanitizado,
@@ -224,6 +260,11 @@ export function useCuentasCaja() {
   const actualizarTasaCambio = async (nuevaTasa) => {
     const tasaNum = parseDecimalInput(nuevaTasa);
     if (isNaN(tasaNum) || tasaNum <= 0) throw new Error('Tasa de cambio inválida.');
+    if (!esTasaAceptable(tasaNum)) {
+      throw new Error(
+        `La tasa debe ser mayor a ${UMBRAL_TASA_MINIMA} Bs por dólar (ej: 1006.03). Valor recibido: ${tasaNum}.`
+      );
+    }
     await updateDoc(doc(db, 'caja', 'saldos'), {
       tasa_cambio: tasaNum,
       'tasas.custom': tasaNum,
@@ -263,6 +304,8 @@ export function useCuentasCaja() {
     cuentasBS,
     cuentasUSD,
     tasaCambio, 
+    tasaCambioEsValida,
+    tasaCambioAdvertencia,
     tasas,
     loading,
     agregarCuenta,

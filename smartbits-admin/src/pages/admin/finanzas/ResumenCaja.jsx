@@ -4,6 +4,7 @@ import { db } from '../../../firebase';
 import { Wallet, DollarSign, Plus, AlertTriangle, RefreshCw, Settings, X, Save, History, Landmark, TrendingUp } from 'lucide-react';
 
 import { CUENTAS_FIJAS, parseDecimalInput } from '../../../utils/useCuentasCaja';
+import { normalizarTasas, resolverTasaCalculo } from '../../../utils/tasasCambio';
 import TasasCambioModal from '../../../components/TasasCambioModal';
 
 const EXCLUIR_KEYS = ['tasa_cambio', 'updated_at', 'caja_envios', 'ventas_no_asignadas', '_cuentas_dinamicas', '_nombres_personalizados'];
@@ -36,7 +37,13 @@ export default function ResumenCaja() {
   }, []);
 
   // -------- Calculos --------
-  const tasaCambio = Number(saldos.tasa_cambio) || 1;
+  // La tasa se valida antes de convertir: si viene corrupta (p.ej. 1.006 en
+  // vez de 1.006,03) se corrige o se descarta para no inflar los totales.
+  const { tasas: tasasCaja } = normalizarTasas(saldos.tasas || {});
+  const resolucionTasa = resolverTasaCalculo(saldos.tasa_cambio, tasasCaja);
+  const tasaCambio = resolucionTasa.tasa;
+  const tasaEsValida = resolucionTasa.esValida;
+  const tasaAdvertencia = resolucionTasa.nota;
   const tasaActivaKey = saldos.tasas?.tasa_predeterminada || 'binance_usdt';
   const getTasaActivaBadge = () => {
     switch (tasaActivaKey) {
@@ -177,6 +184,26 @@ export default function ResumenCaja() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
 
+      {/* AVISO DE TASA DE CAMBIO INVÁLIDA */}
+      {!tasaEsValida && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" />
+            <div>
+              <h4 className="text-sm font-black text-red-800">Tasa de cambio no válida</h4>
+              <p className="text-xs text-red-700">{tasaAdvertencia || 'Los saldos en bolívares no se están convirtiendo correctamente.'}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setModalTasasOpen(true)}
+            className="bg-red-600 text-white font-bold px-4 py-2 rounded-lg text-xs hover:bg-red-700 transition-colors"
+          >
+            Corregir tasa
+          </button>
+        </div>
+      )}
+
       {/* KPIs Superiores */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg col-span-1 md:col-span-1">
@@ -196,9 +223,15 @@ export default function ResumenCaja() {
           <div className="flex flex-wrap items-center gap-2 mt-2.5">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-amber-800 font-bold">Tasa: Bs {tasaCambio.toFixed(2)}/$</span>
-              <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded-full border shadow-2xs ${tasaBadge.color}`}>
-                {tasaBadge.label}
-              </span>
+              {tasaEsValida ? (
+                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded-full border shadow-2xs ${tasaBadge.color}`}>
+                  {tasaBadge.label}
+                </span>
+              ) : (
+                <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-full border shadow-2xs bg-red-100 text-red-800 border-red-300">
+                  Inválida
+                </span>
+              )}
             </div>
             <button
               type="button"
