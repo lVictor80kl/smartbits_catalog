@@ -1,29 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
 import { useCuentasCaja, parseDecimalInput } from '../../../utils/useCuentasCaja';
 import { calcularDiferencial, derivarTasaReal, calcularDestino } from '../../../utils/diferencialCambiario';
 import { getCostoBaseConComision, getLegadosExtrasUsd } from '../../../utils/costos';
+import {
+  METODO_TO_CAJA_KEY,
+  movimientoInvolucraCuenta,
+  deltaCuenta,
+  construirSerieSaldos,
+  toNum,
+  timestampToMs
+} from '../../../utils/rastreoSaldos';
 import { 
   TrendingDown, Users, ArrowRightLeft, PlusCircle, Search, Trash2, Edit2, 
   Loader2, Filter, AlertCircle, CheckCircle, Calendar, RefreshCw, X, Save
 } from 'lucide-react';
 
-const METODO_TO_CAJA_KEY = {
-  'Zelle': 'zelle',
-  'Efectivo': 'efectivo',
-  'USDT': 'binance',
-  'Binance Pay': 'binance',
-  'Zinli': 'zinli',
-  'PayPal': 'paypal',
-  'Pago Móvil': 'venezuela',
-  'Transferencia': 'venezuela',
-};
-
 export default function Movimientos() {
   const { corte, loading: loadingCorte } = useCorteContable();
-  const { todasCuentas, cuentasUSD, cuentasBS, tasaCambio: tasaHook, saldos } = useCuentasCaja();
+  const { todasCuentas, cuentasUSD, cuentasBS, tasaCambio: tasaHook, saldos, loading: loadingCuentas } = useCuentasCaja();
 
   // Tipo de operación en formulario: 'gasto_op' | 'retiro' | 'transferencia'
   const [tipoOperacion, setTipoOperacion] = useState('gasto_op');
@@ -83,6 +80,11 @@ export default function Movimientos() {
   const [comprasInventario, setComprasInventario] = useState([]);
   const [ingresos, setIngresos] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Ajustes manuales de caja (auditoría) para mostrar como movimientos
+  const [ajustesCaja, setAjustesCaja] = useState([]);
+  const aperturaCreadaRef = useRef(false);
+  const aperturasIntentosRef = useRef(0);
 
   // Filtros de tabla
   const [filtroTipo, setFiltroTipo] = useState('todos'); // 'todos' | 'gasto_op' | 'retiro_ysmael' | 'retiro_victor' | 'transferencia'
@@ -214,6 +216,58 @@ export default function Movimientos() {
     return keyStr || 'N/A';
   };
 
+  // --- APERTURA DEL RASTREO DE SALDOS ---
+  // Se fija una única vez el saldo actual de cada cuenta como punto de partida.
+  // Desde ese momento, cada movimiento posterior suma/resta sobre esa base.
+  useEffect(() => {
+    if (loadingCuentas) return;
+    if (!saldos || aperturaCreadaRef.current) return;
+    if (saldos._rastreo_saldos) {
+      aperturaCreadaRef.current = true;
+      return;
+    }
+    if (!todasCuentas.length) return;
+    if (aperturasIntentosRef.current >= 3) return;
+
+    const saldosApertura = {};
+    todasCuentas.forEach(c => {
+      saldosApertura[c.key] = toNum(saldos[c.key]);
+    });
+    if (!Object.keys(saldosApertura).length) return;
+
+    aperturaCreadaRef.current = true;
+    aperturasIntentosRef.current += 1;
+    updateDoc(doc(db, 'caja', 'saldos'), {
+      _rastreo_saldos: {
+        fecha: serverTimestamp(),
+        saldos: saldosApertura
+      }
+    }).catch(err => {
+      aperturaCreadaRef.current = false;
+      console.error('Error al fijar la apertura del rastreo de saldos:', err);
+    });
+  }, [loadingCuentas, saldos, todasCuentas]);
+
+  // --- AJUSTES MANUALES DE CAJA (AUDITORÍA) ---
+  useEffect(() => {
+    if (!corte?.fecha_corte) return;
+
+    const fechaCorte = corte.fecha_corte_js || (corte.fecha_corte ? corte.fecha_corte.toDate() : new Date(0));
+    const qAjustes = query(
+      collection(db, 'auditoria_caja'),
+      where('fecha', '>=', fechaCorte),
+      orderBy('fecha', 'desc')
+    );
+
+    const unsubAjustes = onSnapshot(qAjustes, snap => {
+      setAjustesCaja(snap.docs.map(d => ({ id: d.id, tipo_mov: 'ajuste', ...d.data() })));
+    }, (err) => {
+      console.error('Error al cargar los ajustes de caja:', err);
+    });
+
+    return () => unsubAjustes();
+  }, [corte]);
+
   useEffect(() => {
     if (!corte?.fecha_corte) {
       setLoadingData(false);
@@ -326,7 +380,8 @@ export default function Movimientos() {
           metodo_pago: updatedMetodo || ing.metodo_pago || 'efectivo',
           moneda_original: monedaOriginal || ing.moneda_original || 'USD',
           monto_original: montoOriginal !== undefined ? montoOriginal : (ing.monto_original || ing.monto),
-          tasa_cambio: tasaCambioDoc || ing.tasa_cambio
+          tasa_cambio: tasaCambioDoc || ing.tasa_cambio,
+          _venta: matchingVenta || null
         };
       });
 
@@ -531,6 +586,13 @@ export default function Movimientos() {
   const handleConfirmDelete = async () => {
     const { item } = deleteModal;
     if (!item) return;
+
+    // Los ajustes manuales de caja se administran desde ResumenCaja / PanelPrincipal
+    if (item.tipo_mov === 'ajuste') {
+      setDeleteModal({ open: false, item: null, processing: false });
+      return;
+    }
+
     setDeleteModal(p => ({ ...p, processing: true }));
 
     try {
@@ -665,77 +727,8 @@ export default function Movimientos() {
     }
   };
 
-  // Helper para verificar si un movimiento involucra una cuenta específica
-  const movimientoInvolucraCuenta = (m, targetKey) => {
-    if (!targetKey || targetKey === 'todas') return true;
-
-    // 1. Transferencias internas (origen o destino)
-    if (m.tipo_mov === 'transferencia') {
-      return m.cuenta_origen === targetKey || m.cuenta_destino === targetKey;
-    }
-
-    // 2. Retiros de socios
-    if (m.tipo_mov === 'retiro') {
-      const cuenta = m.cuenta_salida || m.metodo_pago;
-      return cuenta === targetKey;
-    }
-
-    // 3. Aportes de capital
-    if (m.tipo_mov === 'aporte_capital') {
-      const cuenta = m.cuenta_destino || m.metodo_pago;
-      return cuenta === targetKey;
-    }
-
-    // 4. Reembolsos
-    if (m.tipo_mov === 'reembolso') {
-      return m.cuenta_destino === targetKey;
-    }
-
-    // 5. Gastos operativos y compras de inventario
-    if (m.tipo_mov === 'gasto_op' || m.tipo_mov === 'compra_inventario') {
-      const c = m.metodo_pago || m.cuenta_origen;
-      return c === targetKey;
-    }
-
-    // 6. Ventas / Ingresos
-    if (m.tipo_mov === 'venta') {
-      if (m.metodo_pago) {
-        if (typeof m.metodo_pago === 'string') {
-          const parts = m.metodo_pago.split(',').map(s => s.trim());
-          if (parts.some(p => p === targetKey || METODO_TO_CAJA_KEY[p] === targetKey)) return true;
-        } else if (Array.isArray(m.metodo_pago)) {
-          if (m.metodo_pago.some(p => {
-            const k = p.cuentaKey || METODO_TO_CAJA_KEY[p.metodo] || p.metodo;
-            return k === targetKey;
-          })) return true;
-        }
-      }
-    }
-
-    // Fallback general por cualquier campo que contenga la clave
-    const candidateKeys = [
-      m.metodo_pago,
-      m.cuenta_salida,
-      m.cuenta_destino,
-      m.cuenta_origen,
-      m.cuenta_key
-    ].filter(Boolean);
-
-    for (const c of candidateKeys) {
-      if (typeof c === 'string') {
-        if (c === targetKey || METODO_TO_CAJA_KEY[c] === targetKey) return true;
-        if (c.includes(',')) {
-          const parts = c.split(',').map(s => s.trim());
-          if (parts.some(p => p === targetKey || METODO_TO_CAJA_KEY[p] === targetKey)) return true;
-        }
-      }
-    }
-
-    return false;
-  };
-
   // --- MOVIMIENTOS COMBINADOS Y FILTRADOS ---
-  const todosMovimientos = [
+  const movimientosBase = useMemo(() => [
     ...gastosOp,
     ...gastosPers,
     ...transferencias,
@@ -743,6 +736,33 @@ export default function Movimientos() {
     ...comprasInventario,
     ...aportesSocios,
     ...ingresos
+  ], [gastosOp, gastosPers, transferencias, reembolsos, comprasInventario, aportesSocios, ingresos]);
+
+  // Los ajustes manuales de la cuenta seleccionada se muestran como movimientos.
+  const ajustesComoMovimiento = useMemo(() => {
+    if (filtroCuenta === 'todas') return [];
+    return ajustesCaja
+      .filter(a => a.cuenta_key === filtroCuenta)
+      .map(a => ({
+        id: `ajuste_${a.id}`,
+        coleccion: 'auditoria_caja',
+        tipo_mov: 'ajuste',
+        fecha: a.fecha,
+        concepto: a.motivo || 'Ajuste manual de saldo',
+        cuenta_key: a.cuenta_key,
+        cuenta_label: a.cuenta_label,
+        monto: toNum(a.diferencia),
+        diferencia: toNum(a.diferencia),
+        saldo_anterior: a.saldo_anterior,
+        saldo_nuevo: a.saldo_nuevo,
+        ajustador: a.ajustador,
+        es_ajuste: true
+      }));
+  }, [ajustesCaja, filtroCuenta]);
+
+  const todosMovimientos = [
+    ...movimientosBase,
+    ...ajustesComoMovimiento
   ].filter(m => {
     if (filtroTipo === 'gasto_op' && m.tipo_mov !== 'gasto_op') return false;
     if (filtroTipo === 'compra_inventario' && m.tipo_mov !== 'compra_inventario') return false;
@@ -769,6 +789,72 @@ export default function Movimientos() {
     const fB = b.fecha?.toDate ? b.fecha.toDate().getTime() : 0;
     return fB - fA;
   });
+
+  // --- RASTREO DE SALDO POR CUENTA (ESTADO DE CUENTA) ---
+  const cuentaFiltro = useMemo(
+    () => todasCuentas.find(c => c.key === filtroCuenta) || null,
+    [todasCuentas, filtroCuenta]
+  );
+  const monedaFiltro = cuentaFiltro?.moneda || 'USD';
+
+  const aperturaRastreo = saldos?._rastreo_saldos || null;
+  const fechaAperturaMs = aperturaRastreo?.fecha ? timestampToMs(aperturaRastreo.fecha) : null;
+  const fechaAperturaStr = fechaAperturaMs
+    ? new Date(fechaAperturaMs).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  const saldoRastreo = useMemo(() => {
+    if (filtroCuenta === 'todas') return null;
+    if (!fechaAperturaMs) return null;
+
+    const eventos = [];
+
+    // Movimientos que involucran la cuenta
+    movimientosBase.forEach(m => {
+      if (!movimientoInvolucraCuenta(m, filtroCuenta)) return;
+      eventos.push({
+        id: m.id,
+        fechaMs: timestampToMs(m.fecha),
+        delta: deltaCuenta(m, filtroCuenta, monedaFiltro)
+      });
+    });
+
+    // Ajustes manuales auditados de la cuenta
+    ajustesCaja.forEach(a => {
+      if (a.cuenta_key !== filtroCuenta) return;
+      eventos.push({
+        id: `ajuste_${a.id}`,
+        fechaMs: timestampToMs(a.fecha),
+        delta: toNum(a.diferencia)
+      });
+    });
+
+    eventos.sort((a, b) => a.fechaMs - b.fechaMs || String(a.id).localeCompare(String(b.id)));
+
+    // Solo se rastrean los movimientos posteriores a la apertura
+    const postApertura = eventos.filter(e => e.fechaMs >= fechaAperturaMs);
+    const netoPost = postApertura.reduce((acc, e) => acc + toNum(e.delta), 0);
+
+    const saldoActualCaja = toNum(saldos?.[filtroCuenta]);
+    const saldoSnapshot = saldos?._rastreo_saldos?.saldos?.[filtroCuenta];
+
+    // Si la cuenta no estaba en la apertura (creada después), se ancla con el saldo actual.
+    const apertura = (saldoSnapshot === undefined || saldoSnapshot === null)
+      ? (saldoActualCaja - netoPost)
+      : toNum(saldoSnapshot);
+
+    const { porMovimiento, saldoFinal, neto } = construirSerieSaldos(postApertura, apertura);
+
+    return {
+      porMovimiento,
+      apertura,
+      saldoFinal,
+      neto,
+      saldoActualCaja,
+      diferencia: Math.round((saldoActualCaja - saldoFinal) * 100) / 100,
+      totalEventos: postApertura.length
+    };
+  }, [filtroCuenta, movimientosBase, ajustesCaja, saldos, fechaAperturaMs, monedaFiltro]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -1282,29 +1368,62 @@ export default function Movimientos() {
         {/* Banner informativo de conciliación por cuenta */}
         {filtroCuenta !== 'todas' && (
           (() => {
-            const cSel = todasCuentas.find(c => c.key === filtroCuenta);
-            const saldoCuenta = saldos ? Number(saldos[filtroCuenta] || 0) : 0;
+            const cSel = cuentaFiltro;
+            const saldoCuenta = toNum(saldos?.[filtroCuenta]);
             const esBs = cSel?.moneda === 'BS';
+            const fmtSaldo = (v) => esBs
+              ? `Bs ${toNum(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : `$${toNum(v).toFixed(2)}`;
+            const hayDiferencia = !!saldoRastreo && Math.abs(saldoRastreo.diferencia) > 0.009;
             return (
-              <div className="mx-5 my-3 p-3.5 bg-brand-50/80 border border-brand-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="mx-5 my-3 p-3.5 bg-brand-50/80 border border-brand-200 rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-brand-600 animate-pulse shrink-0" />
                   <span className="text-slate-600 font-medium">Conciliando con estado de cuenta:</span>
                   <span className="font-bold text-slate-900 bg-white px-2 py-0.5 rounded-md border border-brand-200 shadow-2xs">
                     {cSel?.label || filtroCuenta} ({cSel?.moneda || 'USD'})
                   </span>
-                  <span className="text-slate-400 hidden sm:inline">•</span>
-                  <span className="text-slate-600">
-                    Saldo registrado en caja: <strong className="text-slate-900 font-black">{esBs ? `Bs ${saldoCuenta.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `$${saldoCuenta.toFixed(2)}`}</strong>
-                  </span>
+
+                  {saldoRastreo ? (
+                    <>
+                      <span className="text-slate-400 hidden sm:inline">•</span>
+                      <span className="text-slate-600">
+                        Apertura: <strong className="text-slate-900 font-black">{fmtSaldo(saldoRastreo.apertura)}</strong>
+                      </span>
+                      <span className="text-slate-400 hidden sm:inline">•</span>
+                      <span className="text-slate-600">
+                        Saldo calculado: <strong className="text-slate-900 font-black">{fmtSaldo(saldoRastreo.saldoFinal)}</strong>
+                      </span>
+                      <span className="text-slate-400 hidden sm:inline">•</span>
+                      <span className="text-slate-600">
+                        Saldo en caja: <strong className="text-slate-900 font-black">{fmtSaldo(saldoCuenta)}</strong>
+                      </span>
+                      {fechaAperturaStr && (
+                        <span className="text-slate-400 text-[10px] font-semibold">
+                          (rastreo iniciado el {fechaAperturaStr})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-slate-500 italic">Preparando el seguimiento de saldos de esta cuenta...</span>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setFiltroCuenta('todas')}
-                  className="text-brand-700 hover:text-brand-900 font-bold hover:underline flex items-center gap-1 shrink-0 self-start sm:self-auto"
-                >
-                  <X className="w-3.5 h-3.5" /> Quitar filtro de cuenta
-                </button>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  {hayDiferencia && (
+                    <span className="flex items-center gap-1 text-amber-800 bg-amber-100 border border-amber-300 px-2 py-1 rounded-lg font-bold">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      Diferencia sin registrar: {fmtSaldo(saldoRastreo.diferencia)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setFiltroCuenta('todas')}
+                    className="text-brand-700 hover:text-brand-900 font-bold hover:underline flex items-center gap-1 shrink-0 self-start sm:self-auto"
+                  >
+                    <X className="w-3.5 h-3.5" /> Quitar filtro de cuenta
+                  </button>
+                </div>
               </div>
             );
           })()
@@ -1328,6 +1447,7 @@ export default function Movimientos() {
                   <th className="px-4 py-3">Concepto</th>
                   <th className="px-4 py-3">Cuenta(s)</th>
                   <th className="px-4 py-3 text-right">Monto</th>
+                  {filtroCuenta !== 'todas' && <th className="px-4 py-3 text-right">Saldo</th>}
                   <th className="px-4 py-3 text-center">Acciones</th>
                 </tr>
               </thead>
@@ -1391,15 +1511,27 @@ export default function Movimientos() {
                             Venta
                           </span>
                         )}
+                        {item.tipo_mov === 'ajuste' && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                            Ajuste manual
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-4 py-3 font-semibold text-slate-800">
                         {item.concepto || 'Sin descripción'}
+                        {item.tipo_mov === 'ajuste' && item.ajustador && (
+                          <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                            Realizado por {item.ajustador}
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3 text-xs text-slate-600">
                         {item.tipo_mov === 'transferencia'
                           ? `${getCuentaLabel(item.cuenta_origen)} → ${getCuentaLabel(item.cuenta_destino)}`
+                          : item.tipo_mov === 'ajuste'
+                          ? getCuentaLabel(item.cuenta_key)
                           : getCuentaLabel(item.metodo_pago || item.cuenta_salida || item.cuenta_destino || 'N/A')
                         }
                       </td>
@@ -1448,11 +1580,18 @@ export default function Movimientos() {
                           <span className="text-emerald-600">+${Number(item.monto).toFixed(2)}</span>
                         )}
                         {item.tipo_mov === 'venta' && (
-                          <span className="text-emerald-600">
-                            {item.moneda_original === 'BS'
-                              ? `+Bs ${Number(item.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${item.monto ? ` (≈$${Number(item.monto).toFixed(2)})` : ''}`
-                              : `+$${Number(item.monto).toFixed(2)}`}
-                          </span>
+                          <div className="text-right">
+                            <span className="text-emerald-600">
+                              {item.moneda_original === 'BS'
+                                ? `+Bs ${Number(item.monto_original).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${item.monto ? ` (≈$${Number(item.monto).toFixed(2)})` : ''}`
+                                : `+$${Number(item.monto).toFixed(2)}`}
+                            </span>
+                            {filtroCuenta !== 'todas' && (
+                              <div className="text-[10px] font-black text-emerald-600">
+                                Entrada (+) a esta cuenta: {fmtMontoMoneda(monedaFiltro, deltaCuenta(item, filtroCuenta, monedaFiltro))}
+                              </div>
+                            )}
+                          </div>
                         )}
                         {item.tipo_mov === 'compra_inventario' && !item.es_ingreso && (
                           <span className="text-indigo-600">-${Number(item.monto).toFixed(2)}</span>
@@ -1463,21 +1602,75 @@ export default function Movimientos() {
                         {item.tipo_mov === 'gasto_op' && item.es_ingreso && (
                           <span className="text-emerald-600">+${Number(item.monto).toFixed(2)}</span>
                         )}
+                        {item.tipo_mov === 'ajuste' && (
+                          <div className="text-right">
+                            <span className={toNum(item.monto) >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                              {toNum(item.monto) >= 0 ? '+' : '-'}{fmtMontoMoneda(monedaFiltro, Math.abs(toNum(item.monto)))}
+                            </span>
+                            <div className="text-[10px] text-slate-400 font-semibold">
+                              {fmtMontoMoneda(monedaFiltro, toNum(item.saldo_anterior))} → {fmtMontoMoneda(monedaFiltro, toNum(item.saldo_nuevo))}
+                            </div>
+                          </div>
+                        )}
                       </td>
 
+                      {/* SALDO DE LA CUENTA DESPUÉS DEL MOVIMIENTO */}
+                      {filtroCuenta !== 'todas' && (() => {
+                        const saldoFila = saldoRastreo?.porMovimiento?.[item.id];
+                        if (saldoFila === undefined || saldoFila === null) {
+                          return (
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <span
+                                className="text-slate-300 text-xs font-bold"
+                                title="Movimiento anterior al inicio del seguimiento de saldos de esta cuenta"
+                              >
+                                —
+                              </span>
+                            </td>
+                          );
+                        }
+                        return (
+                          <td className="px-4 py-3 text-right whitespace-nowrap font-bold">
+                            <span className={saldoFila < 0 ? 'text-red-600' : 'text-slate-800'}>
+                              {fmtMontoMoneda(monedaFiltro, saldoFila)}
+                            </span>
+                          </td>
+                        );
+                      })()}
+
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => setDeleteModal({ open: true, item, processing: false })}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Eliminar movimiento"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {item.tipo_mov !== 'ajuste' && (
+                          <button
+                            onClick={() => setDeleteModal({ open: true, item, processing: false })}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Eliminar movimiento"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
+
+              {/* PIE: APERTURA Y CIERRE DEL ESTADO DE CUENTA */}
+              {filtroCuenta !== 'todas' && saldoRastreo && (
+                <tfoot>
+                  <tr className="bg-slate-50 border-t-2 border-slate-200">
+                    <td className="px-4 py-3 text-xs font-bold text-slate-500" colSpan={4}>
+                      Saldo de apertura del seguimiento{fechaAperturaStr ? ` (${fechaAperturaStr})` : ''}
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-black text-slate-500">
+                      Neto: {saldoRastreo.neto >= 0 ? '+' : '-'}{fmtMontoMoneda(monedaFiltro, Math.abs(saldoRastreo.neto))}
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-black text-slate-800">
+                      {fmtMontoMoneda(monedaFiltro, saldoRastreo.saldoFinal)}
+                    </td>
+                    <td className="px-4 py-3" />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}

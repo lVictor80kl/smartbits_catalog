@@ -253,10 +253,15 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       });
 
       // 2. Sincronizar saldos de caja en vivo con los saldos iniciales definidos
+      //    y reiniciar la apertura del rastreo de saldos por cuenta (nuevo punto cero)
       await setDoc(doc(db, 'caja', 'saldos'), {
         ...saldosFinales,
         tasa_cambio: Number(tasaCambio) || 1,
-        updated_at: new Date()
+        updated_at: new Date(),
+        _rastreo_saldos: {
+          fecha: serverTimestamp(),
+          saldos: { ...saldosFinales }
+        }
       }, { merge: true });
 
       alert("✅ ¡Corte contable ejecutado con éxito! El sistema ahora opera en punto cero corregido.");
