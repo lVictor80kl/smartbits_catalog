@@ -282,13 +282,14 @@ export default function EditLaptop() {
 
   const sumaPagosMonto = pagosCompra.reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0);
   const precioEbay = Number(formData.precio_ebay) || sumaPagosMonto;
+  const baseCompra = sumaPagosMonto > 0 ? sumaPagosMonto : precioEbay;
 
   const totalComisiones = pagosCompra.reduce((acc, p) => {
     const montoNum = parseFloat(p.monto) || 0;
     return acc + (montoNum * ((p.comisionPct || 0) / 100));
   }, 0);
 
-  const costoMasComision = precioEbay + totalComisiones;
+  const costoMasComision = baseCompra + totalComisiones;
   const gastosExtraTotalUsd = datosCompraExtra.gastos_extra.reduce((acc, g) => acc + (Number(g.monto_usd) || 0), 0);
 
   const costoTotal = costoMasComision + gastosExtraTotalUsd + datosCompraExtra.legadosUsd;

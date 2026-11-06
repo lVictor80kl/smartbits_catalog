@@ -172,11 +172,12 @@ export default function NewComponent() {
 
   const sumaPagosMonto = pagosCompra.reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0);
   const costoCompra = Number(formData.costo_compra) || sumaPagosMonto;
+  const baseCompra = sumaPagosMonto > 0 ? sumaPagosMonto : costoCompra;
   const totalComisiones = pagosCompra.reduce((acc, p) => {
     const montoNum = parseFloat(p.monto) || 0;
     return acc + (montoNum * ((p.comisionPct || 0) / 100));
   }, 0);
-  const costoTotal = costoCompra + totalComisiones;
+  const costoTotal = baseCompra + totalComisiones;
   const precioVenta = Number(formData.precio) || 0;
   const gananciaEstimada = precioVenta - costoTotal;
 
@@ -320,6 +321,7 @@ export default function NewComponent() {
           };
         }),
         total_comisiones: totalComisiones,
+        costo_mas_comision: costoTotal,
         costo_total: costoTotal,
         ganancia_estimada: gananciaEstimada,
         ebay_compra_id: ebayData?.id || null,

@@ -16,10 +16,21 @@ export function getLegadosExtrasUsd(item) {
 }
 
 export function getCostoBaseConComision(item) {
-  const base = Number(item?.precio_ebay ?? item?.costo_compra ?? 0);
-  if (base === 0) return 0;
+  if (Array.isArray(item?.pagos_compra) && item.pagos_compra.length > 0) {
+    const sumaPagosConComision = item.pagos_compra.reduce((acc, p) => {
+      const montoNum = Number(p.monto) || 0;
+      const comisionMonto = Number(p.comisionMonto ?? (montoNum * (Number(p.comisionPct || 0) / 100))) || 0;
+      const totalPago = Number(p.montoTotal ?? (montoNum + comisionMonto)) || 0;
+      return acc + totalPago;
+    }, 0);
+    if (sumaPagosConComision > 0) return Math.round(sumaPagosConComision * 100) / 100;
+  }
+
   const guardado = Number(item?.costo_mas_comision ?? 0);
   if (guardado > 0) return guardado;
+
+  const base = Number(item?.precio_ebay ?? item?.costo_compra ?? 0);
+  if (base === 0) return 0;
   const comisiones = Number(item?.total_comisiones ?? item?.comision_banco ?? 0);
   return base + comisiones;
 }
