@@ -7,11 +7,11 @@ import { useCuentasCaja, parseDecimalInput } from '../utils/useCuentasCaja';
 import { parseTasaInput, formatearDecimalInput } from '../utils/numeros';
 import TasasChipsSelector from './TasasChipsSelector';
 import {
-  getGastosExtraItems, getGastosExtraTotal, getLegadosExtrasUsd, getCostoBaseConComision,
+  getGastosExtraItems, getGastosExtraTotal, getCostoBaseConComision,
 } from '../utils/costos';
 import {
   X, Truck, PackagePlus, Trash2, Loader2, PlusCircle, CheckCircle2, Banknote,
-  Split, Copy, Check, Layers
+  Split, Copy, Layers
 } from 'lucide-react';
 
 const TIPOS = [
@@ -67,7 +67,6 @@ export default function GastosAdicionalesModal({
   const gastosExtra = currentItem ? getGastosExtraItems(currentItem) : [];
   const totalExtraUsd = currentItem ? getGastosExtraTotal(currentItem) : 0;
   const costoBaseConComision = currentItem ? getCostoBaseConComision(currentItem) : 0;
-  const legadosUsd = currentItem ? getLegadosExtrasUsd(currentItem) : 0;
   const precioVenta = currentItem ? (Number(currentItem.precio) || 0) : 0;
   const previewUsdIndividual = esBs ? (montoNum > 0 && tasaUsada > 0 ? montoNum / tasaUsada : 0) : montoNum;
 
@@ -109,7 +108,8 @@ export default function GastosAdicionalesModal({
   const recalcYActualizarBatch = (batch, nuevosGastos) => {
     const totalExtraNuevo = nuevosGastos.reduce((acc, g) => acc + (Number(g.monto_usd) || 0), 0);
     const nuevoCostoTotal = Math.round((costoBaseConComision + totalExtraNuevo) * 100) / 100;
-    batch.update(doc(db, collectionName, currentItem.id), {
+    const itemCol = currentItem?._collectionName || collectionName;
+    batch.update(doc(db, itemCol, currentItem.id), {
       gastos_extra: nuevosGastos,
       gastos_extra_total_usd: totalExtraNuevo,
       costos_adicionales: 0,
@@ -146,7 +146,7 @@ export default function GastosAdicionalesModal({
         const movRef = doc(collection(db, 'compras_inventario'));
         movRefId = movRef.id;
 
-        const isComponent = collectionName === 'componentes';
+        const isComponent = (currentItem?._collectionName || collectionName) === 'componentes';
 
         batch.set(movRef, {
           categoria: tipo === 'envio' ? 'envio' : 'gasto_extra',
@@ -212,7 +212,6 @@ export default function GastosAdicionalesModal({
     setSaving(true);
     try {
       const tipoLabel = tipo === 'envio' ? 'Envío' : 'Gasto extra';
-      const isComponent = collectionName === 'componentes';
 
       const CHUNK_SIZE = 100;
       for (let i = 0; i < itemsList.length; i += CHUNK_SIZE) {
@@ -222,6 +221,8 @@ export default function GastosAdicionalesModal({
         for (const it of chunk) {
           const gastoId = generarId();
           let movRefId = null;
+          const itemCol = it._collectionName || collectionName;
+          const isComp = itemCol === 'componentes';
 
           if (!yaRegistradoEnCaja) {
             const movRef = doc(collection(db, 'compras_inventario'));
@@ -231,7 +232,7 @@ export default function GastosAdicionalesModal({
             batch.set(movRef, {
               categoria: tipo === 'envio' ? 'envio' : 'gasto_extra',
               concepto: `${tipoLabel} (${form.descripcion.trim()}) — ${nombreEquipo}`,
-              ...(isComponent ? {
+              ...(isComp ? {
                 componente_id: it.id,
                 componente_nombre: it.nombre || '',
               } : {
@@ -270,7 +271,7 @@ export default function GastosAdicionalesModal({
           const nuevoCostoTotal = Math.round((costoBase + totalExtraNuevo) * 100) / 100;
           const precioItemVenta = Number(it.precio) || 0;
 
-          batch.update(doc(db, collectionName, it.id), {
+          batch.update(doc(db, itemCol, it.id), {
             gastos_extra: nuevosGastos,
             gastos_extra_total_usd: totalExtraNuevo,
             costos_adicionales: 0,
@@ -390,6 +391,11 @@ export default function GastosAdicionalesModal({
                       <span className="truncate max-w-[190px]">
                         {it.nombre || `${it.marca || ''} ${it.modelo || ''}`.trim() || 'Sin nombre'}
                       </span>
+                      {(it.orderId || it.ebay_compra_order_id || it.serial) && (
+                        <span className="text-[10px] font-mono text-slate-400 font-normal shrink-0">
+                          {it.serial ? `SN:${it.serial}` : `#${it.orderId || it.ebay_compra_order_id}`}
+                        </span>
+                      )}
                       {itemsList.length > 1 && (
                         <button
                           type="button"
@@ -414,11 +420,10 @@ export default function GastosAdicionalesModal({
                   <button
                     type="button"
                     onClick={() => setModoDistribucion('dividir')}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      modoDistribucion === 'dividir'
+                    className={`p-3 rounded-xl border text-left transition-all ${modoDistribucion === 'dividir'
                         ? 'border-emerald-600 bg-emerald-50/70 text-emerald-950 ring-1 ring-emerald-500/20 shadow-2xs'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-1.5 font-bold text-xs mb-1">
                       <Split className="w-4 h-4 text-emerald-600" />
@@ -432,11 +437,10 @@ export default function GastosAdicionalesModal({
                   <button
                     type="button"
                     onClick={() => setModoDistribucion('fijo')}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      modoDistribucion === 'fijo'
+                    className={`p-3 rounded-xl border text-left transition-all ${modoDistribucion === 'fijo'
                         ? 'border-emerald-600 bg-emerald-50/70 text-emerald-950 ring-1 ring-emerald-500/20 shadow-2xs'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-1.5 font-bold text-xs mb-1">
                       <Copy className="w-4 h-4 text-emerald-600" />
@@ -543,11 +547,10 @@ export default function GastosAdicionalesModal({
                     key={t.key}
                     type="button"
                     onClick={() => setTipo(t.key)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-xs font-bold transition-colors ${
-                      tipo === t.key
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-xs font-bold transition-colors ${tipo === t.key
                         ? 'border-brand-600 bg-brand-50 text-brand-700'
                         : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                    }`}
+                      }`}
                   >
                     <Icon className="w-4 h-4" /> {t.label}
                   </button>
@@ -687,9 +690,8 @@ export default function GastosAdicionalesModal({
             <button
               type="submit"
               disabled={saving || (isBulk && itemsList.length === 0)}
-              className={`w-full flex items-center justify-center gap-2 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-60 ${
-                yaRegistradoEnCaja ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'
-              }`}
+              className={`w-full flex items-center justify-center gap-2 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-60 ${yaRegistradoEnCaja ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
               {saving

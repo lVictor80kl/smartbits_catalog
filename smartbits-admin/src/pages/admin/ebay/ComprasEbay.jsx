@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
-  collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, setDoc, serverTimestamp, writeBatch 
+  collection, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp, writeBatch 
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useNavigate } from 'react-router-dom';
@@ -13,13 +13,12 @@ import {
   Copy, AlertCircle, TrendingUp
 } from 'lucide-react';
 import { 
-  getTrackingUrlUsa, getCourierUsaConfig, COURIERS_USA,
+  getTrackingUrlUsa, COURIERS_USA,
   getTrackingUrlVzla, getCourierVzlaConfig, COURIERS_VZLA,
-  ESTADOS_TRACKING, getEstadoConfig,
+  ESTADOS_TRACKING,
   normalizarEstadoTracking, esEstadoEntregado, formatTrackingDate,
   evaluarEstadoLogisticoItem
 } from '../../../utils/couriers';
-import TrackingModal from '../trackings/TrackingModal';
 import GastosAdicionalesModal from '../../../components/GastosAdicionalesModal';
 import { syncTrackingFromEbay } from '../../../utils/syncTrackingFromEbay';
 import { tieneEnvioPagado } from '../../../utils/costos';
@@ -38,10 +37,6 @@ export default function ComprasEbay() {
 
   // Modales
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [copiedPath, setCopiedPath] = useState(false);
-  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
-  const [trackingInitialData, setTrackingInitialData] = useState(null);
-  const [activeEbayItemForTracking, setActiveEbayItemForTracking] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, title: '' });
 
   // Modal para vincular manualmente a inventario existente
@@ -51,7 +46,6 @@ export default function ComprasEbay() {
   const [linkActiveTab, setLinkActiveTab] = useState('laptops'); // 'laptops' | 'componentes' | 'directo'
   const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
   const [linkingProcessing, setLinkingProcessing] = useState(false);
-  const [syncingTrackings, setSyncingTrackings] = useState(false);
   const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
   const [autoLinkNotification, setAutoLinkNotification] = useState('');
 
@@ -96,6 +90,9 @@ export default function ComprasEbay() {
     collectionName: 'laptops'
   });
 
+  // Selección múltiple para asignación masiva de flete / gastos extras en lote
+  const [selectedIds, setSelectedIds] = useState([]);
+
   // 1. Escuchar compras de eBay en tiempo real
   useEffect(() => {
     const q = query(collection(db, 'compras_ebay'), orderBy('fecha_sincronizacion', 'desc'));
@@ -139,45 +136,6 @@ export default function ComprasEbay() {
       unsubTrack();
     };
   }, []);
-
-  // Contador de compras marcadas con auto-vinculación previa
-  const autoLinkedCount = useMemo(() => {
-    return compras.filter(c => c.vinculado_automatico).length;
-  }, [compras]);
-
-  // Revertir en lote cualquier auto-vinculación errónea generada por el algoritmo anterior
-  const handleRevertAllAutoLinks = async () => {
-    const toRevert = compras.filter(c => c.vinculado_automatico);
-    if (toRevert.length === 0) {
-      alert('No hay compras con auto-vinculación activa.');
-      return;
-    }
-    if (!confirm(`Se detectaron ${toRevert.length} compras vinculadas automáticamente.\n\n¿Deseas revertirlas a estado "Sin Inventario" para agregarlas formalmente y evitar que se mezclen con equipos anteriores?`)) {
-      return;
-    }
-    try {
-      const batch = writeBatch(db);
-      for (const c of toRevert) {
-        if (c.tipo_inventario === 'laptop' && c.inventario_id) {
-          try {
-            batch.update(doc(db, 'laptops', c.inventario_id), { ebay_compra_id: null });
-          } catch (e) {}
-        }
-        batch.update(doc(db, 'compras_ebay', c.id), {
-          estado: 'pendiente',
-          tipo_inventario: '',
-          inventario_id: '',
-          vinculado_automatico: false,
-          fecha_actualizacion: serverTimestamp()
-        });
-      }
-      await batch.commit();
-      setAutoLinkNotification(`¡Se revirtieron ${toRevert.length} compras a estado "Sin Inventario"! Ahora podrás agregarlas formalmente.`);
-      setTimeout(() => setAutoLinkNotification(''), 7000);
-    } catch (err) {
-      alert('Error revirtiendo vinculaciones: ' + err.message);
-    }
-  };
 
   // Detección inteligente de compras duplicadas reales (por itemId global, url o colisión de orden)
   const detectedDuplicates = useMemo(() => {
@@ -513,13 +471,10 @@ export default function ComprasEbay() {
       sinInventario: sinInventarioCount,
       sinPrealerta: sinPrealertaCount,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compras, laptops, componentes, trackings]);
 
   // Conteos para filtros
-  const totalCount = compras.length;
-  const pendientesCount = metrics.sinInventario;
-  const enTrackingCount = metrics.enUsa + metrics.enVzla;
-  const enInventarioCount = compras.length - metrics.sinInventario;
   const descartadosCount = compras.filter(c => c.estado === 'descartado').length;
 
   // Filtrado y ordenación inteligente de compras
@@ -591,6 +546,7 @@ export default function ComprasEbay() {
         const syncB = b.fecha_sincronizacion?.toMillis?.() || (b.fecha_sincronizacion ? new Date(b.fecha_sincronizacion).getTime() : 0);
         return syncB - syncA;
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compras, laptops, componentes, trackings, filterEstado, searchTerm]);
 
   // Abrir Modal de Vinculación Manual
@@ -681,103 +637,6 @@ export default function ComprasEbay() {
     }
   };
 
-  // Sincronización masiva de trackings hacia el módulo de Envíos
-  const handleSyncAllTrackingsToEnvios = async () => {
-    // 1. Limpiar compras_ebay que aún tengan Item IDs o Order IDs como tracking
-    for (const c of compras) {
-      const trk = (c.tracking_usa || '').trim();
-      const rawItemId = String(c.itemId || '').replace(/_u[0-9]+$/, '').trim();
-      const rawOrderId = String(c.orderId || '').replace(/[\s-]/g, '').trim();
-      const isBogus = (rawItemId && trk === rawItemId) || (rawOrderId && trk === rawOrderId) || /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(trk) || trk.startsWith('{');
-      if (isBogus && c.id) {
-        try {
-          await updateDoc(doc(db, 'compras_ebay', c.id), {
-            tracking_usa: '',
-            fecha_actualizacion: serverTimestamp()
-          });
-        } catch (_) {}
-      }
-    }
-
-    const itemsWithTracking = compras.filter(c => {
-      const trk = (c.tracking_usa || '').trim();
-      const rawItemId = String(c.itemId || '').replace(/_u[0-9]+$/, '').trim();
-      const rawOrderId = String(c.orderId || '').replace(/[\s-]/g, '').trim();
-      const isBogus = (rawItemId && trk === rawItemId) || (rawOrderId && trk === rawOrderId) || /^[0-9]{2}-[0-9]{5}-[0-9]{5}$/.test(trk);
-      return trk.length > 0 && !trk.startsWith('{') && !trk.includes('EVENTFAMILY') && !isBogus && c.estado !== 'descartado';
-    });
-
-    if (itemsWithTracking.length === 0) {
-      alert('ℹ️ No se encontraron compras de eBay con número de Tracking USA válido registrado en esta lista.\n\n👉 Cómo ingresar trackings:\n1. Si la orden tiene tracking en eBay: Abre la extensión en tu historial de eBay y pulsa "Sincronizar Compras".\n2. O en la lista de abajo, haz clic en el botón "+ Tracking USA" en cualquier compra para ingresarlo directamente.');
-      return;
-    }
-
-    if (!confirm(`Se encontraron ${itemsWithTracking.length} compras de eBay con Tracking USA válido.\n\n¿Deseas sincronizarlas con el módulo de Envíos/Trackings? Los paquetes se registrarán automáticamente con su tracking de USA para que luego solo ingreses el tracking de Venezuela.`)) {
-      return;
-    }
-
-    setSyncingTrackings(true);
-    let createdCount = 0;
-    let updatedCount = 0;
-    let failedCount = 0;
-    let lastError = '';
-
-    try {
-      for (const item of itemsWithTracking) {
-        let invItem = null;
-        if (item.tipo_inventario === 'laptop' && item.inventario_id) {
-          invItem = laptops.find(l => l.id === item.inventario_id);
-        } else if (item.tipo_inventario === 'componente' && item.inventario_id) {
-          invItem = componentes.find(co => co.id === item.inventario_id);
-        }
-
-        const itemPayload = invItem ? {
-          id: invItem.id,
-          nombre: invItem.nombre || `${invItem.marca || ''} ${invItem.modelo || ''}`.trim(),
-          modelo: invItem.modelo || '',
-          costo: Number(invItem.precio_ebay || invItem.costo || item.precio) || 0
-        } : {
-          id: `ebay_${item.id}`,
-          nombre: item.titulo,
-          modelo: '',
-          costo: Number(item.precio) || 0
-        };
-
-        const result = await syncTrackingFromEbay(db, {
-          ebayItem: item,
-          inventoryItem: itemPayload,
-          tipo: item.tipo_inventario === 'componente' ? 'componente' : 'laptop'
-        });
-
-        if (result?.success && result.id) {
-          if (result.status === 'created') createdCount++;
-          else updatedCount++;
-
-          if (result.id !== item.tracking_id) {
-            await updateDoc(doc(db, 'compras_ebay', item.id), {
-              tracking_id: result.id,
-              fecha_actualizacion: serverTimestamp()
-            });
-          }
-        } else {
-          failedCount++;
-          if (result?.error) lastError = result.error;
-        }
-      }
-
-      if (failedCount === 0) {
-        setAutoLinkNotification(`¡Sincronización con Envíos exitosa! ${createdCount} nuevos paquetes creados y ${updatedCount} actualizados.`);
-      } else {
-        setAutoLinkNotification(`Sincronización finalizada: ${createdCount} creados, ${updatedCount} actualizados, ${failedCount} no procesados. ${lastError ? `(Error: ${lastError})` : ''}`);
-      }
-      setTimeout(() => setAutoLinkNotification(''), 7000);
-    } catch (err) {
-      alert('Error sincronizando trackings con Envíos: ' + err.message);
-    } finally {
-      setSyncingTrackings(false);
-    }
-  };
-
   // Sincronización maestra de couriers (Liberty Express iQPack y Couriers USA)
   const handleSyncCouriers = async (isSilent = false) => {
     if (syncingCouriers) return;
@@ -837,40 +696,80 @@ export default function ComprasEbay() {
       }, 3000);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackings.length]);
 
-  // Abrir modal de registro de flete / gastos adicionales
+  // Selección múltiple: marcar / desmarcar compra
+  const toggleSelect = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  // Selección múltiple: marcar / desmarcar todas las compras filtradas visibles
+  const toggleSelectAll = () => {
+    if (selectedIds.length === comprasFiltradas.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(comprasFiltradas.map(c => c.id));
+    }
+  };
+
+  // Abrir modal de registro de flete / gastos adicionales para un ÚNICO ítem específico (resuelve el bug de auto-selección en lote)
   const handleOpenGastosFlete = (item, trkDoc, invObj) => {
     const currentInvItem = invObj?.item;
-    const trkItems = Array.isArray(trkDoc?.items) ? trkDoc.items : [];
 
-    if (trkItems.length > 1) {
-      // Modo lote: mapear cada ítem del paquete al inventario para distribuir el flete
-      const fullItems = trkItems.map(ti => {
-        if (ti.tipo === 'componente') {
-          return componentes.find(c => c.id === ti.id) || ti;
-        } else {
-          return laptops.find(l => l.id === ti.id || l.ebay_compra_id === ti.id) || ti;
-        }
-      });
-
-      setGastosModalState({
-        open: true,
-        item: currentInvItem || item,
-        items: fullItems,
-        isBulk: true,
-        collectionName: invObj?.type === 'componente' ? 'componentes' : 'laptops'
-      });
-    } else {
-      // Modo individual
-      setGastosModalState({
-        open: true,
-        item: currentInvItem || item,
-        items: null,
-        isBulk: false,
-        collectionName: invObj?.type === 'componente' ? 'componentes' : 'laptops'
-      });
+    if (!currentInvItem) {
+      alert('Para registrar el flete en la ficha de costo de este equipo, primero debes crear su ficha en inventario (+ Laptop o + Parte) o vincularlo.');
+      return;
     }
+
+    setGastosModalState({
+      open: true,
+      item: {
+        ...currentInvItem,
+        orderId: item.orderId || currentInvItem.orderId || currentInvItem.ebay_compra_order_id,
+        ebay_titulo: item.titulo,
+        _collectionName: invObj?.type === 'componente' ? 'componentes' : 'laptops'
+      },
+      items: null,
+      isBulk: false,
+      collectionName: invObj?.type === 'componente' ? 'componentes' : 'laptops'
+    });
+  };
+
+  // Abrir modal de flete / gastos en lote para los ítems seleccionados explícitamente con checkbox
+  const handleOpenBulkGastosFlete = () => {
+    if (selectedIds.length === 0) return;
+
+    const selectedCompras = compras.filter(c => selectedIds.includes(c.id));
+    const unlinked = selectedCompras.filter(c => !getLinkedInventoryItem(c)?.item);
+
+    if (unlinked.length > 0) {
+      const names = unlinked.map(u => u.titulo || u.orderId || 'Sin título').slice(0, 3).join(', ');
+      alert(`Hay ${unlinked.length} compra(s) seleccionada(s) que aún no tienen ficha en inventario:\n• ${names}\n\nPara asignarles flete dividido o gastos extras, primero debes crear su ficha en inventario (+ Laptop o + Parte) o deseleccionarlas.`);
+      return;
+    }
+
+    const fullItems = selectedCompras.map(comp => {
+      const inv = getLinkedInventoryItem(comp);
+      return {
+        ...inv.item,
+        orderId: comp.orderId || inv.item.orderId || inv.item.ebay_compra_order_id,
+        ebay_titulo: comp.titulo,
+        _collectionName: inv.type === 'componente' ? 'componentes' : 'laptops'
+      };
+    });
+
+    const isAllComponents = fullItems.every(fi => fi._collectionName === 'componentes');
+
+    setGastosModalState({
+      open: true,
+      item: fullItems[0],
+      items: fullItems,
+      isBulk: true,
+      collectionName: isAllComponents ? 'componentes' : 'laptops'
+    });
   };
 
   // Limpieza inteligente de compras duplicadas
@@ -1063,52 +962,6 @@ export default function ComprasEbay() {
         }
       }
     });
-  };
-
-  const handleOpenTrackingModal = (item) => {
-    setActiveEbayItemForTracking(item);
-    setTrackingInitialData({
-      tracking_usa: item.tracking_usa || '',
-      courier_usa: item.courier_usa || 'usps',
-      prealertado: false,
-      items: [
-        {
-          id: item.id,
-          tipo: 'libre',
-          nombre: item.titulo,
-          descripcion: `Compra eBay: ${item.titulo}`,
-          costo: item.precio || 0,
-          precio_base: item.precio || 0,
-        }
-      ],
-      notas: `Orden eBay: ${item.orderId || ''}\nArtículo: ${item.itemId || ''}\nVendedor: ${item.vendedor || ''}`
-    });
-    setIsTrackingModalOpen(true);
-  };
-
-  const handleTrackingSaved = async (savedTracking) => {
-    if (activeEbayItemForTracking) {
-      try {
-        const updatePayload = {
-          estado: 'en_tracking',
-          fecha_actualizacion: serverTimestamp()
-        };
-        if (savedTracking?.tracking_usa) {
-          updatePayload.tracking_usa = savedTracking.tracking_usa;
-        }
-        if (savedTracking?.courier_usa) {
-          updatePayload.courier_usa = savedTracking.courier_usa;
-        }
-        if (savedTracking?.id) {
-          updatePayload.tracking_id = savedTracking.id;
-        }
-        await updateDoc(doc(db, 'compras_ebay', activeEbayItemForTracking.id), updatePayload);
-      } catch (e) {
-        console.error('Error actualizando estado en compras_ebay:', e);
-      }
-    }
-    setIsTrackingModalOpen(false);
-    setActiveEbayItemForTracking(null);
   };
 
   // Handlers para el modal rápido de Tracking USA
@@ -1395,7 +1248,9 @@ export default function ComprasEbay() {
       const trkUsa = item.tracking_usa || trk?.tracking_usa || '—';
       const trkVzla = trk?.tracking_vzla || item.tracking_vzla || '—';
       const courierU = trk?.courier_usa || item.courier_usa || 'USA';
+      const courierV = trk?.courier_vzla || item.courier_vzla || 'liberty';
       const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trk);
+      const prealert = evalStatus.isPrealerted ? '✅ Prealertado' : '⚠️ Sin prealertar';
       const statusLabel = evalStatus.isEnTaller 
         ? 'En Taller 🏢' 
         : (evalStatus.isEnVzla 
@@ -1497,13 +1352,6 @@ export default function ComprasEbay() {
     } catch (e) {
       alert('Error eliminando compra: ' + e.message);
     }
-  };
-
-  const copyExtensionPath = () => {
-    const extensionPath = 'd:\\Laptops\\Smartbits\\Programa Smartbits\\smartbits_catalog\\smartbits-ebay-extension';
-    navigator.clipboard.writeText(extensionPath);
-    setCopiedPath(true);
-    setTimeout(() => setCopiedPath(false), 2500);
   };
 
   // Mapa de laptops ya vinculadas a alguna compra de eBay
@@ -1948,6 +1796,33 @@ export default function ComprasEbay() {
         </div>
       </div>
 
+      {/* Barra de Selección Masiva (estilo Inventario) */}
+      {!loading && comprasFiltradas.length > 0 && (
+        <div className="flex items-center justify-between px-2 py-1 text-xs">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={comprasFiltradas.length > 0 && selectedIds.length === comprasFiltradas.length}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+            />
+            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
+              {selectedIds.length === 0 
+                ? 'Seleccionar todos' 
+                : `${selectedIds.length} de ${comprasFiltradas.length} compras seleccionadas`}
+            </span>
+          </label>
+          {selectedIds.length > 0 && (
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-[11px] font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+            >
+              Deseleccionar todos
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Lista de Compras */}
       {loading ? (
         <div className="flex flex-col items-center justify-center p-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
@@ -1972,6 +1847,7 @@ export default function ComprasEbay() {
             const invObj = getLinkedInventoryItem(item);
             const trkDoc = getLinkedTrackingDoc(item, invObj);
             const hasInv = Boolean(invObj?.item);
+            const isSelected = selectedIds.includes(item.id);
 
             const isPendiente = !hasInv;
             const isDescartado = item.estado === 'descartado';
@@ -1986,7 +1862,6 @@ export default function ComprasEbay() {
             // Datos de Tracking USA
             const trackingUsa = (item.tracking_usa || trkDoc?.tracking_usa || '').trim().toUpperCase();
             const courierUsa = trkDoc?.courier_usa || item.courier_usa || 'usps';
-            const courierUsaConfig = getCourierUsaConfig(courierUsa);
             const trackingUrlUsa = trackingUsa ? getTrackingUrlUsa(courierUsa, trackingUsa) : null;
 
             // Datos de Tracking VZLA
@@ -1999,7 +1874,6 @@ export default function ComprasEbay() {
             const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trkDoc);
             const isPrealerted = evalStatus.isPrealerted;
             const isUsaDelivered = evalStatus.isUsaDelivered;
-            const isPrealertOnly = evalStatus.isPrealertOnly;
 
             // Estados operativos de inventario
             const isDisponible = invDisponibilidad === 'Disponible';
@@ -2064,7 +1938,9 @@ export default function ComprasEbay() {
               <div 
                 key={item.id}
                 className={`p-4 sm:p-5 rounded-2xl border transition-all duration-150 flex flex-col gap-3.5 ${
-                  isPendiente 
+                  isSelected
+                    ? 'ring-2 ring-emerald-500 border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 shadow-sm'
+                    : isPendiente 
                     ? 'bg-white dark:bg-slate-900 border-rose-200/80 dark:border-rose-900/40 hover:border-rose-300 shadow-2xs' 
                     : isVendido
                     ? 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/80 dark:border-slate-800/80 opacity-75'
@@ -2074,8 +1950,19 @@ export default function ComprasEbay() {
                 }`}
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  {/* Bloque Izquierdo: Fotografía & Información Principal */}
-                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                  {/* Bloque Izquierdo: Checkbox + Fotografía & Información Principal */}
+                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                    {/* Checkbox de Selección Múltiple */}
+                    <div className="pt-2 sm:pt-2.5 shrink-0 flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(item.id)}
+                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer transition"
+                        title={hasInv ? "Seleccionar para flete dividido o gastos extras en lote" : "Pendiente de ficha en inventario"}
+                      />
+                    </div>
+
                     {/* Contenedor Fotográfico con Hover Swap eBay -> Stock */}
                     <div 
                       className="group/photo relative w-20 h-20 sm:w-22 sm:h-22 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 overflow-hidden shrink-0 flex items-center justify-center select-none"
@@ -3053,16 +2940,36 @@ export default function ComprasEbay() {
         </div>
       )}
 
-      {/* Tracking Modal */}
-      <TrackingModal
-        isOpen={isTrackingModalOpen}
-        onClose={() => {
-          setIsTrackingModalOpen(false);
-          setActiveEbayItemForTracking(null);
-        }}
-        initialData={trackingInitialData}
-        onSaved={handleTrackingSaved}
-      />
+      {/* Dock Flotante de Acciones Masivas (Flete dividido / Gastos Extras) */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-gray-950/95 backdrop-blur-md text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl shadow-2xl border border-gray-800 flex items-center justify-between gap-3 sm:gap-4 max-w-[95%] sm:max-w-md w-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-center gap-1.5 pr-2.5 border-r border-gray-800 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-bold text-white">
+              {selectedIds.length} <span className="hidden sm:inline">seleccionado{selectedIds.length !== 1 ? 's' : ''}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenBulkGastosFlete}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+              title="Agregar flete dividido o gastos extras a los seleccionados"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Dividir Flete / Extras</span>
+            </button>
+
+            <button
+              onClick={() => setSelectedIds([])}
+              className="p-1.5 text-gray-400 hover:text-white rounded-lg transition-colors ml-0.5"
+              title="Deseleccionar todos"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Gastos Adicionales / Flete Modal */}
       {gastosModalState.open && (
@@ -3073,6 +2980,7 @@ export default function ComprasEbay() {
           onClose={() => setGastosModalState({ open: false, item: null, items: null, isBulk: false, collectionName: 'laptops' })}
           onSuccess={() => {
             setGastosModalState({ open: false, item: null, items: null, isBulk: false, collectionName: 'laptops' });
+            setSelectedIds([]);
           }}
         />
       )}
