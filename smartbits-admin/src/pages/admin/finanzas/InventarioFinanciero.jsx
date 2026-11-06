@@ -122,8 +122,8 @@ export default function InventarioFinanciero() {
       </div>
 
       {/* Tabs y Filtros Rápidos */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 p-2 gap-2 bg-gray-50/50">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 dark:border-gray-800 p-2 gap-2 bg-gray-50/50 dark:bg-gray-900">
           <div className="flex gap-1">
             {[
               { key: 'laptops', label: `Laptops (${laptopsActivas.length})`, icon: Package },
@@ -197,8 +197,8 @@ export default function InventarioFinanciero() {
               No hay {activeTab === 'laptops' ? 'laptops' : 'componentes'} activos en inventario
             </div>
           ) : (
-            <table className="w-full text-left text-sm text-gray-600">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+            <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+              <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
                 <tr>
                   <th className="px-5 py-4">Equipo</th>
                   <th
@@ -289,12 +289,12 @@ export default function InventarioFinanciero() {
                   );
                 })}
               </tbody>
-              <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+              <tfoot className="bg-slate-50 dark:bg-gray-900 border-t-2 border-slate-200 dark:border-gray-800">
                 <tr>
-                  <td colSpan={4} className="px-5 py-4 text-sm font-bold text-slate-600 uppercase tracking-wide">
+                  <td colSpan={4} className="px-5 py-4 text-sm font-bold text-slate-600 dark:text-gray-300 uppercase tracking-wide">
                     Total Inventario Activo ({items.length} unidades)
                   </td>
-                  <td className="px-5 py-4 text-right font-black text-slate-900 text-base">
+                  <td className="px-5 py-4 text-right font-black text-slate-900 dark:text-gray-100 text-base">
                     {fmt(items.reduce((acc, i) => acc + getItemCostos(i).costoTotalUSD, 0))}
                   </td>
                   <td colSpan={2} />

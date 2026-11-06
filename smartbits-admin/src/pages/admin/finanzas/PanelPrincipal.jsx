@@ -902,97 +902,97 @@ export default function PanelPrincipal({ onNavigateTab }) {
         </div>
 
         {/* CAPITAL YSMAEL */}
-        <div className="bg-white rounded-2xl border-2 border-brand-100 p-6 shadow-sm flex flex-col justify-between hover:border-brand-300 transition-all">
+        <div className="bg-white dark:bg-slate-900/90 rounded-2xl border-2 border-brand-100 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between hover:border-brand-300 dark:hover:border-slate-700 transition-all">
           <div>
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+              <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-brand-500"></span> Ysmael
               </h3>
-              <span className="text-xs font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg">50% Utilidades</span>
+              <span className="text-xs font-bold text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/60 px-2.5 py-1 rounded-lg">50% Utilidades</span>
             </div>
 
             <div className="mt-4">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Capital Neto Actual</p>
-              <h2 className={`text-3xl font-black mt-1 ${capitalActualYsmael < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Capital Neto Actual</p>
+              <h2 className={`text-3xl font-black mt-1 ${capitalActualYsmael < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'}`}>
                 {fmt(capitalActualYsmael)}
               </h2>
             </div>
           </div>
 
-          <div className="space-y-2 mt-5 pt-4 border-t border-slate-100 text-xs">
-            <div className="flex justify-between text-slate-600">
+          <div className="space-y-2 mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>Capital inicial de corte</span>
-              <span className="font-semibold text-slate-800">{fmt(capInicialYsmael)}</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{fmt(capInicialYsmael)}</span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>(+) Aportes de capital</span>
-              <span className="font-semibold text-blue-600">+{fmt(aportesYsmael)}</span>
+              <span className="font-semibold text-blue-600 dark:text-blue-400">+{fmt(aportesYsmael)}</span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>+ 50% Utilidad operativa</span>
-              <span className="font-semibold text-emerald-600">+{fmt(mitadUtilidadOperativa)}</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">+{fmt(mitadUtilidadOperativa)}</span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>± 50% Diferencial cambiario</span>
-              <span className={`font-semibold ${mitadDiferencial >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <span className={`font-semibold ${mitadDiferencial >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                 {mitadDiferencial >= 0 ? '+' : '-'}{fmt(Math.abs(mitadDiferencial))}
               </span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>- Retiros propios acumulados</span>
-              <span className="font-semibold text-red-600">-{fmt(retirosYsmael)}</span>
+              <span className="font-semibold text-red-600 dark:text-red-400">-{fmt(retirosYsmael)}</span>
             </div>
           </div>
         </div>
 
         {/* CAPITAL VÍCTOR */}
-        <div className="bg-white rounded-2xl border-2 border-brand-100 p-6 shadow-sm flex flex-col justify-between hover:border-brand-300 transition-all">
+        <div className="bg-white dark:bg-slate-900/90 rounded-2xl border-2 border-brand-100 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between hover:border-brand-300 dark:hover:border-slate-700 transition-all">
           <div>
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+              <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-purple-500"></span> Víctor
               </h3>
-              <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg">50% Utilidades</span>
+              <span className="text-xs font-bold text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 rounded-lg">50% Utilidades</span>
             </div>
 
             <div className="mt-4">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Capital Neto Actual</p>
-              <h2 className={`text-3xl font-black mt-1 ${capitalActualVictor < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Capital Neto Actual</p>
+              <h2 className={`text-3xl font-black mt-1 ${capitalActualVictor < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'}`}>
                 {fmt(capitalActualVictor)}
               </h2>
             </div>
           </div>
 
-          <div className="space-y-2 mt-5 pt-4 border-t border-slate-100 text-xs">
-            <div className="flex justify-between text-slate-600">
+          <div className="space-y-2 mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>Capital inicial de corte</span>
-              <span className="font-semibold text-slate-800">{fmt(capInicialVictor)}</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{fmt(capInicialVictor)}</span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>(+) Aportes de capital</span>
-              <span className="font-semibold text-blue-600">+{fmt(aportesVictor)}</span>
+              <span className="font-semibold text-blue-600 dark:text-blue-400">+{fmt(aportesVictor)}</span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>+ 50% Utilidad operativa</span>
-              <span className="font-semibold text-emerald-600">+{fmt(mitadUtilidadOperativa)}</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">+{fmt(mitadUtilidadOperativa)}</span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>± 50% Diferencial cambiario</span>
-              <span className={`font-semibold ${mitadDiferencial >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <span className={`font-semibold ${mitadDiferencial >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                 {mitadDiferencial >= 0 ? '+' : '-'}{fmt(Math.abs(mitadDiferencial))}
               </span>
             </div>
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>- Retiros propios acumulados</span>
-              <span className="font-semibold text-red-600">-{fmt(retirosVictor)}</span>
+              <span className="font-semibold text-red-600 dark:text-red-400">-{fmt(retirosVictor)}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* ACCIONES RÁPIDAS */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Acciones Rápidas del Día</p>
+      <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-5">
+        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Acciones Rápidas del Día</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <button
             onClick={() => setModalGasto(p => ({ ...p, open: true, tasa: tasaCambio.toString() }))}
@@ -1037,11 +1037,11 @@ export default function PanelPrincipal({ onNavigateTab }) {
       </div>
 
       {/* SECCIÓN DESPLEGABLE: SALDOS DE CAJA POR CUENTA */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-emerald-600" />
-            <h3 className="font-bold text-slate-800 text-base">Saldos de Caja por Cuenta</h3>
+            <Wallet className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base">Saldos de Caja por Cuenta</h3>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Tasa de cambio interactiva con badge de fuente activa */}
@@ -1182,26 +1182,26 @@ export default function PanelPrincipal({ onNavigateTab }) {
       </div>
 
       {/* ÚLTIMOS MOVIMIENTOS POST-CORTE */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-slate-400" />
-            <h3 className="font-bold text-slate-800 text-base">Últimos Movimientos</h3>
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base">Últimos Movimientos</h3>
           </div>
           <button
             onClick={() => onNavigateTab ? onNavigateTab('movimientos') : null}
-            className="text-xs font-bold text-brand-600 hover:text-brand-700"
+            className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700"
           >
             Ver todos los movimientos →
           </button>
         </div>
 
         {todosMovimientos.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">
+          <div className="p-10 text-center text-slate-400 dark:text-slate-500 text-sm">
             No hay movimientos registrados desde el último corte contable.
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {todosMovimientos.map((m, idx) => {
               const fechaStr = m.fecha?.toDate
                 ? m.fecha.toDate().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -1209,33 +1209,33 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
               if (m.tipo_mov === 'gasto_op') {
                 return (
-                  <div key={m.id || idx} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                  <div key={m.id || idx} className="p-4 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-xl bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 flex items-center justify-center">
                         <TrendingDown className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-800">{m.concepto}</p>
-                        <p className="text-xs text-slate-400 capitalize">{m.categoria} • Cuenta: {m.metodo_pago || 'Caja'} • {fechaStr}</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{m.concepto}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">{m.categoria} • Cuenta: {m.metodo_pago || 'Caja'} • {fechaStr}</p>
                       </div>
                     </div>
-                    <span className="text-sm font-black text-orange-600">-${Number(m.monto).toFixed(2)}</span>
+                    <span className="text-sm font-black text-orange-600 dark:text-orange-400">-${Number(m.monto).toFixed(2)}</span>
                   </div>
                 );
               }
 
               if (m.tipo_mov === 'retiro') {
                 return (
-                  <div key={m.id || idx} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                  <div key={m.id || idx} className="p-4 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
                         <Users className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-800">
-                          Retiro de <span className="capitalize font-black text-slate-900">{m.socio}</span>: {m.concepto}
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                          Retiro de <span className="capitalize font-black text-slate-900 dark:text-slate-100">{m.socio}</span>: {m.concepto}
                         </p>
-                        <p className="text-xs text-slate-400 capitalize">Cuenta salida: {m.metodo_pago || m.cuenta_salida} • {fechaStr}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">Cuenta salida: {m.metodo_pago || m.cuenta_salida} • {fechaStr}</p>
                       </div>
                     </div>
                     <span className="text-sm font-black text-red-600">

@@ -22,7 +22,7 @@ export default function InteligenciaVentas() {
     fetchData();
   }, []);
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Analizando datos de ventas...</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500 dark:text-slate-400">Analizando datos de ventas...</div>;
 
   // Filtrar solo las vendidas
   const vendidas = laptops.filter(l => l.fecha_venta !== null && l.fecha_venta !== undefined);
@@ -72,33 +72,33 @@ export default function InteligenciaVentas() {
       
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col items-center justify-center text-center">
+        <div className="bg-white dark:bg-slate-900/90 rounded-xl border border-gray-200 dark:border-slate-800 p-5 shadow-sm flex flex-col items-center justify-center text-center">
           <TrendingUp className="w-8 h-8 text-emerald-500 mb-2" />
-          <p className="text-sm font-medium text-gray-500">Ganancia Acumulada</p>
-          <h3 className="text-2xl font-black text-gray-900">${gananciaTotal.toFixed(2)}</h3>
+          <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Ganancia Acumulada</p>
+          <h3 className="text-2xl font-black text-gray-900 dark:text-slate-100">${gananciaTotal.toFixed(2)}</h3>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col items-center justify-center text-center">
+        <div className="bg-white dark:bg-slate-900/90 rounded-xl border border-gray-200 dark:border-slate-800 p-5 shadow-sm flex flex-col items-center justify-center text-center">
           <Laptop className="w-8 h-8 text-blue-500 mb-2" />
-          <p className="text-sm font-medium text-gray-500">Laptops Vendidas</p>
-          <h3 className="text-2xl font-black text-gray-900">{vendidas.length}</h3>
+          <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Laptops Vendidas</p>
+          <h3 className="text-2xl font-black text-gray-900 dark:text-slate-100">{vendidas.length}</h3>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col items-center justify-center text-center">
+        <div className="bg-white dark:bg-slate-900/90 rounded-xl border border-gray-200 dark:border-slate-800 p-5 shadow-sm flex flex-col items-center justify-center text-center">
           <Percent className="w-8 h-8 text-purple-500 mb-2" />
-          <p className="text-sm font-medium text-gray-500">Promedio Días Inv.</p>
-          <h3 className="text-2xl font-black text-gray-900">{promDias} días</h3>
+          <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Promedio Días Inv.</p>
+          <h3 className="text-2xl font-black text-gray-900 dark:text-slate-100">{promDias} días</h3>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col items-center justify-center text-center">
+        <div className="bg-white dark:bg-slate-900/90 rounded-xl border border-gray-200 dark:border-slate-800 p-5 shadow-sm flex flex-col items-center justify-center text-center">
           <Award className="w-8 h-8 text-amber-500 mb-2" />
-          <p className="text-sm font-medium text-gray-500">Mejor Marca</p>
-          <h3 className="text-xl font-black text-gray-900">{marcaData[0]?.name || '-'}</h3>
+          <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Mejor Marca</p>
+          <h3 className="text-xl font-black text-gray-900 dark:text-slate-100">{marcaData[0]?.name || '-'}</h3>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Chart Marcas */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Ventas por Marca</h3>
+        <div className="bg-white dark:bg-slate-900/90 rounded-xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-4">Ventas por Marca</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -122,8 +122,8 @@ export default function InteligenciaVentas() {
         </div>
 
         {/* Chart Procesadores */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Top Procesadores</h3>
+        <div className="bg-white dark:bg-slate-900/90 rounded-xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-4">Top Procesadores</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={cpuData}>
@@ -139,11 +139,11 @@ export default function InteligenciaVentas() {
       </div>
 
       {/* Sugerencias y Ranking */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Mejores Modelos (Mayor Ganancia Neta)</h3>
+      <div className="bg-white dark:bg-slate-900/90 rounded-xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-4">Mejores Modelos (Mayor Ganancia Neta)</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-gray-600">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+          <table className="w-full text-left text-sm text-gray-600 dark:text-slate-300">
+            <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200 dark:text-slate-400 dark:bg-slate-950 dark:border-slate-800">
               <tr>
                 <th className="px-4 py-3">Modelo</th>
                 <th className="px-4 py-3">Marca</th>
@@ -154,16 +154,16 @@ export default function InteligenciaVentas() {
                 <th className="px-4 py-3 text-right">Margen</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
               {topModelos.map(l => (
-                <tr key={l.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{l.item}</td>
+                <tr key={l.id} className="border-b border-gray-100 dark:border-slate-800 hover:bg-gray-50/50 dark:hover:bg-slate-800/40">
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{l.item}</td>
                   <td className="px-4 py-3">{l.marca}</td>
                   <td className="px-4 py-3">{diasDe(l)}</td>
                   <td className="px-4 py-3 text-right">${l.costo_total?.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-medium">${l.precio_final_venta?.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-bold text-emerald-600">${gananciaDe(l).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right text-brand-600">{porcentajeDe(l).toFixed(1)}%</td>
+                  <td className="px-4 py-3 text-right font-medium dark:text-slate-200">${l.precio_final_venta?.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">${gananciaDe(l).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-brand-600 dark:text-blue-400">{porcentajeDe(l).toFixed(1)}%</td>
                 </tr>
               ))}
             </tbody>

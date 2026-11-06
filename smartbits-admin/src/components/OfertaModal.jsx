@@ -63,42 +63,42 @@ export default function OfertaModal({ open, item, collectionName = 'componentes'
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-100 space-y-4">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-100 dark:border-gray-800 space-y-4">
         
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-orange-100 text-orange-600 rounded-xl">
-              <Flame className="w-5 h-5 fill-orange-500 text-orange-600" />
+            <div className="p-2 bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 rounded-xl">
+              <Flame className="w-5 h-5 fill-orange-500 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <h3 className="text-base font-black text-gray-900 leading-tight">Configurar Oferta</h3>
-              <p className="text-xs text-gray-500">Destaca este producto en el catálogo</p>
+              <h3 className="text-base font-black text-gray-900 dark:text-gray-100 leading-tight">Configurar Oferta</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Destaca este producto en el catálogo</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Producto info */}
-        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 flex items-center justify-between text-xs">
+        <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-3 border border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs">
           <div className="min-w-0 pr-2">
-            <span className="font-bold text-gray-800 truncate block" title={itemName}>{itemName}</span>
-            <span className="text-gray-500">{item.tipo || item.marca || ''}</span>
+            <span className="font-bold text-gray-800 dark:text-gray-200 truncate block" title={itemName}>{itemName}</span>
+            <span className="text-gray-500 dark:text-gray-400">{item.tipo || item.marca || ''}</span>
           </div>
           <div className="text-right shrink-0">
-            <span className="text-[10px] uppercase font-bold text-gray-400 block">Precio Actual</span>
-            <span className="font-black text-gray-900 text-sm">${regularPrice} USD</span>
+            <span className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500 block">Precio Actual</span>
+            <span className="font-black text-gray-900 dark:text-gray-100 text-sm">${regularPrice} USD</span>
           </div>
         </div>
 
         <form onSubmit={handleGuardarOferta} className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-orange-50 rounded-xl border border-orange-200">
-            <span className="text-xs font-bold text-orange-950">Activar Oferta en Catálogo</span>
+          <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/40 rounded-xl border border-orange-200 dark:border-orange-800/40">
+            <span className="text-xs font-bold text-orange-950 dark:text-orange-200">Activar Oferta en Catálogo</span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -106,16 +106,16 @@ export default function OfertaModal({ open, item, collectionName = 'componentes'
                 onChange={(e) => setEnOferta(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+              <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
             </label>
           </div>
 
           {enOferta && (
             <div className="space-y-3 pt-1">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Precio Promocional ($USD)</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Precio Promocional ($USD)</label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-orange-600 font-bold">$</span>
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-orange-600 dark:text-orange-400 font-bold">$</span>
                   <input
                     type="number"
                     step="0.01"
@@ -123,20 +123,20 @@ export default function OfertaModal({ open, item, collectionName = 'componentes'
                     placeholder="0.00"
                     value={precioOferta}
                     onChange={(e) => setPrecioOferta(e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-orange-500 outline-none"
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-bold text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-orange-500 outline-none"
                     required={enOferta}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Texto del Badge (Opcional)</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Texto del Badge (Opcional)</label>
                 <input
                   type="text"
                   placeholder="Ej: OFERTA IMPERDIBLE, PRECIO ESPECIAL..."
                   value={etiquetaOferta}
                   onChange={(e) => setEtiquetaOferta(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-orange-500 outline-none"
                 />
                 <p className="text-[11px] text-gray-500 mt-1">Si lo dejas en blanco se mostrará el porcentaje calculado (ej. -15% OFF).</p>
               </div>

@@ -148,10 +148,10 @@ export default function TasasCambioModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 my-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 dark:border-gray-800 my-auto">
         
         {/* Cabecera del Modal con Alto Contraste (Fija, no se oculta) */}
-        <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+        <div className="p-4 sm:p-5 bg-slate-900 dark:bg-gray-950 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-inner shrink-0">
               <DollarSign className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -177,7 +177,7 @@ export default function TasasCambioModal({ isOpen, onClose }) {
         </div>
 
         {/* Barra de acción rápida y estatus (Fija) */}
-        <div className="px-4 sm:px-6 py-2.5 sm:py-3 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+        <div className="px-4 sm:px-6 py-2.5 sm:py-3 bg-slate-100 dark:bg-gray-800/80 border-b border-slate-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
           <div className="flex items-center gap-2 text-slate-700">
             <Clock className="w-3.5 h-3.5 text-slate-500" />
             <span>Última sinc: <strong className="text-slate-900 font-bold">{formatearFecha(tasas.updated_at)}</strong></span>

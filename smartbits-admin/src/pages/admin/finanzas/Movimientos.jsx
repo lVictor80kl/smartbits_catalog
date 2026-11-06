@@ -1445,7 +1445,7 @@ export default function Movimientos() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-100">
+              <thead className="bg-slate-50 dark:bg-gray-900 text-slate-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider border-b border-slate-100 dark:border-gray-800">
                 <tr>
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Tipo</th>
@@ -1456,14 +1456,14 @@ export default function Movimientos() {
                   <th className="px-4 py-3 text-center">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
                 {todosMovimientos.map(item => {
                   const fechaStr = item.fecha?.toDate
                     ? item.fecha.toDate().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
                     : 'Pendiente';
 
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/40 transition-colors">
                       <td className="px-4 py-3 text-xs whitespace-nowrap font-medium text-slate-500">
                         {fechaStr}
                       </td>
@@ -1662,14 +1662,14 @@ export default function Movimientos() {
               {/* PIE: APERTURA Y CIERRE DEL ESTADO DE CUENTA */}
               {filtroCuenta !== 'todas' && saldoRastreo && (
                 <tfoot>
-                  <tr className="bg-slate-50 border-t-2 border-slate-200">
-                    <td className="px-4 py-3 text-xs font-bold text-slate-500" colSpan={4}>
+                  <tr className="bg-slate-50 dark:bg-gray-900 border-t-2 border-slate-200 dark:border-gray-800">
+                    <td className="px-4 py-3 text-xs font-bold text-slate-500 dark:text-gray-400" colSpan={4}>
                       Saldo de apertura del seguimiento{fechaAperturaStr ? ` (${fechaAperturaStr})` : ''}
                     </td>
-                    <td className="px-4 py-3 text-right text-xs font-black text-slate-500">
+                    <td className="px-4 py-3 text-right text-xs font-black text-slate-500 dark:text-gray-400">
                       Neto: {saldoRastreo.neto >= 0 ? '+' : '-'}{fmtMontoMoneda(monedaFiltro, Math.abs(saldoRastreo.neto))}
                     </td>
-                    <td className="px-4 py-3 text-right text-xs font-black text-slate-800">
+                    <td className="px-4 py-3 text-right text-xs font-black text-slate-800 dark:text-gray-100">
                       {fmtMontoMoneda(monedaFiltro, saldoRastreo.saldoFinal)}
                     </td>
                     <td className="px-4 py-3" />

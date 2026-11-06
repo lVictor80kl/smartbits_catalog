@@ -339,20 +339,20 @@ export default function GastosAdicionalesModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-gray-100 flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full border border-gray-100 dark:border-gray-800 flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 p-6 pb-4 border-b border-gray-100">
+        <div className="flex items-start justify-between gap-4 p-6 pb-4 border-b border-gray-100 dark:border-gray-800">
           <div>
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Banknote className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-lg font-bold text-slate-900 dark:text-gray-100 flex items-center gap-2">
+              <Banknote className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               {isBulk ? 'Agregar Gastos / Extras en Lote' : 'Gastos Adicionales / Envío'}
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
               {isBulk ? (
                 <span>
-                  Aplicando a <strong className="text-slate-800">{itemsList.length}</strong> {collectionName === 'componentes' ? 'componentes' : 'equipos'} seleccionados.
+                  Aplicando a <strong className="text-slate-800 dark:text-gray-200">{itemsList.length}</strong> {collectionName === 'componentes' ? 'componentes' : 'equipos'} seleccionados.
                 </span>
               ) : (
                 <span>
@@ -361,7 +361,7 @@ export default function GastosAdicionalesModal({
               )}
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -372,13 +372,13 @@ export default function GastosAdicionalesModal({
           {isBulk && (
             <div className="space-y-4">
               {/* Chips de Equipos */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+              <div className="bg-slate-50 dark:bg-gray-800/60 border border-slate-200/80 dark:border-gray-700 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-[11px] font-bold text-slate-600 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     Elementos seleccionados ({itemsList.length})
                   </span>
-                  <span className="text-[10px] text-slate-400 hidden sm:inline">
+                  <span className="text-[10px] text-slate-400 dark:text-gray-500 hidden sm:inline">
                     Haz clic en la '✕' para excluir alguno
                   </span>
                 </div>
@@ -386,13 +386,13 @@ export default function GastosAdicionalesModal({
                   {itemsList.map(it => (
                     <span
                       key={it.id}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 shadow-2xs"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-gray-200 shadow-2xs"
                     >
                       <span className="truncate max-w-[190px]">
                         {it.nombre || `${it.marca || ''} ${it.modelo || ''}`.trim() || 'Sin nombre'}
                       </span>
                       {(it.orderId || it.ebay_compra_order_id || it.serial) && (
-                        <span className="text-[10px] font-mono text-slate-400 font-normal shrink-0">
+                        <span className="text-[10px] font-mono text-slate-400 dark:text-gray-500 font-normal shrink-0">
                           {it.serial ? `SN:${it.serial}` : `#${it.orderId || it.ebay_compra_order_id}`}
                         </span>
                       )}
@@ -400,7 +400,7 @@ export default function GastosAdicionalesModal({
                         <button
                           type="button"
                           onClick={() => setItemsList(prev => prev.filter(x => x.id !== it.id))}
-                          className="text-slate-400 hover:text-rose-600 rounded transition-colors"
+                          className="text-slate-400 dark:text-gray-500 hover:text-rose-600 dark:hover:text-rose-400 rounded transition-colors"
                           title="Quitar este elemento del lote"
                         >
                           <X className="w-3 h-3" />
@@ -413,7 +413,7 @@ export default function GastosAdicionalesModal({
 
               {/* Modo de Distribución del Monto */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">
+                <label className="block text-xs font-bold text-slate-700 dark:text-gray-300">
                   ¿Cómo deseas aplicar el monto?
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -421,15 +421,15 @@ export default function GastosAdicionalesModal({
                     type="button"
                     onClick={() => setModoDistribucion('dividir')}
                     className={`p-3 rounded-xl border text-left transition-all ${modoDistribucion === 'dividir'
-                        ? 'border-emerald-600 bg-emerald-50/70 text-emerald-950 ring-1 ring-emerald-500/20 shadow-2xs'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 ring-1 ring-emerald-500/20 shadow-2xs'
+                        : 'border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 hover:border-slate-300 dark:hover:border-gray-600'
                       }`}
                   >
                     <div className="flex items-center gap-1.5 font-bold text-xs mb-1">
-                      <Split className="w-4 h-4 text-emerald-600" />
+                      <Split className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       <span>Dividir monto total</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
+                    <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-tight">
                       El monto ingresado se divide equitativamente entre los {itemsList.length} elementos (ej: encomienda o flete grupal).
                     </p>
                   </button>
@@ -438,15 +438,15 @@ export default function GastosAdicionalesModal({
                     type="button"
                     onClick={() => setModoDistribucion('fijo')}
                     className={`p-3 rounded-xl border text-left transition-all ${modoDistribucion === 'fijo'
-                        ? 'border-emerald-600 bg-emerald-50/70 text-emerald-950 ring-1 ring-emerald-500/20 shadow-2xs'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        ? 'border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 ring-1 ring-emerald-500/20 shadow-2xs'
+                        : 'border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 hover:border-slate-300 dark:hover:border-gray-600'
                       }`}
                   >
                     <div className="flex items-center gap-1.5 font-bold text-xs mb-1">
-                      <Copy className="w-4 h-4 text-emerald-600" />
+                      <Copy className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       <span>Monto fijo a cada uno</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
+                    <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-tight">
                       El monto ingresado se asigna idéntico a cada elemento (ej: cargadores o piezas individuales).
                     </p>
                   </button>
@@ -459,37 +459,37 @@ export default function GastosAdicionalesModal({
           {!isBulk && (
             <>
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Compra + Comisión</p>
-                  <p className="font-black text-slate-800">{fmtUsd(costoBaseConComision)}</p>
+                <div className="bg-slate-50 dark:bg-gray-800/60 rounded-xl p-3 border border-slate-100 dark:border-gray-700">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Compra + Comisión</p>
+                  <p className="font-black text-slate-800 dark:text-gray-100">{fmtUsd(costoBaseConComision)}</p>
                 </div>
-                <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Gastos Extra ({gastosExtra.length})</p>
-                  <p className="font-black text-emerald-700">{fmtUsd(totalExtraUsd)}</p>
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-xl p-3 border border-emerald-100 dark:border-emerald-800/40">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Gastos Extra ({gastosExtra.length})</p>
+                  <p className="font-black text-emerald-700 dark:text-emerald-300">{fmtUsd(totalExtraUsd)}</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Costo Total USD</p>
-                  <p className="font-black text-blue-800">{fmtUsd(costoBaseConComision + totalExtraUsd)}</p>
+                <div className="bg-blue-50 dark:bg-blue-950/40 rounded-xl p-3 border border-blue-100 dark:border-blue-800/40">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Costo Total USD</p>
+                  <p className="font-black text-blue-800 dark:text-blue-300">{fmtUsd(costoBaseConComision + totalExtraUsd)}</p>
                 </div>
               </div>
 
               {/* Lista de gastos registrados individual */}
               {gastosExtra.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Registrados</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Registrados</p>
                   {gastosExtra.map(g => (
-                    <div key={g.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2.5">
+                    <div key={g.id} className="flex items-center gap-3 bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5">
                       <CheckCircle2 className={`w-4 h-4 shrink-0 ${g.tipo === 'envio' ? 'text-green-500' : 'text-blue-500'}`} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-sm font-semibold text-slate-800 truncate">{g.descripcion}</p>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-gray-200 truncate">{g.descripcion}</p>
                           {g.ya_registrado_en_caja && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800 uppercase tracking-wider">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 uppercase tracking-wider">
                               Stock / Ya en Caja
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] text-slate-500 capitalize">
+                        <p className="text-[11px] text-slate-500 dark:text-gray-400 capitalize">
                           {g.tipo === 'envio' ? 'Envío' : 'Pago extra'} • {g.cuenta_label} • {fmtOriginal(g)}
                           {g.moneda_original === 'BS' && ` (≈${fmtUsd(g.monto_usd)})`}
                         </p>
@@ -497,7 +497,7 @@ export default function GastosAdicionalesModal({
                       <button
                         onClick={() => handleEliminar(g)}
                         disabled={deletingId !== null}
-                        className="p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
+                        className="p-1.5 text-gray-300 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors disabled:opacity-40 cursor-pointer"
                         title={g.ya_registrado_en_caja ? "Eliminar gasto de stock (no afecta caja)" : "Eliminar gasto (revierte caja)"}
                       >
                         {deletingId === g.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -512,14 +512,14 @@ export default function GastosAdicionalesModal({
           {/* Formulario nuevo gasto (Común para Individual y Lote) */}
           <form
             onSubmit={isBulk ? handleAgregarLote : handleAgregarIndividual}
-            className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
+            className="bg-slate-50 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-xl p-4 space-y-3"
           >
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-gray-300">
               {isBulk ? `Detalles del gasto para ${itemsList.length} seleccionados` : 'Agregar nuevo pago'}
             </p>
 
             {/* Checkbox: Gasto ya registrado en caja */}
-            <div className="bg-amber-50/80 border border-amber-200 rounded-lg p-3">
+            <div className="bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-lg p-3">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
@@ -528,10 +528,10 @@ export default function GastosAdicionalesModal({
                   className="w-4 h-4 mt-0.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
                 <div className="text-xs">
-                  <span className="font-bold text-amber-900 block">
+                  <span className="font-bold text-amber-900 dark:text-amber-200 block">
                     Gasto ya registrado en caja previa (ej: repuestos / stock de inventario)
                   </span>
-                  <span className="text-amber-700 text-[11px] block mt-0.5">
+                  <span className="text-amber-700 dark:text-amber-300 text-[11px] block mt-0.5">
                     No restará dinero de la caja nuevamente para no duplicar el egreso, pero <strong>sí se sumará al costo de cada equipo y restará de la ganancia estimada</strong>.
                   </span>
                 </div>
@@ -547,9 +547,9 @@ export default function GastosAdicionalesModal({
                     key={t.key}
                     type="button"
                     onClick={() => setTipo(t.key)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-xs font-bold transition-colors ${tipo === t.key
-                        ? 'border-brand-600 bg-brand-50 text-brand-700'
-                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-xs font-bold transition-colors cursor-pointer ${tipo === t.key
+                        ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300'
+                        : 'border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-500 dark:text-gray-400 hover:border-slate-300 dark:hover:border-gray-600'
                       }`}
                   >
                     <Icon className="w-4 h-4" /> {t.label}
@@ -560,20 +560,20 @@ export default function GastosAdicionalesModal({
 
             {/* Descripción */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Descripción</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Descripción</label>
               <input
                 type="text"
                 placeholder={tipo === 'envio' ? (isBulk ? 'Ej: Envío caja courier Miami-Ccs' : 'Ej: Envío Miami-Caracas') : (isBulk ? 'Ej: Cargadores originales' : 'Ej: SSD NVMe 1TB')}
                 value={form.descripcion}
                 onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 bg-white"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 bg-white dark:bg-gray-800 text-slate-800 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Monto */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
                   {isBulk ? (
                     modoDistribucion === 'dividir'
                       ? `Monto TOTAL a repartir (${esBs ? 'Bs' : '$'})`
@@ -587,29 +587,29 @@ export default function GastosAdicionalesModal({
                   placeholder="0.00"
                   value={form.monto}
                   onChange={e => setForm(p => ({ ...p, monto: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-gray-700 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-brand-500 bg-white dark:bg-gray-800 text-slate-800 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500"
                 />
                 {!isBulk && esBs && previewUsdIndividual > 0 && (
-                  <p className="text-[10px] text-slate-400 mt-1">≈ {fmtUsd(previewUsdIndividual)} USD</p>
+                  <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-1">≈ {fmtUsd(previewUsdIndividual)} USD</p>
                 )}
               </div>
 
               {/* Tasa si Bs */}
               {esBs ? (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Tasa (Bs/$)</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Tasa (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
                       type="text" inputMode="decimal"
                       placeholder={formatearDecimalInput(tasaCambio)}
                       value={form.tasa}
                       onChange={e => setForm(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full min-w-0 flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-brand-500 bg-white"
+                      className="w-full min-w-0 flex-1 px-3 py-2 border border-slate-300 dark:border-gray-700 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-brand-500 bg-white dark:bg-gray-800 text-slate-800 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500"
                     />
                     <button
                       type="button"
                       onClick={() => setForm(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
-                      className="shrink-0 px-2 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg whitespace-nowrap"
+                      className="shrink-0 px-2 py-2 bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-600 dark:text-gray-300 text-[10px] font-bold rounded-lg whitespace-nowrap cursor-pointer"
                       title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
                     >
                       Guardada
@@ -622,7 +622,7 @@ export default function GastosAdicionalesModal({
                 </div>
               ) : (
                 <div className="flex items-end">
-                  <p className="text-[11px] text-slate-400 pb-2">
+                  <p className="text-[11px] text-slate-400 dark:text-gray-500 pb-2">
                     {yaRegistradoEnCaja ? 'El monto en USD se sumará directo al costo sin afectar caja.' : 'Se descontará de la cuenta al registrar.'}
                   </p>
                 </div>
@@ -632,11 +632,11 @@ export default function GastosAdicionalesModal({
             {/* Cuenta de caja */}
             {!yaRegistradoEnCaja && (
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Descontar de cuenta de caja</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Descontar de cuenta de caja</label>
                 <select
                   value={form.cuenta_key}
                   onChange={e => setForm(p => ({ ...p, cuenta_key: e.target.value, tasa: '' }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-slate-800 dark:text-gray-100 focus:ring-2 focus:ring-brand-500"
                 >
                   {loadingCuentas && <option>Cargando cuentas...</option>}
                   {cuentasBS.length > 0 && (

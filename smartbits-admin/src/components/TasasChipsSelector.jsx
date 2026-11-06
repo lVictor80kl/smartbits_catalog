@@ -59,7 +59,7 @@ export default function TasasChipsSelector({ valorActual, onSeleccionar, showCon
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-      <span className="text-[10px] uppercase font-bold text-slate-400 mr-0.5">
+      <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-gray-500 mr-0.5">
         Atajos:
       </span>
 
@@ -71,15 +71,15 @@ export default function TasasChipsSelector({ valorActual, onSeleccionar, showCon
             type="button"
             onClick={() => onSeleccionar(chip.valor, chip.tipo)}
             title={`Usar tasa ${chip.label}: Bs ${formatearDecimalInput(chip.valor)}`}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all border ${
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all border cursor-pointer ${
               isSelected
                 ? 'bg-brand-600 text-white border-brand-700 shadow-xs ring-1 ring-brand-400'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                : 'bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-200 border-slate-200 dark:border-gray-700'
             }`}
           >
             <span>{chip.icono}</span>
             <span>{chip.label}</span>
-            <span className={isSelected ? 'text-brand-100' : 'text-slate-500 font-semibold'}>
+            <span className={isSelected ? 'text-brand-100' : 'text-slate-500 dark:text-gray-400 font-semibold'}>
               {formatearDecimalInput(chip.valor)}
             </span>
           </button>
@@ -91,7 +91,7 @@ export default function TasasChipsSelector({ valorActual, onSeleccionar, showCon
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors ml-0.5"
+            className="p-1 text-slate-400 dark:text-gray-500 hover:text-slate-700 dark:hover:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 rounded-lg transition-colors ml-0.5 cursor-pointer"
             title="Configurar y actualizar tasas en vivo"
           >
             <Settings2 className="w-3.5 h-3.5" />

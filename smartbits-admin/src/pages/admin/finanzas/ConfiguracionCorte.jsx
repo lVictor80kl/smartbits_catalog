@@ -300,7 +300,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
 
   if (loadingCorte) {
     return (
-      <div className="p-8 text-center text-slate-500 flex items-center justify-center gap-2">
+      <div className="p-8 text-center text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
         <RefreshCw className="w-5 h-5 animate-spin" /> Cargando estado de corte contable...
       </div>
     );
@@ -317,23 +317,23 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       : `Bs ${Number(v || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-slate-800">Corte Contable Activo</h3>
-                <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-bold">Punto Cero Fijado</span>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Corte Contable Activo</h3>
+                <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs px-2.5 py-0.5 rounded-full font-bold">Punto Cero Fijado</span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">Fecha de aplicación: <span className="font-semibold text-slate-700">{fechaCorteStr}</span></p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Fecha de aplicación: <span className="font-semibold text-slate-700 dark:text-slate-300">{fechaCorteStr}</span></p>
             </div>
           </div>
           <button
             onClick={() => { setIsEditing(true); setStep(1); }}
-            className="text-xs font-bold text-slate-600 hover:text-brand-600 bg-slate-100 hover:bg-brand-50 px-3 py-2 rounded-lg transition-colors border border-slate-200"
+            className="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-brand-600 bg-slate-100 dark:bg-slate-800 hover:bg-brand-50 dark:hover:bg-slate-700 px-3 py-2 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
           >
             Re-configurar Punto Cero
           </button>
@@ -341,29 +341,29 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
 
         {/* Resumen del punto de partida */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Capital Inicial Ysmael</p>
-            <h4 className="text-2xl font-black text-slate-800">{fmt(corte.capital_inicial_ysmael)}</h4>
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700/60">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Capital Inicial Ysmael</p>
+            <h4 className="text-2xl font-black text-slate-800 dark:text-slate-100">{fmt(corte.capital_inicial_ysmael)}</h4>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Capital Inicial Víctor</p>
-            <h4 className="text-2xl font-black text-slate-800">{fmt(corte.capital_inicial_victor)}</h4>
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700/60">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Capital Inicial Víctor</p>
+            <h4 className="text-2xl font-black text-slate-800 dark:text-slate-100">{fmt(corte.capital_inicial_victor)}</h4>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Inventario al Corte</p>
-            <h4 className="text-2xl font-black text-slate-800">{fmt(corte.inventario_inicial)}</h4>
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-slate-200 dark:border-slate-700/60">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Inventario al Corte</p>
+            <h4 className="text-2xl font-black text-slate-800 dark:text-slate-100">{fmt(corte.inventario_inicial)}</h4>
           </div>
         </div>
 
         <div>
-          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Saldos de Caja Definidos en el Corte</h4>
+          <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Saldos de Caja Definidos en el Corte</h4>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {todasCuentas.map(c => {
               const val = corte.saldos_iniciales?.[c.key] || 0;
               return (
-                <div key={c.key} className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs">
-                  <span className="text-slate-500 font-medium block">{c.label}</span>
-                  <span className="text-sm font-bold text-slate-800">{fmt(val, c.moneda)}</span>
+                <div key={c.key} className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-800 text-xs">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium block">{c.label}</span>
+                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{fmt(val, c.moneda)}</span>
                 </div>
               );
             })}
@@ -375,16 +375,16 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
 
   // WIZARD DE CONFIGURACIÓN (Paso 1, 2 o 3)
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+    <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-6">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
         <div>
-          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-brand-600" />
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-brand-600 dark:text-blue-400" />
             Configuración de Punto Cero (Corte Contable)
           </h3>
-          <p className="text-xs text-slate-500">Ingresa los saldos y capitales corregidos para iniciar la contabilidad limpia.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Ingresa los saldos y capitales corregidos para iniciar la contabilidad limpia.</p>
         </div>
-        <div className="flex items-center gap-1 text-xs font-bold bg-brand-50 text-brand-700 px-3 py-1.5 rounded-full">
+        <div className="flex items-center gap-1 text-xs font-bold bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 px-3 py-1.5 rounded-full border border-brand-200/50 dark:border-brand-800/50">
           Paso {step} de 3
         </div>
       </div>
@@ -392,19 +392,19 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       {/* PASO 1: SALDOS DE CAJA */}
       {step === 1 && (
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800">
+          <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3 text-xs text-blue-800 dark:text-blue-200">
             <strong>Paso 1:</strong> Ingresa el saldo real disponible en cada cuenta o billetera al momento de este corte.
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {todasCuentas.map(c => (
               <div key={c.key}>
-                <label className="block text-xs font-semibold text-slate-700 mb-1 flex justify-between">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 flex justify-between">
                   <span>{c.label}</span>
-                  <span className="text-slate-400">({c.moneda})</span>
+                  <span className="text-slate-400 dark:text-slate-500">({c.moneda})</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 dark:text-slate-500 text-xs font-bold">
                     {c.moneda === 'USD' ? '$' : 'Bs'}
                   </span>
                   <input
@@ -415,21 +415,21 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
                       const v = e.target.value;
                       setSaldosCaja(p => ({ ...p, [c.key]: v === '' ? '' : Number(v) }));
                     }}
-                    className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="w-full pl-8 pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="pt-2 border-t border-slate-100">
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Tasa de Cambio Referencial (Bs/USD)</label>
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Tasa de Cambio Referencial (Bs/USD)</label>
             <input
               type="number"
               step="0.01"
               value={tasaCambio}
               onChange={e => setTasaCambio(e.target.value)}
-              className="w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-48 px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
 
@@ -447,12 +447,12 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       {/* PASO 2: INVENTARIO */}
       {step === 2 && (
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800">
+          <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3 text-xs text-blue-800 dark:text-blue-200">
             <strong>Paso 2:</strong> Verifica el valor del inventario activo actual en almacén (a costo de adquisición).
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-            <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-slate-800">
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-slate-800 dark:text-slate-200">
               <input
                 type="radio"
                 checked={usarInvSugerido}
@@ -460,10 +460,10 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
                 className="text-brand-600 focus:ring-brand-500"
               />
               <span>Usar valor calculado automáticamente desde catálogo:</span>
-              <span className="font-bold text-emerald-600 ml-auto">${Number(inventarioSugerido).toFixed(2)}</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 ml-auto">${Number(inventarioSugerido).toFixed(2)}</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-slate-800 pt-2 border-t border-slate-200">
+            <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-slate-800 dark:text-slate-200 pt-2 border-t border-slate-200 dark:border-slate-700">
               <input
                 type="radio"
                 checked={!usarInvSugerido}
@@ -476,13 +476,13 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
             {!usarInvSugerido && (
               <div className="pl-6 pt-1">
                 <div className="relative w-56">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">$</span>
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 dark:text-slate-500 text-xs font-bold">$</span>
                   <input
                     type="number"
                     step="0.01"
                     value={inventarioManual}
                     onChange={e => setInventarioManual(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="w-full pl-8 pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -490,12 +490,12 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
           </div>
 
           {/* Depuración / Reset de gastos legacy del catálogo */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Trash2 className="w-4 h-4 text-amber-600" /> Depuración de Gastos/Envíos Legados
+              <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider flex items-center gap-1.5">
+                <Trash2 className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Depuración de Gastos/Envíos Legados
               </h4>
-              <p className="text-xs text-amber-800 mt-1">
+              <p className="text-xs text-amber-800 dark:text-amber-300/90 mt-1">
                 Limpia los valores de envíos y gastos antiguos duplicados en Firestore para recalcular el inventario exacto antes del reset.
               </p>
             </div>
@@ -513,7 +513,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
           <div className="flex justify-between pt-4">
             <button
               onClick={() => setStep(1)}
-              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
+              className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-transparent dark:border-slate-700 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
             >
               <ArrowLeft className="w-4 h-4" /> Atrás
             </button>
@@ -530,55 +530,55 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
       {/* PASO 3: CAPITAL DE SOCIOS */}
       {step === 3 && (
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 flex gap-2">
+          <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3 text-xs text-blue-800 dark:text-blue-200 flex gap-2">
             <Users className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <div>
               <strong>Paso 3:</strong> Suministra el capital inicial corregido que le corresponde a cada socio a partir de hoy.
-              <p className="mt-0.5 text-blue-600">
+              <p className="mt-0.5 text-blue-600 dark:text-blue-400">
                 Todo movimiento a partir de este corte sumará o restará sobre este punto cero (utilidades compartidas 50/50 y retiros directos a cada socio).
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
                 Capital Inicial — Ysmael ($ USD)
               </label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-sm font-bold">$</span>
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 dark:text-slate-500 text-sm font-bold">$</span>
                 <input
                   type="number"
                   step="0.01"
                   value={capitalYsmael}
                   onChange={e => setCapitalYsmael(e.target.value)}
                   placeholder="0.00"
-                  className="w-full pl-8 pr-3 py-2.5 border border-brand-300 rounded-lg text-lg font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full pl-8 pr-3 py-2.5 border border-brand-300 dark:border-brand-700 rounded-lg text-lg font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white dark:bg-slate-800"
                   required
                 />
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
                 Capital Inicial — Víctor ($ USD)
               </label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-sm font-bold">$</span>
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 dark:text-slate-500 text-sm font-bold">$</span>
                 <input
                   type="number"
                   step="0.01"
                   value={capitalVictor}
                   onChange={e => setCapitalVictor(e.target.value)}
                   placeholder="0.00"
-                  className="w-full pl-8 pr-3 py-2.5 border border-brand-300 rounded-lg text-lg font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                  className="w-full pl-8 pr-3 py-2.5 border border-brand-300 dark:border-brand-700 rounded-lg text-lg font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white dark:bg-slate-800"
                   required
                 />
               </div>
             </div>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex gap-2">
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-200 flex gap-2">
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <div>
               Al ejecutar el corte, se establecerá el punto cero con fecha de hoy. Los registros anteriores quedarán como referencia histórica y no alterarán los balances nuevos.
@@ -589,7 +589,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
             <button
               onClick={() => setStep(2)}
               disabled={saving}
-              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
+              className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-transparent dark:border-slate-700 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
             >
               <ArrowLeft className="w-4 h-4" /> Atrás
             </button>
@@ -599,7 +599,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
                   type="button"
                   onClick={() => setIsEditing(false)}
                   disabled={saving}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm"
+                  className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-transparent dark:border-slate-700 font-bold rounded-xl text-sm"
                 >
                   Cancelar
                 </button>
@@ -607,7 +607,7 @@ export default function ConfiguracionCorte({ onCorteRealizado }) {
               <button
                 onClick={handleEjecutarCorte}
                 disabled={saving}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50"
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-emerald-200 dark:shadow-none disabled:opacity-50"
               >
                 {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 {saving ? 'Guardando Corte...' : 'Ejecutar Corte Contable'}

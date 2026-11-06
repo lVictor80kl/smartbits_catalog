@@ -447,8 +447,8 @@ export default function ReportesCierre() {
               <div className="p-8 text-center text-slate-400 text-sm">No hay cierres registrados aún.</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-600">
-                  <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                <table className="w-full text-left text-sm text-slate-600 dark:text-gray-300">
+                  <thead className="text-xs text-slate-500 dark:text-gray-400 uppercase bg-slate-50 dark:bg-gray-900 border-b border-slate-200 dark:border-gray-800">
                     <tr>
                       <th className="px-5 py-4">Periodo</th>
                       <th className="px-5 py-4 text-right">Ventas</th>
@@ -460,9 +460,9 @@ export default function ReportesCierre() {
                       <th className="px-5 py-4 text-right">Neto Víctor</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
                     {cierresHistorial.map(cierre => (
-                      <tr key={cierre.id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={cierre.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/40 transition-colors">
                         <td className="px-5 py-4 font-bold text-slate-800">{cierre.mes_label || cierre.periodo}</td>
                         <td className="px-5 py-4 text-right text-blue-600 font-semibold">{fmt(cierre.ventas_totales)}</td>
                         <td className="px-5 py-4 text-right text-red-500">{fmt(cierre.cogs)}</td>

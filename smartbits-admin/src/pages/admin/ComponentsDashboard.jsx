@@ -325,7 +325,7 @@ export default function ComponentsDashboard() {
       {/* 2. Filtros y Búsqueda */}
       <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 overflow-hidden">
         {!loading && components.length > 0 && (
-          <div className="bg-gray-50/60 border-b border-gray-200/80 px-6 py-4 flex flex-wrap items-end gap-4">
+          <div className="bg-gray-50/60 dark:bg-gray-900 border-b border-gray-200/80 dark:border-gray-800 px-6 py-4 flex flex-wrap items-end gap-4">
             <div className="flex flex-col flex-1 min-w-[200px]">
               <label className="text-xs font-semibold text-gray-400 uppercase mb-1.5 tracking-wider">Buscar</label>
               <input
@@ -421,11 +421,11 @@ export default function ComponentsDashboard() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+                <tr className="bg-gray-50/80 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                   <th className="px-6 py-4 w-10">
                     <input
                       type="checkbox"
-                      className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-purple-600 focus:ring-purple-500 cursor-pointer"
                       checked={filteredComponents.length > 0 && selectedIds.length === filteredComponents.length}
                       onChange={toggleSelectAll}
                     />
@@ -753,7 +753,7 @@ export default function ComponentsDashboard() {
           className="bg-white rounded-2xl shadow-2xl border border-gray-200/90 py-1.5 text-xs text-gray-700 animate-in fade-in zoom-in-95 duration-100 overflow-hidden select-none"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-3.5 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between gap-2">
+          <div className="px-3.5 py-2 bg-gray-50/80 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
             <span className="font-bold text-gray-400 uppercase text-[10px] tracking-wider shrink-0">
               Opciones
             </span>

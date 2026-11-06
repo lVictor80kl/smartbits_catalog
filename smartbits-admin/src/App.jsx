@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminLayout from './components/layout/AdminLayout';
 import Login from './pages/Login';
@@ -18,9 +19,10 @@ import ComprasEbay from './pages/admin/ebay/ComprasEbay';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <Routes>
           {/* Login Público */}
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Login />} />
@@ -50,7 +52,8 @@ function App() {
         </Routes>
       </Router>
     </AuthProvider>
-  );
+  </ThemeProvider>
+);
 }
 
 export default App;

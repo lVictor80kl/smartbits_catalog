@@ -194,8 +194,8 @@ export default function Dashboard() {
     const activas = laptops.filter(l => l.disponibilidad === 'Disponible' || l.disponibilidad === 'Coming soon');
     const enOferta = laptops.filter(l => Boolean(l.en_oferta));
     const borradores = laptops.filter(l => Boolean(l.borrador));
-    const sinEnvio = laptops.filter(l => !tieneEnvioPagado(l));
-    const conExtras = laptops.filter(l => tienePagoExtra(l));
+    const sinEnvio = activas.filter(l => !tieneEnvioPagado(l));
+    const conExtras = activas.filter(l => tienePagoExtra(l));
 
     // Costo de adquisición real (Finanzas)
     const costoInvTotal = activas.reduce((acc, l) => acc + (getCostoTotal(l) || 0), 0);
@@ -573,7 +573,7 @@ export default function Dashboard() {
       const matchBorrador = !filterBorradoresOnly || Boolean(laptop.borrador);
       const matchEnvio =
         filterEnvio === 'todos' ? true :
-        filterEnvio === 'sin_envio' ? !tieneEnvioPagado(laptop) :
+        filterEnvio === 'sin_envio' ? (laptop.disponibilidad !== 'No disponible' && !tieneEnvioPagado(laptop)) :
         tieneEnvioPagado(laptop);
       const matchExtras =
         filterExtras === 'todos' ? true :
@@ -990,8 +990,8 @@ export default function Dashboard() {
         </div>
 
         {/* Chips de estado rápido (Quick Pills con scroll táctil horizontal en móvil) */}
-        <div className="px-3.5 sm:px-5 py-2.5 flex items-center gap-1.5 border-t border-gray-100 bg-gray-50/40 text-xs overflow-x-auto scrollbar-none">
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0 mr-0.5">Rápido:</span>
+        <div className="px-3.5 sm:px-5 py-2.5 flex items-center gap-1.5 border-t border-gray-100 dark:border-gray-800 bg-gray-50/40 dark:bg-gray-900 text-xs overflow-x-auto scrollbar-none">
+          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider shrink-0 mr-0.5">Rápido:</span>
           
           <button
             onClick={() => {
@@ -999,10 +999,10 @@ export default function Dashboard() {
               setFilterOfertasOnly(false);
               setFilterBorradoresOnly(false);
             }}
-            className={`px-2.5 py-1 rounded-lg font-bold transition-all shrink-0 ${
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all shrink-0 cursor-pointer ${
               filterDisp.length === 0 && !filterOfertasOnly && !filterBorradoresOnly
-                ? 'bg-gray-900 text-white shadow-2xs'
-                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                ? 'bg-gray-900 dark:bg-brand-600 text-white shadow-2xs'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
             Todos ({laptops.length})
@@ -1066,7 +1066,7 @@ export default function Dashboard() {
                 ? 'bg-rose-600 text-white shadow-2xs'
                 : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50'
             }`}
-            title="Laptops que no tienen el gasto de envío registrado"
+            title="Laptops activas que no tienen el gasto de envío registrado"
           >
             <Truck className="w-3 h-3 text-rose-500" />
             Sin Envío ({stats.sinEnvioCount})
@@ -1088,7 +1088,7 @@ export default function Dashboard() {
 
         {/* Panel Colapsable de Filtros Avanzados (Marca, RAM, Disco, CPU) */}
         {showFiltersPanel && (
-          <div className="p-5 border-t border-gray-200 bg-gray-50/80 space-y-4 text-xs animate-in slide-in-from-top-2 duration-150">
+          <div className="p-5 border-t border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900 space-y-4 text-xs animate-in slide-in-from-top-2 duration-150">
             
             {/* Fila: Marcas */}
             {marcasDisponibles.length > 0 && (
@@ -1467,11 +1467,11 @@ export default function Dashboard() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-[11px] uppercase tracking-wider font-bold">
+                <tr className="bg-gray-50/80 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 text-[11px] uppercase tracking-wider font-bold">
                   <th className="px-5 py-3.5 w-10 text-center">
                     <input
                       type="checkbox"
-                      className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-brand-600 focus:ring-brand-500 cursor-pointer"
                       checked={displayedLaptops.length > 0 && displayedLaptops.every(l => selectedIds.includes(l.id))}
                       onChange={toggleSelectAll}
                       title="Seleccionar todos los mostrados"
@@ -1484,7 +1484,7 @@ export default function Dashboard() {
                   <th className="px-5 py-3.5 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-xs">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-xs">
                 {displayedLaptops.map(laptop => (
                   <tr 
                     key={laptop.id} 
@@ -1492,10 +1492,10 @@ export default function Dashboard() {
                     data-laptop-id={laptop.id}
                     className={`transition-all duration-500 group ${
                       laptop.id === highlightedId
-                        ? 'bg-amber-100/90 ring-2 ring-inset ring-amber-500 font-semibold shadow-md'
+                        ? 'bg-amber-100/90 dark:bg-amber-950/40 ring-2 ring-inset ring-amber-500 font-semibold shadow-md'
                         : selectedIds.includes(laptop.id) 
-                          ? 'bg-brand-50/30' 
-                          : 'hover:bg-gray-50/80'
+                          ? 'bg-brand-50/30 dark:bg-brand-950/40' 
+                          : 'hover:bg-gray-50/80 dark:hover:bg-gray-800/40'
                     }`}
                   >
                     {/* Checkbox de selección */}
@@ -1815,12 +1815,12 @@ export default function Dashboard() {
 
         {/* 4.1. Barra de paginación progresiva: Mostrar más (corta la vista a 30 por defecto) */}
         {hasMore && (
-          <div className="p-4 sm:p-5 bg-gray-50/70 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <p className="text-gray-500 font-medium text-center sm:text-left">
-              Mostrando <span className="font-bold text-gray-900">{displayedLaptops.length}</span> de{' '}
-              <span className="font-bold text-gray-900">{filteredLaptops.length}</span> equipos
+          <div className="p-4 sm:p-5 bg-gray-50/70 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <p className="text-gray-500 dark:text-gray-400 font-medium text-center sm:text-left">
+              Mostrando <span className="font-bold text-gray-900 dark:text-gray-100">{displayedLaptops.length}</span> de{' '}
+              <span className="font-bold text-gray-900 dark:text-gray-100">{filteredLaptops.length}</span> equipos
               {remainingCount > 0 && (
-                <span className="text-gray-400 ml-1">({remainingCount} restante{remainingCount !== 1 ? 's' : ''})</span>
+                <span className="text-gray-400 dark:text-gray-500 ml-1">({remainingCount} restante{remainingCount !== 1 ? 's' : ''})</span>
               )}
             </p>
             <div className="flex items-center gap-2 w-full sm:w-auto justify-center flex-wrap">
@@ -1828,7 +1828,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={handleCollapse}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-medium transition-colors cursor-pointer text-xs"
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-xl font-medium transition-colors cursor-pointer text-xs"
                   title="Volver a mostrar solo los primeros 30"
                 >
                   <ChevronUp className="w-4 h-4" />
@@ -1847,7 +1847,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setVisibleCount(filteredLaptops.length)}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-medium transition-colors cursor-pointer text-xs"
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-xl font-medium transition-colors cursor-pointer text-xs"
                 >
                   Mostrar todos ({filteredLaptops.length})
                 </button>
@@ -1857,9 +1857,9 @@ export default function Dashboard() {
         )}
 
         {!hasMore && filteredLaptops.length > ITEMS_PER_PAGE && (
-          <div className="p-4 sm:p-5 bg-gray-50/70 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <p className="text-gray-500 font-medium text-center sm:text-left">
-              Has llegado al final • Mostrando los <span className="font-bold text-gray-900">{filteredLaptops.length}</span> equipos
+          <div className="p-4 sm:p-5 bg-gray-50/70 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <p className="text-gray-500 dark:text-gray-400 font-medium text-center sm:text-left">
+              Has llegado al final • Mostrando los <span className="font-bold text-gray-900 dark:text-gray-100">{filteredLaptops.length}</span> equipos
             </p>
             <button
               type="button"

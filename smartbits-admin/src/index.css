@@ -19,9 +19,326 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 font-sans;
+    @apply bg-gray-50 text-gray-900 font-sans dark:bg-gray-950 dark:text-gray-100;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Asegurar que el elemento HTML soporte color-scheme para scrollbars y controles nativos */
+  html.dark {
+    color-scheme: dark;
+    background-color: #030712;
+  }
+}
+
+/* Re-mapeo dinámico de tokens para que cualquier opacidad (color-mix) evalúe a tonos oscuros */
+.dark {
+  --color-gray-50: #0a0e17;
+  --color-gray-100: #111827;
+  --color-gray-200: #1e293b;
+  --color-gray-300: #334155;
+  --color-slate-50: #0a0e17;
+  --color-slate-100: #111827;
+  --color-slate-200: #1e293b;
+  --color-slate-300: #334155;
+}
+
+/* Scrollbar refinado y adaptativo */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.55);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(75, 85, 99, 0.45);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(107, 114, 128, 0.65);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   IMPECCABLE DARK THEME ENGINE
+   Mapeo sistemático y armónico de superficies para todo el panel de administración
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* 1. Superficies y Contenedores */
+.dark .bg-white:not([class*="dark:bg-"]) {
+  background-color: #111827; /* gray-900 */
+}
+
+/* Neutralización radical de grises claros y mezclas lechosas en modo oscuro */
+.dark .bg-gray-50:not([class*="dark:bg-"]),
+.dark .bg-slate-50:not([class*="dark:bg-"]),
+.dark [class*="bg-gray-50"]:not([class*="dark:bg-"]),
+.dark [class*="bg-slate-50"]:not([class*="dark:bg-"]) {
+  background-color: #0b0f19 !important;
+}
+
+.dark .bg-gray-100:not([class*="dark:bg-"]),
+.dark .bg-slate-100:not([class*="dark:bg-"]),
+.dark [class*="bg-gray-100"]:not([class*="dark:bg-"]),
+.dark [class*="bg-slate-100"]:not([class*="dark:bg-"]) {
+  background-color: #161e2e !important;
+}
+
+.dark .bg-gray-200:not([class*="dark:bg-"]),
+.dark .bg-slate-200:not([class*="dark:bg-"]) {
+  background-color: #1f2937;
+}
+
+/* 2. Bordes */
+.dark .border-gray-100:not([class*="dark:border-"]),
+.dark .border-slate-100:not([class*="dark:border-"]),
+.dark [class*="border-gray-100"]:not([class*="dark:border-"]),
+.dark [class*="border-slate-100"]:not([class*="dark:border-"]) {
+  border-color: #1e293b !important;
+}
+
+.dark .border-gray-200:not([class*="dark:border-"]),
+.dark .border-slate-200:not([class*="dark:border-"]),
+.dark [class*="border-gray-200"]:not([class*="dark:border-"]),
+.dark [class*="border-slate-200"]:not([class*="dark:border-"]) {
+  border-color: #1f2937 !important;
+}
+
+.dark .border-gray-300:not([class*="dark:border-"]),
+.dark .border-slate-300:not([class*="dark:border-"]),
+.dark [class*="border-gray-300"]:not([class*="dark:border-"]),
+.dark [class*="border-slate-300"]:not([class*="dark:border-"]) {
+  border-color: #374151 !important;
+}
+
+/* 3. Textos y Jerarquía Tipográfica */
+.dark .text-gray-900:not([class*="dark:text-"]),
+.dark .text-slate-900:not([class*="dark:text-"]),
+.dark .text-slate-800:not([class*="dark:text-"]),
+.dark .text-gray-800:not([class*="dark:text-"]) {
+  color: #f3f4f6;
+}
+
+.dark .text-gray-700:not([class*="dark:text-"]),
+.dark .text-slate-700:not([class*="dark:text-"]) {
+  color: #e5e7eb;
+}
+
+.dark .text-gray-600:not([class*="dark:text-"]),
+.dark .text-slate-600:not([class*="dark:text-"]) {
+  color: #9ca3af;
+}
+
+.dark .text-gray-500:not([class*="dark:text-"]),
+.dark .text-slate-500:not([class*="dark:text-"]) {
+  color: #94a3b8;
+}
+
+.dark .text-gray-400:not([class*="dark:text-"]),
+.dark .text-slate-400:not([class*="dark:text-"]) {
+  color: #64748b;
+}
+
+/* 4. Tablas: Headers y Footers limpios y oscuros (sin grises lechosos) */
+.dark table thead,
+.dark table thead tr,
+.dark table thead th {
+  background-color: #0b0f19 !important;
+  color: #94a3b8 !important;
+  border-color: #1e293b !important;
+}
+
+.dark table tfoot,
+.dark table tfoot tr,
+.dark table tfoot td {
+  background-color: #0b0f19 !important;
+  color: #cbd5e1 !important;
+  border-color: #1e293b !important;
+}
+
+.dark table tbody tr {
+  border-color: #1e293b !important;
+}
+
+.dark table tbody tr:hover {
+  background-color: rgba(30, 41, 59, 0.45) !important;
+}
+
+/* 5. Inputs, Formularios y Selects */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([class*="dark:bg-"]),
+.dark select:not([class*="dark:bg-"]),
+.dark textarea:not([class*="dark:bg-"]) {
+  background-color: #111827;
+  color: #f3f4f6;
+  border-color: #374151;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):not([class*="dark:bg-"]):focus,
+.dark select:not([class*="dark:bg-"]):focus,
+.dark textarea:not([class*="dark:bg-"]):focus {
+  border-color: #14b8a6;
+  outline: none;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6b7280;
+}
+
+/* 6. Banderas (Badges, tags, chips) - Calibrados con tonos pastel descansados anti-deslumbramiento */
+.dark [class*="bg-green-100"],
+.dark [class*="bg-emerald-100"],
+.dark [class*="bg-green-50"],
+.dark [class*="bg-emerald-50"] {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+  color: #6ee7b7 !important; /* Verde menta suave */
+  border-color: rgba(16, 185, 129, 0.28) !important;
+}
+
+.dark [class*="bg-orange-100"],
+.dark [class*="bg-amber-100"],
+.dark [class*="bg-yellow-100"],
+.dark [class*="bg-orange-50"],
+.dark [class*="bg-amber-50"] {
+  background-color: rgba(245, 158, 11, 0.14) !important;
+  color: #fcd34d !important; /* Ámbar cálido no deslumbrante */
+  border-color: rgba(245, 158, 11, 0.28) !important;
+}
+
+.dark [class*="bg-red-100"],
+.dark [class*="bg-rose-100"],
+.dark [class*="bg-red-50"],
+.dark [class*="bg-rose-50"] {
+  background-color: rgba(239, 68, 68, 0.14) !important;
+  color: #fca5a5 !important; /* Coral suave legible */
+  border-color: rgba(239, 68, 68, 0.28) !important;
+}
+
+.dark [class*="bg-blue-100"],
+.dark [class*="bg-sky-100"],
+.dark [class*="bg-blue-50"],
+.dark [class*="bg-sky-50"] {
+  background-color: rgba(59, 130, 246, 0.14) !important;
+  color: #93c5fd !important; /* Azul cielo equilibrado */
+  border-color: rgba(59, 130, 246, 0.28) !important;
+}
+
+.dark [class*="bg-indigo-100"],
+.dark [class*="bg-indigo-50"] {
+  background-color: rgba(99, 102, 241, 0.14) !important;
+  color: #a5b4fc !important; /* Índigo pastel */
+  border-color: rgba(99, 102, 241, 0.28) !important;
+}
+
+.dark [class*="bg-purple-100"],
+.dark [class*="bg-violet-100"],
+.dark [class*="bg-purple-50"],
+.dark [class*="bg-violet-50"] {
+  background-color: rgba(168, 85, 247, 0.14) !important;
+  color: #d8b4fe !important; /* Lavanda suave */
+  border-color: rgba(168, 85, 247, 0.28) !important;
+}
+
+.dark [class*="bg-teal-100"],
+.dark [class*="bg-cyan-100"],
+.dark [class*="bg-teal-50"],
+.dark [class*="bg-cyan-50"] {
+  background-color: rgba(20, 184, 166, 0.14) !important;
+  color: #5eead4 !important; /* Turquesa suave */
+  border-color: rgba(20, 184, 166, 0.28) !important;
+}
+
+/* 7. Botones Neutrales y Secundarios en Dark Mode */
+.dark button.bg-white,
+.dark a.bg-white,
+.dark button[class*="bg-white"]:not([class*="dark:bg-"]),
+.dark a[class*="bg-white"]:not([class*="dark:bg-"]) {
+  background-color: #1a2234 !important;
+  color: #e2e8f0 !important;
+  border-color: #2e3d54 !important;
+}
+
+.dark button.bg-white:hover,
+.dark a.bg-white:hover,
+.dark button[class*="bg-white"]:hover:not([class*="dark:bg-"]),
+.dark a[class*="bg-white"]:hover:not([class*="dark:bg-"]) {
+  background-color: #243047 !important;
+  color: #ffffff !important;
+  border-color: #3d506f !important;
+}
+
+/* 8. Alertas y Callouts de Alto Confort */
+.dark .bg-amber-50,
+.dark [class*="bg-amber-50"] {
+  background-color: rgba(120, 53, 15, 0.18) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: #fef3c7 !important;
+}
+
+.dark .bg-blue-50,
+.dark [class*="bg-blue-50"] {
+  background-color: rgba(30, 58, 138, 0.18) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+  color: #dbeafe !important;
+}
+
+.dark .bg-red-50,
+.dark [class*="bg-red-50"] {
+  background-color: rgba(153, 27, 27, 0.18) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #fee2e2 !important;
+}
+
+.dark .bg-green-50,
+.dark [class*="bg-green-50"] {
+  background-color: rgba(6, 78, 59, 0.18) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  color: #d1fae5 !important;
+}
+
+/* 9. Paneles, Tarjetas (Cards) y Modales bg-white en Dark Mode */
+.dark div.bg-white:not([style*="background"]):not([class*="rounded-full"]):not([class*="w-"]):not([class*="h-"]):not([class*="dark:bg-"]),
+.dark section.bg-white:not([style*="background"]):not([class*="dark:bg-"]),
+.dark article.bg-white:not([style*="background"]):not([class*="dark:bg-"]) {
+  background-color: #0e1526 !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9;
+}
+
+/* 7. Recharts Tooltips en Dark Mode */
+.dark .recharts-default-tooltip {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+  color: #f3f4f6 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .recharts-cartesian-grid line {
+  stroke: #1f2937 !important;
+}
+
+.dark .recharts-text {
+  fill: #9ca3af !important;
+}
+
+/* 8. Preservación estricta de documentos impresos */
+@media print {
+  html, body, .dark body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .dark * {
+    background-color: transparent !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border-color: #d1d5db !important;
   }
 }
