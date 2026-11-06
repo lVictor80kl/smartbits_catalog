@@ -9,6 +9,7 @@
     "build:extension-zip": "node scripts/build-extension-zip.mjs",
     "prebuild": "node scripts/build-extension-zip.mjs",
     "test:tasas": "node scripts/test-tasas.mjs",
+    "test:numeros": "node scripts/test-numeros.mjs",
     "test:resumen-venta": "node scripts/test-resumen-venta.mjs",
     "lint": "eslint .",
     "preview": "vite preview"

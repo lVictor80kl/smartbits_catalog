@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useCuentasCaja } from '../utils/useCuentasCaja';
 import { TIPO_TASA } from '../services/tasasCambioService';
+import { parseTasaInput, formatearDecimalInput } from '../utils/numeros';
 import TasasCambioModal from './TasasCambioModal';
 import { Settings2 } from 'lucide-react';
 
@@ -17,7 +18,7 @@ export default function TasasChipsSelector({ valorActual, onSeleccionar, showCon
   const { tasas, tasaCambio } = useCuentasCaja();
   const [modalOpen, setModalOpen] = useState(false);
 
-  const numActual = typeof valorActual === 'number' ? valorActual : parseFloat(String(valorActual || '').trim().replace(',', '.'));
+  const numActual = parseTasaInput(valorActual);
 
   const chips = [
     {
@@ -69,7 +70,7 @@ export default function TasasChipsSelector({ valorActual, onSeleccionar, showCon
             key={chip.tipo}
             type="button"
             onClick={() => onSeleccionar(chip.valor, chip.tipo)}
-            title={`Usar tasa ${chip.label}: Bs ${chip.valor.toFixed(2)}`}
+            title={`Usar tasa ${chip.label}: Bs ${formatearDecimalInput(chip.valor)}`}
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all border ${
               isSelected
                 ? 'bg-brand-600 text-white border-brand-700 shadow-xs ring-1 ring-brand-400'
@@ -79,7 +80,7 @@ export default function TasasChipsSelector({ valorActual, onSeleccionar, showCon
             <span>{chip.icono}</span>
             <span>{chip.label}</span>
             <span className={isSelected ? 'text-brand-100' : 'text-slate-500 font-semibold'}>
-              {chip.valor.toFixed(2)}
+              {formatearDecimalInput(chip.valor)}
             </span>
           </button>
         );

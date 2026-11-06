@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, delet
 import { db } from '../../../firebase';
 import { useCorteContable } from '../../../utils/useCorteContable';
 import { useCuentasCaja, parseDecimalInput } from '../../../utils/useCuentasCaja';
+import { parseTasaInput, formatearDecimalInput } from '../../../utils/numeros';
 import { calcularDiferencial, derivarTasaReal, calcularDestino } from '../../../utils/diferencialCambiario';
 import { getCostoBaseConComision, getLegadosExtrasUsd } from '../../../utils/costos';
 import {
@@ -135,7 +136,7 @@ export default function Movimientos() {
   // Sincronización bidireccional en el formulario de transferencia
   const syncDestinoDesdeTasa = (p, montoOrigen, tasa) => {
     const destino = calcularDestino({
-      montoOrigen, tasa,
+      montoOrigen: parseDecimalInput(montoOrigen), tasa: parseTasaInput(tasa),
       monedaOrigen: monedaTransOrigen,
       monedaDestino: monedaTransDestino
     });
@@ -167,11 +168,11 @@ export default function Movimientos() {
       const up = { ...p, monto_destino: val };
       if (esCambioDivisa && p.monto_origen && val) {
         const tasa = derivarTasaReal({
-          montoOrigen: p.monto_origen, montoDestino: val,
+          montoOrigen: parseDecimalInput(p.monto_origen), montoDestino: parseDecimalInput(val),
           monedaOrigen: monedaTransOrigen,
           monedaDestino: monedaTransDestino
         });
-        if (tasa !== null && Number.isFinite(tasa)) up.tasa_cambio = tasa.toFixed(2);
+        if (tasa !== null && Number.isFinite(tasa)) up.tasa_cambio = formatearDecimalInput(tasa);
       }
       return up;
     });
@@ -413,7 +414,7 @@ export default function Movimientos() {
 
         const cuentaSeleccionada = todasCuentas.find(c => c.key === formGasto.metodo_pago);
         const esBs = cuentaSeleccionada?.moneda === 'BS';
-        const tasaUsada = esBs ? (parseDecimalInput(formGasto.tasa) || tasaCambio) : 1;
+        const tasaUsada = esBs ? (parseTasaInput(formGasto.tasa) || tasaCambio) : 1;
         const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
         await addDoc(collection(db, 'gastos_operativos'), {
@@ -443,7 +444,7 @@ export default function Movimientos() {
 
         const cuentaSeleccionada = todasCuentas.find(c => c.key === formRetiro.cuenta_salida);
         const esBs = cuentaSeleccionada?.moneda === 'BS';
-        const tasaUsada = esBs ? (parseDecimalInput(formRetiro.tasa) || tasaCambio) : 1;
+        const tasaUsada = esBs ? (parseTasaInput(formRetiro.tasa) || tasaCambio) : 1;
         const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
         await addDoc(collection(db, 'gastos_personales'), {
@@ -475,7 +476,7 @@ export default function Movimientos() {
 
         const cuentaSeleccionada = todasCuentas.find(c => c.key === formAporte.cuenta_destino);
         const esBs = cuentaSeleccionada?.moneda === 'BS';
-        const tasaUsada = esBs ? (parseDecimalInput(formAporte.tasa) || tasaCambio) : 1;
+        const tasaUsada = esBs ? (parseTasaInput(formAporte.tasa) || tasaCambio) : 1;
         const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
         await addDoc(collection(db, 'aportes_socios'), {
@@ -511,7 +512,7 @@ export default function Movimientos() {
           if (cambioDivisa) {
             return calcularDestino({
               montoOrigen: montoSale,
-              tasa: parseDecimalInput(formTransfer.tasa_cambio) || tasaCambio,
+              tasa: parseTasaInput(formTransfer.tasa_cambio) || tasaCambio,
               monedaOrigen,
               monedaDestino
             });
@@ -520,7 +521,7 @@ export default function Movimientos() {
         })();
         if (montoSale <= 0 || montoLlega <= 0) throw new Error("Montos inválidos");
 
-        const tasaReal = cambioDivisa ? (parseDecimalInput(formTransfer.tasa_cambio) || tasaCambio) : null;
+        const tasaReal = cambioDivisa ? (parseTasaInput(formTransfer.tasa_cambio) || tasaCambio) : null;
         const tasaReferencia = tasaCambio;
         const diferencialUsd = calcularDiferencial({
           montoOrigen: montoSale,
@@ -972,19 +973,20 @@ export default function Movimientos() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Tasa de cambio (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={formGasto.tasa}
                       onChange={e => setFormGasto(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                      className="w-full min-w-0 flex-1 pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setFormGasto(p => ({ ...p, tasa: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setFormGasto(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
                 </div>
@@ -1057,19 +1059,20 @@ export default function Movimientos() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Tasa de cambio (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={formRetiro.tasa}
                       onChange={e => setFormRetiro(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                      className="w-full min-w-0 flex-1 pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setFormRetiro(p => ({ ...p, tasa: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setFormRetiro(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
                 </div>
@@ -1142,19 +1145,20 @@ export default function Movimientos() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Tasa de cambio (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={formAporte.tasa}
                       onChange={e => setFormAporte(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                      className="w-full min-w-0 flex-1 pl-3 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setFormAporte(p => ({ ...p, tasa: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setFormAporte(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
                 </div>
@@ -1227,19 +1231,20 @@ export default function Movimientos() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Tasa real de la operación (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={formTransfer.tasa_cambio}
                       onChange={handleTransTasaChange}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                      className="w-full min-w-0 flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-brand-500"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setFormTransfer(p => ({ ...p, tasa_cambio: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setFormTransfer(p => ({ ...p, tasa_cambio: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
                 </div>

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CUENTAS_FIJAS, parseDecimalInput } from '../../../utils/useCuentasCaja';
+import { parseTasaInput, formatearDecimalInput } from '../../../utils/numeros';
 import { normalizarTasas, resolverTasaCalculo } from '../../../utils/tasasCambio';
 import { resolverComisionCuenta } from '../../../utils/bancos';
 import TasasCambioModal from '../../../components/TasasCambioModal';
@@ -235,7 +236,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // Handlers de sincronización bidireccional en el formulario de transferencia
   const syncDestinoDesdeTasa = (p, montoOrigen, tasa) => {
     const destino = calcularDestino({
-      montoOrigen, tasa,
+      montoOrigen: parseDecimalInput(montoOrigen), tasa: parseTasaInput(tasa),
       monedaOrigen: monedaTransOrigen,
       monedaDestino: monedaTransDestino
     });
@@ -267,11 +268,11 @@ export default function PanelPrincipal({ onNavigateTab }) {
       const up = { ...p, monto_destino: val };
       if (esCambioDivisa && p.monto_origen && val) {
         const tasa = derivarTasaReal({
-          montoOrigen: p.monto_origen, montoDestino: val,
+          montoOrigen: parseDecimalInput(p.monto_origen), montoDestino: parseDecimalInput(val),
           monedaOrigen: monedaTransOrigen,
           monedaDestino: monedaTransDestino
         });
-        if (tasa !== null && Number.isFinite(tasa)) up.tasa_cambio = tasa.toFixed(2);
+        if (tasa !== null && Number.isFinite(tasa)) up.tasa_cambio = formatearDecimalInput(tasa);
       }
       return up;
     });
@@ -352,7 +353,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
     const cuentaSeleccionada = todasCuentas.find(c => c.key === modalGasto.metodo_pago);
     const esBs = cuentaSeleccionada?.moneda === 'BS';
-    const tasaUsada = esBs ? (Number(modalGasto.tasa) || tasaCambio) : 1;
+    const tasaUsada = esBs ? (parseTasaInput(modalGasto.tasa) || tasaCambio) : 1;
     const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
     setModalGasto(p => ({ ...p, saving: true }));
@@ -393,7 +394,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
     const cuentaSeleccionada = todasCuentas.find(c => c.key === modalVenta.metodo_pago);
     const esBs = cuentaSeleccionada?.moneda === 'BS';
-    const tasaUsada = esBs ? (Number(modalVenta.tasa) || tasaCambio) : 1;
+    const tasaUsada = esBs ? (parseTasaInput(modalVenta.tasa) || tasaCambio) : 1;
     const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
     const costoUsd = Math.max(Number(modalVenta.costo) || 0, 0);
     const ganancia = montoUsd - costoUsd;
@@ -456,7 +457,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
     const cuentaSeleccionada = todasCuentas.find(c => c.key === modalRetiro.cuenta_salida);
     const esBs = cuentaSeleccionada?.moneda === 'BS';
-    const tasaUsada = esBs ? (Number(modalRetiro.tasa) || tasaCambio) : 1;
+    const tasaUsada = esBs ? (parseTasaInput(modalRetiro.tasa) || tasaCambio) : 1;
     const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
     setModalRetiro(p => ({ ...p, saving: true }));
@@ -499,7 +500,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
 
     const cuentaSeleccionada = todasCuentas.find(c => c.key === modalAporte.cuenta_destino);
     const esBs = cuentaSeleccionada?.moneda === 'BS';
-    const tasaUsada = esBs ? (Number(modalAporte.tasa) || tasaCambio) : 1;
+    const tasaUsada = esBs ? (parseTasaInput(modalAporte.tasa) || tasaCambio) : 1;
     const montoUsd = esBs ? montoNum / tasaUsada : montoNum;
 
     setModalAporte(p => ({ ...p, saving: true }));
@@ -538,17 +539,17 @@ export default function PanelPrincipal({ onNavigateTab }) {
     if (modalTransfer.cuenta_origen === modalTransfer.cuenta_destino) {
       return alert("La cuenta origen y destino deben ser distintas.");
     }
-    const montoSale = Number(modalTransfer.monto_origen);
+    const montoSale = parseDecimalInput(modalTransfer.monto_origen);
     const monedaOrigen = monedaTransOrigen;
     const monedaDestino = monedaTransDestino;
     const cambioDivisa = monedaOrigen !== monedaDestino;
     const montoLlega = (() => {
-      const destinoManual = Number(modalTransfer.monto_destino);
+      const destinoManual = parseDecimalInput(modalTransfer.monto_destino);
       if (destinoManual && destinoManual > 0) return destinoManual;
       if (cambioDivisa) {
         return calcularDestino({
           montoOrigen: montoSale,
-          tasa: Number(modalTransfer.tasa_cambio) || tasaCambio,
+          tasa: parseTasaInput(modalTransfer.tasa_cambio) || tasaCambio,
           monedaOrigen,
           monedaDestino
         });
@@ -560,7 +561,7 @@ export default function PanelPrincipal({ onNavigateTab }) {
       return alert("Montos inválidos.");
     }
 
-    const tasaReal = cambioDivisa ? (Number(modalTransfer.tasa_cambio) || tasaCambio) : null;
+    const tasaReal = cambioDivisa ? (parseTasaInput(modalTransfer.tasa_cambio) || tasaCambio) : null;
     const tasaReferencia = tasaCambio;
     const diferencialUsd = calcularDiferencial({
       montoOrigen: montoSale,
@@ -790,8 +791,11 @@ export default function PanelPrincipal({ onNavigateTab }) {
   // 6. Cambiar Tasa de Cambio Global
   const handleGuardarTasa = async (e) => {
     e.preventDefault();
-    const tasaNum = parseDecimalInput(modalTasa.nuevaTasa);
-    if (isNaN(tasaNum) || tasaNum <= 0) return alert("Ingresa una tasa de cambio válida (ej. 95.50).");
+    const tasaNum = parseTasaInput(modalTasa.nuevaTasa);
+    if (isNaN(tasaNum) || tasaNum <= 0) return alert("Ingresa una tasa de cambio válida (ej: 1006,03).");
+    if (tasaNum < 10) {
+      return alert("La tasa debe ser mayor a 10 Bs por dólar (ej: 1006,03). Con una tasa menor, los saldos en bolívares se contabilizarían mal.");
+    }
 
     setModalTasa(p => ({ ...p, saving: true }));
     try {
@@ -1380,24 +1384,25 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa de cambio (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={modalGasto.tasa}
                       onChange={e => setModalGasto(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      className="w-full min-w-0 flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setModalGasto(p => ({ ...p, tasa: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setModalGasto(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
-                  <TasasChipsSelector 
-                    valorActual={modalGasto.tasa} 
-                    onSeleccionar={(t) => setModalGasto(p => ({ ...p, tasa: t.toString() }))} 
+                  <TasasChipsSelector
+                    valorActual={modalGasto.tasa}
+                    onSeleccionar={(t) => setModalGasto(p => ({ ...p, tasa: formatearDecimalInput(t) }))}
                   />
                 </div>
               )}
@@ -1508,24 +1513,25 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa de cambio (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={modalVenta.tasa}
                       onChange={e => setModalVenta(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      className="w-full min-w-0 flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setModalVenta(p => ({ ...p, tasa: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setModalVenta(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
-                  <TasasChipsSelector 
-                    valorActual={modalVenta.tasa} 
-                    onSeleccionar={(t) => setModalVenta(p => ({ ...p, tasa: t.toString() }))} 
+                  <TasasChipsSelector
+                    valorActual={modalVenta.tasa}
+                    onSeleccionar={(t) => setModalVenta(p => ({ ...p, tasa: formatearDecimalInput(t) }))}
                   />
                 </div>
               )}
@@ -1623,24 +1629,25 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa de cambio (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={modalRetiro.tasa}
                       onChange={e => setModalRetiro(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      className="w-full min-w-0 flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setModalRetiro(p => ({ ...p, tasa: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setModalRetiro(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
-                  <TasasChipsSelector 
-                    valorActual={modalRetiro.tasa} 
-                    onSeleccionar={(t) => setModalRetiro(p => ({ ...p, tasa: t.toString() }))} 
+                  <TasasChipsSelector
+                    valorActual={modalRetiro.tasa}
+                    onSeleccionar={(t) => setModalRetiro(p => ({ ...p, tasa: formatearDecimalInput(t) }))}
                   />
                 </div>
               )}
@@ -1750,24 +1757,25 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa de cambio (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={modalAporte.tasa}
                       onChange={e => setModalAporte(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      className="w-full min-w-0 flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setModalAporte(p => ({ ...p, tasa: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setModalAporte(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
-                  <TasasChipsSelector 
-                    valorActual={modalAporte.tasa} 
-                    onSeleccionar={(t) => setModalAporte(p => ({ ...p, tasa: t.toString() }))} 
+                  <TasasChipsSelector
+                    valorActual={modalAporte.tasa}
+                    onSeleccionar={(t) => setModalAporte(p => ({ ...p, tasa: formatearDecimalInput(t) }))}
                   />
                 </div>
               )}
@@ -1896,32 +1904,34 @@ export default function PanelPrincipal({ onNavigateTab }) {
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Tasa real de la operación (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0.01"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={modalTransfer.tasa_cambio}
                       onChange={handleTransTasaChange}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
+                      className="w-full min-w-0 flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold"
                       required
                     />
                     <button
                       type="button"
-                      onClick={() => setModalTransfer(p => ({ ...p, tasa_cambio: tasaCambio.toString() }))}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
+                      onClick={() => setModalTransfer(p => ({ ...p, tasa_cambio: formatearDecimalInput(tasaCambio) }))}
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
+                      className="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap"
                     >
-                      Usar guardada (Bs {tasaCambio.toFixed(2)})
+                      Usar guardada
                     </button>
                   </div>
-                  <TasasChipsSelector 
-                    valorActual={modalTransfer.tasa_cambio} 
+                  <TasasChipsSelector
+                    valorActual={modalTransfer.tasa_cambio}
                     onSeleccionar={(t) => {
                       setModalTransfer(p => {
-                        const up = { ...p, tasa_cambio: t.toString() };
+                        const valor = formatearDecimalInput(t);
+                        const up = { ...p, tasa_cambio: valor };
                         if (up.monto_origen) {
-                          up.monto_destino = syncDestinoDesdeTasa(up, up.monto_origen, t.toString());
+                          up.monto_destino = syncDestinoDesdeTasa(up, up.monto_origen, valor);
                         }
                         return up;
                       });
-                    }} 
+                    }}
                   />
                 </div>
               )}

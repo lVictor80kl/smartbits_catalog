@@ -14,6 +14,10 @@ import {
   UMBRAL_TASA_MINIMA,
 } from './tasasCambio';
 import { resolverComisionCuenta } from './bancos';
+import { parseDecimalInput, parseTasaInput } from './numeros';
+
+// Se re-exporta para mantener compatibilidad con las importaciones existentes
+export { parseDecimalInput };
 
 export const CUENTAS_FIJAS = [
   { key: 'efectivo', label: 'Efectivo ($)', moneda: 'USD' },
@@ -25,14 +29,6 @@ export const CUENTAS_FIJAS = [
   { key: 'venezuela', label: 'Banco Venezuela', moneda: 'BS' },
   { key: 'bolivares_bs', label: 'Otros Bs', moneda: 'BS' },
 ];
-
-export function parseDecimalInput(val) {
-  if (val === null || val === undefined) return 0;
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  const sanitized = String(val).trim().replace(',', '.');
-  const num = parseFloat(sanitized);
-  return isNaN(num) ? 0 : num;
-}
 
 export function useCuentasCaja() {
   const [saldos, setSaldos] = useState({});
@@ -237,7 +233,7 @@ export function useCuentasCaja() {
 
   // Actualiza el valor de la tasa Custom / Manual acordada
   const actualizarTasaCustom = async (nuevoValor) => {
-    const valorSanitizado = sanitizarNumeroTasa(nuevoValor);
+    const valorSanitizado = sanitizarNumeroTasa(parseTasaInput(nuevoValor));
     if (!valorSanitizado || valorSanitizado <= 0) {
       throw new Error('Ingresa un valor de tasa válido.');
     }
@@ -258,7 +254,7 @@ export function useCuentasCaja() {
 
   // Helper para actualizar la tasa de cambio global (mantiene retrocompatibilidad asignando a custom)
   const actualizarTasaCambio = async (nuevaTasa) => {
-    const tasaNum = parseDecimalInput(nuevaTasa);
+    const tasaNum = parseTasaInput(nuevaTasa);
     if (isNaN(tasaNum) || tasaNum <= 0) throw new Error('Tasa de cambio inválida.');
     if (!esTasaAceptable(tasaNum)) {
       throw new Error(

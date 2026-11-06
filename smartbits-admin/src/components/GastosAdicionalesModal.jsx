@@ -3,7 +3,8 @@ import {
   writeBatch, doc, collection, increment, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useCuentasCaja } from '../utils/useCuentasCaja';
+import { useCuentasCaja, parseDecimalInput } from '../utils/useCuentasCaja';
+import { parseTasaInput, formatearDecimalInput } from '../utils/numeros';
 import TasasChipsSelector from './TasasChipsSelector';
 import {
   getGastosExtraItems, getGastosExtraTotal, getLegadosExtrasUsd, getCostoBaseConComision,
@@ -50,8 +51,8 @@ export default function GastosAdicionalesModal({
 
   const cuentaSel = todasCuentas.find(c => c.key === form.cuenta_key);
   const esBs = !yaRegistradoEnCaja && cuentaSel?.moneda === 'BS';
-  const montoNum = parseFloat(form.monto) || 0;
-  const tasaUsada = esBs ? (parseFloat(form.tasa) || tasaCambio) : null;
+  const montoNum = parseDecimalInput(form.monto);
+  const tasaUsada = esBs ? (parseTasaInput(form.tasa) || tasaCambio) : null;
 
   const count = itemsList.length;
 
@@ -596,24 +597,24 @@ export default function GastosAdicionalesModal({
                   <label className="block text-xs font-bold text-slate-700 mb-1">Tasa (Bs/$)</label>
                   <div className="flex gap-2">
                     <input
-                      type="number" step="0.01" min="0"
-                      placeholder={tasaCambio.toFixed(2)}
+                      type="text" inputMode="decimal"
+                      placeholder={formatearDecimalInput(tasaCambio)}
                       value={form.tasa}
                       onChange={e => setForm(p => ({ ...p, tasa: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-brand-500 bg-white"
+                      className="w-full min-w-0 flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-brand-500 bg-white"
                     />
                     <button
                       type="button"
-                      onClick={() => setForm(p => ({ ...p, tasa: tasaCambio.toString() }))}
-                      className="px-2 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg whitespace-nowrap"
-                      title="Usar tasa guardada en caja"
+                      onClick={() => setForm(p => ({ ...p, tasa: formatearDecimalInput(tasaCambio) }))}
+                      className="shrink-0 px-2 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg whitespace-nowrap"
+                      title={`Usar la tasa guardada: Bs ${formatearDecimalInput(tasaCambio)}`}
                     >
                       Guardada
                     </button>
                   </div>
-                  <TasasChipsSelector 
-                    valorActual={form.tasa} 
-                    onSeleccionar={(t) => setForm(p => ({ ...p, tasa: t.toString() }))} 
+                  <TasasChipsSelector
+                    valorActual={form.tasa}
+                    onSeleccionar={(t) => setForm(p => ({ ...p, tasa: formatearDecimalInput(t) }))}
                   />
                 </div>
               ) : (

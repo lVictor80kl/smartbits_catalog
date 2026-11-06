@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useCuentasCaja, parseDecimalInput } from '../../utils/useCuentasCaja';
+import { parseTasaInput, formatearDecimalInput } from '../../utils/numeros';
 import { calcularResumenVenta, pagosSinMonto } from '../../utils/resumenVenta';
 import TasasChipsSelector from '../../components/TasasChipsSelector';
 import TasasCambioModal from '../../components/TasasCambioModal';
@@ -135,7 +136,7 @@ export default function ComponentDeliveryNote() {
       const updateData = { disponibilidad: newStatus };
 
       if (newStatus === 'No disponible') {
-        const tasaNum = parseDecimalInput(tasa);
+        const tasaNum = parseTasaInput(tasa);
         if (metodosSinMonto.length > 0) {
           alert(`Atención: Escribe el monto del método de pago: ${metodosSinMonto.join(', ')}. Cada método de pago seleccionado debe tener su monto.`);
           setUpdatingStatus(false);
@@ -368,11 +369,11 @@ export default function ComponentDeliveryNote() {
   // Auto-populate default rate from Finanzas
   useEffect(() => {
     if (tasaCambio && !tasa) {
-      setTasa(String(tasaCambio));
+      setTasa(formatearDecimalInput(tasaCambio));
     }
   }, [tasaCambio]);
 
-  const tasaNum = parseDecimalInput(tasa);
+  const tasaNum = parseTasaInput(tasa);
   const formatMonto = (val) => Number(val || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 });
 
   const precioUnitUSD = component?.precio ?? 0;
@@ -735,10 +736,10 @@ export default function ComponentDeliveryNote() {
               }`}
             />
             <span className="text-sm font-medium text-slate-700">Bs</span>
-            {tasaCambio > 0 && parseDecimalInput(tasa) !== tasaCambio && (
+            {tasaCambio > 0 && parseTasaInput(tasa) !== tasaCambio && (
               <button
                 type="button"
-                onClick={() => setTasa(String(tasaCambio))}
+                onClick={() => setTasa(formatearDecimalInput(tasaCambio))}
                 className="text-xs text-purple-800 underline hover:text-purple-900 font-medium ml-2"
               >
                 Usar tasa de Finanzas

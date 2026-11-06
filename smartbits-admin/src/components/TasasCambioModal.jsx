@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useCuentasCaja } from '../utils/useCuentasCaja';
 import { TIPO_TASA } from '../services/tasasCambioService';
+import { formatearDecimalInput } from '../utils/numeros';
 
 export default function TasasCambioModal({ isOpen, onClose }) {
   const { 
@@ -239,7 +240,7 @@ export default function TasasCambioModal({ isOpen, onClose }) {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-white tracking-tight">
-                  Bs {tasaCambio.toFixed(2)}
+                  Bs {formatearDecimalInput(tasaCambio)}
                 </span>
                 <span className="text-xs text-slate-300 font-semibold">
                   por cada $1.00 USD
@@ -302,7 +303,7 @@ export default function TasasCambioModal({ isOpen, onClose }) {
                       </div>
                     ) : (
                       <div className="text-2xl font-black text-slate-900 mb-1">
-                        {tieneValor ? `Bs ${item.valor.toFixed(2)}` : (
+                        {tieneValor ? `Bs ${formatearDecimalInput(item.valor)}` : (
                           <span className="text-sm font-bold text-slate-400">No disponible</span>
                         )}
                       </div>
@@ -375,10 +376,9 @@ export default function TasasCambioModal({ isOpen, onClose }) {
               <div className="relative flex-1 min-w-[140px]">
                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-xs font-bold">Bs</span>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="Ej: 980.00"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Ej: 1.006,03"
                   value={customInput}
                   onChange={e => setCustomInput(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-black text-slate-900 focus:ring-2 focus:ring-amber-500 bg-white"

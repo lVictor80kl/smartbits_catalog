@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Download, Loader2, Plus, X, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCuentasCaja, parseDecimalInput } from '../../utils/useCuentasCaja';
+import { parseTasaInput, formatearDecimalInput } from '../../utils/numeros';
 import { calcularResumenVenta, pagosSinMonto } from '../../utils/resumenVenta';
 import TasasChipsSelector from '../../components/TasasChipsSelector';
 import TasasCambioModal from '../../components/TasasCambioModal';
@@ -132,11 +133,11 @@ export default function ServiceDeliveryNote() {
   // Auto-populate default rate from Finanzas
   useEffect(() => {
     if (tasaCambio && !tasa) {
-      setTasa(String(tasaCambio));
+      setTasa(formatearDecimalInput(tasaCambio));
     }
   }, [tasaCambio]);
 
-  const tasaNum = parseDecimalInput(tasa);
+  const tasaNum = parseTasaInput(tasa);
   const formatMonto = (val) => Number(val || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 });
 
   const precioDisplay = costoServicioNum;
@@ -502,10 +503,10 @@ export default function ServiceDeliveryNote() {
               }`}
             />
             <span className="text-sm font-medium text-slate-700">Bs</span>
-            {tasaCambio > 0 && parseDecimalInput(tasa) !== tasaCambio && (
+            {tasaCambio > 0 && parseTasaInput(tasa) !== tasaCambio && (
               <button
                 type="button"
-                onClick={() => setTasa(String(tasaCambio))}
+                onClick={() => setTasa(formatearDecimalInput(tasaCambio))}
                 className="text-xs text-amber-800 underline hover:text-amber-900 font-medium ml-2"
               >
                 Usar tasa de Finanzas
