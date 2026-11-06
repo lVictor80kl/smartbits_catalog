@@ -10,7 +10,7 @@ import {
   Box, ArrowRight, DollarSign, Calendar, RefreshCw, X, ShieldAlert,
   Info, Sparkles, Filter, Check, EyeOff, RotateCcw, Link as LinkIcon,
   CheckCircle, Unlink, Layers, Edit2, Plus, Printer, Truck, MapPin,
-  Copy, AlertCircle, TrendingUp
+  Copy, AlertCircle, TrendingUp, LayoutDashboard
 } from 'lucide-react';
 import { 
   getTrackingUrlUsa, COURIERS_USA,
@@ -2282,9 +2282,24 @@ export default function ComprasEbay() {
                       </>
                     )}
 
-                    {/* Si YA está en inventario: Botón para Editar Ficha */}
+                    {/* Si YA está en inventario: Botones para Ver en Inventario y Editar Ficha */}
                     {hasInv && invObj?.item && (
                       <>
+                        <button
+                          onClick={() => {
+                            if (invObj.type === 'laptop') {
+                              navigate(`/admin?highlight=${invObj.item.id}`);
+                            } else {
+                              navigate(`/admin/components?highlight=${invObj.item.id}`);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-800 dark:text-teal-200 bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/50 border border-teal-200 dark:border-teal-800 rounded-lg transition shadow-2xs"
+                          title="Ubicar y seleccionar este equipo en el listado de inventario"
+                        >
+                          <LayoutDashboard className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                          <span>Ver en Inventario</span>
+                        </button>
+
                         <button
                           onClick={() => {
                             if (invObj.type === 'laptop') navigate(`/admin/edit/${invObj.item.id}`);

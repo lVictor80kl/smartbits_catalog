@@ -71,7 +71,11 @@ export default function Catalog() {
   // sin efectos y siempre con los datos frescos de Firestore.
   const selectedLaptop = useMemo(() => {
     if (!id || loading) return null;
-    return laptops.find(l => l.id === id && !l.borrador) || null;
+    return laptops.find(l => 
+      l.id === id && 
+      !l.borrador && 
+      (l.disponibilidad || '').toLowerCase() !== 'no disponible'
+    ) || null;
   }, [id, laptops, loading]);
 
   const notFound = Boolean(id) && !loading && !selectedLaptop;
@@ -80,15 +84,23 @@ export default function Catalog() {
     if (id) navigate('/');
   };
 
-  const brands = ["Todas", ...new Set(laptops.map(l => l.marca))];
+  const brands = useMemo(() => {
+    const validBrands = laptops
+      .filter(l => !l.borrador && (l.disponibilidad || '').toLowerCase() !== 'no disponible' && l.marca)
+      .map(l => l.marca);
+    return ["Todas", ...new Set(validBrands)];
+  }, [laptops]);
+
   const cpuOptions = ["Todos", "Intel Core i3", "Intel Core i5", "Intel Core i7", "Intel Core i9", "AMD Ryzen 3", "AMD Ryzen 5", "AMD Ryzen 7", "AMD Ryzen 9"];
   const ramOptions = ["Todas", "8 Gb", "12 Gb", "16 Gb", "32 Gb"];
   const storageOptions = ["Todas", "256 Gb", "512 Gb", "1 Tb", "2 Tb"];
-  const availabilityOptions = ["Todos", "Disponible", "Coming soon", "No disponible"];
+  const availabilityOptions = ["Todos", "Disponible", "Coming soon"];
 
   const filteredLaptops = useMemo(() => {
     return laptops.filter(laptop => {
       if (laptop.borrador) return false;
+      // Ocultar equipos con estado "No disponible" del catálogo público
+      if ((laptop.disponibilidad || '').toLowerCase() === 'no disponible') return false;
 
       let parsedSearch = searchTerm.toLowerCase();
       const searchWords = parsedSearch.split(' ').filter(w => w.trim() !== '');
@@ -110,12 +122,11 @@ export default function Catalog() {
       return matchSearch && matchBrand && matchRam && matchStorage && matchCpu && matchPrice && matchAvailability;
     }).sort((a, b) => {
       const getDispWeight = (disp) => {
-        if (!disp) return 4;
+        if (!disp) return 3;
         const d = disp.toLowerCase();
         if (d === 'disponible') return 1;
         if (d === 'coming soon') return 2;
-        if (d === 'no disponible') return 3;
-        return 4;
+        return 3;
       };
       const weightA = getDispWeight(a.disponibilidad);
       const weightB = getDispWeight(b.disponibilidad);
@@ -134,7 +145,7 @@ export default function Catalog() {
   }, [laptops, searchTerm, selectedBrand, selectedRam, selectedStorage, selectedCpu, maxPrice, selectedAvailability]);
 
   const compareItems = useMemo(
-    () => compareIds.map((id) => laptops.find((l) => l.id === id)).filter(Boolean),
+    () => compareIds.map((id) => laptops.find((l) => l.id === id && !l.borrador && (l.disponibilidad || '').toLowerCase() !== 'no disponible')).filter(Boolean),
     [compareIds, laptops]
   );
 

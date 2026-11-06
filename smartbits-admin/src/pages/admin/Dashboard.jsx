@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -10,7 +10,7 @@ import {
   Clock, AlertCircle, ArrowUpDown, Cpu, HardDrive, MemoryStick, Eye,
   TrendingUp, Truck, Share2, Check
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
 import { tieneEnvioPagado, tienePagoExtra, getCostoTotal } from '../../utils/costos';
 
@@ -40,9 +40,19 @@ export default function Dashboard() {
   const [filterExtras, setFilterExtras] = useState('todos'); // 'todos' | 'con_extras' | 'sin_extras'
   const [searchTerm, setSearchTerm] = useState('');
   const [priceSort, setPriceSort] = useState('asc');
+
+  // Límite visible para paginación progresiva (máximo 30 inicial)
+  const ITEMS_PER_PAGE = 30;
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   
   // Selección múltiple
   const [selectedIds, setSelectedIds] = useState([]);
+
+  // Parámetro de URL para resaltar / localizar equipo desde Compras u otros módulos
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightParam = searchParams.get('highlight');
+  const [highlightedId, setHighlightedId] = useState(null);
+  const handledHighlightRef = useRef(null);
   
   // Modales
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
@@ -117,6 +127,61 @@ export default function Dashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Auto-scroll, selección y resaltado cuando se navega con ?highlight=ID desde Compras
+  useEffect(() => {
+    if (!highlightParam || loading || laptops.length === 0) return;
+    if (handledHighlightRef.current === highlightParam) return;
+
+    const target = laptops.find(l => l.id === highlightParam);
+    if (target) {
+      handledHighlightRef.current = highlightParam;
+
+      // Limpiar filtros para garantizar que el equipo esté visible
+      setFilterDisp([]);
+      setFilterMarca([]);
+      setFilterRam([]);
+      setFilterStorage([]);
+      setFilterCpu('');
+      setFilterOfertasOnly(false);
+      setFilterBorradoresOnly(false);
+      setFilterEnvio('todos');
+      setFilterExtras('todos');
+      setSearchTerm('');
+
+      // Asegurar que visibleCount sea suficiente para renderizar el equipo
+      const targetIndex = laptops.findIndex(l => l.id === highlightParam);
+      if (targetIndex >= 0) {
+        setVisibleCount(prev => Math.max(prev, targetIndex + 15));
+      }
+
+      // Seleccionar el equipo
+      setSelectedIds([highlightParam]);
+      setHighlightedId(highlightParam);
+
+      // Desplazamiento suave con varios intentos para garantizar que el DOM ya se haya pintado
+      const scrollToTarget = (attempt = 0) => {
+        const el = document.getElementById(`laptop-${highlightParam}`) ||
+          document.getElementById(`laptop-mobile-${highlightParam}`) ||
+          document.getElementById(`laptop-grid-${highlightParam}`) ||
+          document.querySelector(`[data-laptop-id="${highlightParam}"]`);
+
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (attempt < 8) {
+          setTimeout(() => scrollToTarget(attempt + 1), 120);
+        }
+      };
+
+      setTimeout(() => scrollToTarget(0), 100);
+
+      const timer = setTimeout(() => {
+        setHighlightedId(null);
+      }, 7000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [highlightParam, loading, laptops]);
 
   // Estado para alternar entre ver el valor total del inventario o solo de las disponibles
   const [valorDisplayMode, setValorDisplayMode] = useState('total'); // 'total' | 'disponibles'
@@ -284,10 +349,12 @@ export default function Dashboard() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === filteredLaptops.length) {
-      setSelectedIds([]);
+    const displayedIds = displayedLaptops.map(l => l.id);
+    const allDisplayedSelected = displayedIds.length > 0 && displayedIds.every(id => selectedIds.includes(id));
+    if (allDisplayedSelected) {
+      setSelectedIds(prev => prev.filter(id => !displayedIds.includes(id)));
     } else {
-      setSelectedIds(filteredLaptops.map(l => l.id));
+      setSelectedIds(prev => Array.from(new Set([...prev, ...displayedIds])));
     }
   };
 
@@ -482,7 +549,17 @@ export default function Dashboard() {
     setFilterExtras('todos');
     setSearchTerm('');
     setPriceSort('asc');
+    setVisibleCount(ITEMS_PER_PAGE);
   };
+
+  // Restablecer el límite visible al cambiar filtros o búsqueda
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [
+    filterDisp, filterMarca, filterRam, filterStorage, filterCpu,
+    filterOfertasOnly, filterBorradoresOnly, filterEnvio, filterExtras,
+    searchTerm, priceSort
+  ]);
 
   // Filtrado y ordenamiento
   const filteredLaptops = laptops
@@ -519,9 +596,67 @@ export default function Dashboard() {
       return 0;
     });
 
+  // Equipos visibles recortados por el límite de paginación progresiva (máximo 30 inicial)
+  const displayedLaptops = useMemo(() => {
+    return filteredLaptops.slice(0, visibleCount);
+  }, [filteredLaptops, visibleCount]);
+
+  const hasMore = visibleCount < filteredLaptops.length;
+  const remainingCount = Math.max(0, filteredLaptops.length - visibleCount);
+  const tableTopRef = useRef(null);
+
+  const handleShowMore = () => {
+    setVisibleCount(prev => prev + ITEMS_PER_PAGE);
+  };
+
+  const handleCollapse = () => {
+    setVisibleCount(ITEMS_PER_PAGE);
+    if (tableTopRef.current) {
+      tableTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       
+      {/* Banner de Equipo Localizado */}
+      {highlightedId && (
+        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-3 w-3 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <span className="font-medium">
+              Equipo localizado y seleccionado: <strong>{laptops.find(l => l.id === highlightedId)?.modelo || 'Equipo'}</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <button
+              onClick={() => {
+                const target = laptops.find(l => l.id === highlightedId);
+                if (target) setSearchTerm(target.modelo);
+              }}
+              className="px-2.5 py-1 text-xs font-bold text-amber-900 bg-amber-200/80 hover:bg-amber-300/80 border border-amber-300 rounded-lg transition"
+              title="Filtrar la tabla para mostrar solo este modelo"
+            >
+              Aislar con filtro
+            </button>
+            <button
+              onClick={() => {
+                setHighlightedId(null);
+                searchParams.delete('highlight');
+                setSearchParams(searchParams, { replace: true });
+              }}
+              className="p-1 text-amber-700 hover:bg-amber-200/60 rounded-lg transition"
+              title="Cerrar aviso"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Header Principal con Acciones Rápidas */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/80 shadow-xs">
         <div>
@@ -532,7 +667,13 @@ export default function Dashboard() {
             <div>
               <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Inventario de Equipos</h1>
               <p className="text-gray-500 text-xs font-medium mt-0.5">
-                {loading ? 'Sincronizando inventario...' : `${filteredLaptops.length} de ${laptops.length} equipos mostrados`}
+                {loading
+                  ? 'Sincronizando inventario...'
+                  : displayedLaptops.length < filteredLaptops.length
+                    ? `Mostrando ${displayedLaptops.length} de ${filteredLaptops.length} equipos (${laptops.length} en total)`
+                    : filteredLaptops.length !== laptops.length
+                      ? `${filteredLaptops.length} de ${laptops.length} equipos mostrados`
+                      : `${laptops.length} equipos en inventario`}
               </p>
             </div>
           </div>
@@ -746,7 +887,7 @@ export default function Dashboard() {
       )}
 
       {/* 3. Toolbar Principal de Búsqueda, Filtros y Selector de Vista */}
-      <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs overflow-hidden transition-all">
+      <div ref={tableTopRef} className="bg-white rounded-2xl border border-gray-200/80 shadow-xs overflow-hidden transition-all">
         
         {/* Barra superior de herramientas */}
         <div className="p-3.5 sm:p-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -1189,11 +1330,17 @@ export default function Dashboard() {
           <div>
             {/* ===== VISTA DE LISTA COMPACTA ADAPTADA A CELULAR (md:hidden) ===== */}
             <div className="md:hidden divide-y divide-gray-100">
-              {filteredLaptops.map(laptop => (
+              {displayedLaptops.map(laptop => (
                 <div
                   key={laptop.id}
-                  className={`p-3.5 flex flex-col gap-2.5 transition-colors ${
-                    selectedIds.includes(laptop.id) ? 'bg-brand-50/40' : 'hover:bg-gray-50/60'
+                  id={`laptop-mobile-${laptop.id}`}
+                  data-laptop-id={laptop.id}
+                  className={`p-3.5 flex flex-col gap-2.5 transition-all duration-500 rounded-xl ${
+                    laptop.id === highlightedId
+                      ? 'bg-amber-100/90 ring-2 ring-amber-500 shadow-md'
+                      : selectedIds.includes(laptop.id)
+                        ? 'bg-brand-50/40'
+                        : 'hover:bg-gray-50/60'
                   }`}
                 >
                   {/* Fila superior: Checkbox, Miniatura, Título, Estado */}
@@ -1325,7 +1472,7 @@ export default function Dashboard() {
                     <input
                       type="checkbox"
                       className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-                      checked={filteredLaptops.length > 0 && selectedIds.length === filteredLaptops.length}
+                      checked={displayedLaptops.length > 0 && displayedLaptops.every(l => selectedIds.includes(l.id))}
                       onChange={toggleSelectAll}
                       title="Seleccionar todos los mostrados"
                     />
@@ -1338,11 +1485,17 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs">
-                {filteredLaptops.map(laptop => (
+                {displayedLaptops.map(laptop => (
                   <tr 
                     key={laptop.id} 
-                    className={`hover:bg-gray-50/80 transition-colors group ${
-                      selectedIds.includes(laptop.id) ? 'bg-brand-50/30' : ''
+                    id={`laptop-${laptop.id}`}
+                    data-laptop-id={laptop.id}
+                    className={`transition-all duration-500 group ${
+                      laptop.id === highlightedId
+                        ? 'bg-amber-100/90 ring-2 ring-inset ring-amber-500 font-semibold shadow-md'
+                        : selectedIds.includes(laptop.id) 
+                          ? 'bg-brand-50/30' 
+                          : 'hover:bg-gray-50/80'
                     }`}
                   >
                     {/* Checkbox de selección */}
@@ -1519,13 +1672,17 @@ export default function Dashboard() {
 
           /* ===== VISTA DE CUADRÍCULA (GRID CARDS) ===== */
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredLaptops.map(laptop => (
+            {displayedLaptops.map(laptop => (
               <div
                 key={laptop.id}
-                className={`bg-white rounded-2xl border transition-all flex flex-col justify-between overflow-hidden group hover:shadow-md ${
-                  selectedIds.includes(laptop.id) 
-                    ? 'border-brand-400 ring-2 ring-brand-500/20 shadow-xs' 
-                    : 'border-gray-200/90 hover:border-gray-300'
+                id={`laptop-grid-${laptop.id}`}
+                data-laptop-id={laptop.id}
+                className={`bg-white rounded-2xl border transition-all duration-500 flex flex-col justify-between overflow-hidden group hover:shadow-md ${
+                  laptop.id === highlightedId
+                    ? 'border-amber-500 ring-4 ring-amber-500/40 shadow-xl scale-[1.02]'
+                    : selectedIds.includes(laptop.id) 
+                      ? 'border-brand-400 ring-2 ring-brand-500/20 shadow-xs' 
+                      : 'border-gray-200/90 hover:border-gray-300'
                 }`}
               >
                 {/* Cabecera de la Tarjeta con Imagen y Checkbox */}
@@ -1653,6 +1810,65 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* 4.1. Barra de paginación progresiva: Mostrar más (corta la vista a 30 por defecto) */}
+        {hasMore && (
+          <div className="p-4 sm:p-5 bg-gray-50/70 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <p className="text-gray-500 font-medium text-center sm:text-left">
+              Mostrando <span className="font-bold text-gray-900">{displayedLaptops.length}</span> de{' '}
+              <span className="font-bold text-gray-900">{filteredLaptops.length}</span> equipos
+              {remainingCount > 0 && (
+                <span className="text-gray-400 ml-1">({remainingCount} restante{remainingCount !== 1 ? 's' : ''})</span>
+              )}
+            </p>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-center flex-wrap">
+              {visibleCount > ITEMS_PER_PAGE && (
+                <button
+                  type="button"
+                  onClick={handleCollapse}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-medium transition-colors cursor-pointer text-xs"
+                  title="Volver a mostrar solo los primeros 30"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                  <span>Volver a ocultar</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleShowMore}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white rounded-xl font-bold shadow-xs transition-colors cursor-pointer"
+              >
+                <ChevronDown className="w-4 h-4" />
+                <span>Mostrar más (+{Math.min(ITEMS_PER_PAGE, remainingCount)})</span>
+              </button>
+              {remainingCount > ITEMS_PER_PAGE && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount(filteredLaptops.length)}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl font-medium transition-colors cursor-pointer text-xs"
+                >
+                  Mostrar todos ({filteredLaptops.length})
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!hasMore && filteredLaptops.length > ITEMS_PER_PAGE && (
+          <div className="p-4 sm:p-5 bg-gray-50/70 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <p className="text-gray-500 font-medium text-center sm:text-left">
+              Has llegado al final • Mostrando los <span className="font-bold text-gray-900">{filteredLaptops.length}</span> equipos
+            </p>
+            <button
+              type="button"
+              onClick={handleCollapse}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-900 hover:bg-black active:scale-[0.98] text-white rounded-xl font-bold shadow-xs transition-all cursor-pointer"
+            >
+              <ChevronUp className="w-4 h-4" />
+              <span>Volver a ocultar</span>
+            </button>
           </div>
         )}
       </div>

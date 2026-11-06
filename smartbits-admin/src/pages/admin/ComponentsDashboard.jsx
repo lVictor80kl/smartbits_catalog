@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -6,7 +6,7 @@ import {
   PlusCircle, Edit, Trash2, Loader2, FileText, MoreVertical,
   Flame, Copy, Banknote, X
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import GastosAdicionalesModal from '../../components/GastosAdicionalesModal';
 import OfertaModal from '../../components/OfertaModal';
 import { tieneEnvioPagado, tienePagoExtra } from '../../utils/costos';
@@ -24,6 +24,12 @@ export default function ComponentsDashboard() {
   const [priceSort, setPriceSort] = useState('asc');
   const [selectedIds, setSelectedIds] = useState([]);
 
+  // Parámetro de URL para resaltar / localizar componente desde Compras u otros módulos
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightParam = searchParams.get('highlight');
+  const [highlightedId, setHighlightedId] = useState(null);
+  const handledHighlightRef = useRef(null);
+
   // Modales y menús
   const [showDeleteModal, setShowDeleteModal] = useState({ show: false, ids: [], names: '' });
   const [gastosModalComponent, setGastosModalComponent] = useState(null);
@@ -40,6 +46,48 @@ export default function ComponentsDashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Auto-scroll, selección y resaltado cuando se navega con ?highlight=ID desde Compras
+  useEffect(() => {
+    if (!highlightParam || loading || components.length === 0) return;
+    if (handledHighlightRef.current === highlightParam) return;
+
+    const target = components.find(c => c.id === highlightParam);
+    if (target) {
+      handledHighlightRef.current = highlightParam;
+
+      // Limpiar filtros para garantizar que el componente esté visible
+      setFilterDisp('Todas');
+      setFilterTipo('Todos');
+      setFilterBorrador('Todos');
+      setFilterOfertasOnly(false);
+      setSearchTerm('');
+
+      // Seleccionar el componente
+      setSelectedIds([highlightParam]);
+      setHighlightedId(highlightParam);
+
+      // Desplazamiento suave hacia el componente
+      const scrollToTarget = (attempt = 0) => {
+        const el = document.getElementById(`comp-${highlightParam}`) ||
+          document.querySelector(`[data-comp-id="${highlightParam}"]`);
+
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (attempt < 8) {
+          setTimeout(() => scrollToTarget(attempt + 1), 120);
+        }
+      };
+
+      setTimeout(() => scrollToTarget(0), 100);
+
+      const timer = setTimeout(() => {
+        setHighlightedId(null);
+      }, 7000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [highlightParam, loading, components]);
 
   const toggleActionMenu = (comp, e) => {
     e.stopPropagation();
@@ -216,6 +264,45 @@ export default function ComponentsDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+
+      {/* Banner de Componente Localizado */}
+      {highlightedId && (
+        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-3 w-3 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <span className="font-medium">
+              Componente localizado y seleccionado: <strong>{components.find(c => c.id === highlightedId)?.nombre || 'Componente'}</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <button
+              onClick={() => {
+                const target = components.find(c => c.id === highlightedId);
+                if (target) setSearchTerm(target.nombre);
+              }}
+              className="px-2.5 py-1 text-xs font-bold text-amber-900 bg-amber-200/80 hover:bg-amber-300/80 border border-amber-300 rounded-lg transition"
+              title="Filtrar la tabla para mostrar solo este componente"
+            >
+              Aislar con filtro
+            </button>
+            <button
+              onClick={() => {
+                setHighlightedId(null);
+                searchParams.delete('highlight');
+                setSearchParams(searchParams, { replace: true });
+              }}
+              className="p-1 text-amber-700 hover:bg-amber-200/60 rounded-lg transition"
+              title="Cerrar aviso"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Header Principal */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/80 shadow-xs">
         <div>
@@ -356,7 +443,15 @@ export default function ComponentsDashboard() {
                 {filteredComponents.map(comp => (
                   <tr
                     key={comp.id}
-                    className={`hover:bg-gray-50/60 transition-colors ${selectedIds.includes(comp.id) ? 'bg-purple-50/30' : ''}`}
+                    id={`comp-${comp.id}`}
+                    data-comp-id={comp.id}
+                    className={`transition-all duration-500 ${
+                      comp.id === highlightedId
+                        ? 'bg-amber-100/90 ring-2 ring-inset ring-amber-500 font-semibold shadow-md'
+                        : selectedIds.includes(comp.id)
+                          ? 'bg-purple-50/30'
+                          : 'hover:bg-gray-50/60'
+                    }`}
                   >
                     <td className="px-6 py-4">
                       <input

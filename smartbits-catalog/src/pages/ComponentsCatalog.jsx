@@ -54,6 +54,9 @@ export default function ComponentsCatalog() {
       const isDraft = comp.borrador === true || comp.borrador === 'true';
       if (isDraft) return false;
 
+      // Ocultar componentes con estado "No disponible" del catálogo público
+      if ((comp.disponibilidad || '').toLowerCase() === 'no disponible') return false;
+
       const searchWords = searchTerm.toLowerCase().split(' ').filter(w => w.trim() !== '');
       const matchSearch = searchWords.every(word => {
         const fullText = `${comp.nombre} ${comp.marca} ${comp.tipo}`.toLowerCase();
@@ -65,12 +68,11 @@ export default function ComponentsCatalog() {
       return matchSearch && matchTipo;
     }).sort((a, b) => {
       const getDispWeight = (disp) => {
-        if (!disp) return 4;
+        if (!disp) return 3;
         const d = disp.toLowerCase();
         if (d === 'disponible') return 1;
         if (d === 'coming soon') return 2;
-        if (d === 'no disponible') return 3;
-        return 4;
+        return 3;
       };
       const weightA = getDispWeight(a.disponibilidad);
       const weightB = getDispWeight(b.disponibilidad);
@@ -85,7 +87,7 @@ export default function ComponentsCatalog() {
   }, [components, searchTerm, selectedTipo]);
 
   const compareItems = useMemo(
-    () => compareIds.map((id) => components.find((c) => c.id === id)).filter(Boolean),
+    () => compareIds.map((id) => components.find((c) => c.id === id && (c.disponibilidad || '').toLowerCase() !== 'no disponible')).filter(Boolean),
     [compareIds, components]
   );
 
