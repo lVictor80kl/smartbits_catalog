@@ -157,6 +157,8 @@ export default function TrackingsDashboard() {
     // Filtro por Estado
     if (filterEstado === 'currier_vzla') {
       if (t.estado !== 'en_miami' && t.estado !== 'transito_vzla') return false;
+    } else if (filterEstado === 'por_prealertar') {
+      if (t.prealertado || t.estado === 'ya_recogido') return false;
     } else if (filterEstado === 'todos') {
       if (t.estado === 'ya_recogido' && !searchTerm.trim()) return false;
     } else if (filterEstado !== 'todos' && t.estado !== filterEstado) {

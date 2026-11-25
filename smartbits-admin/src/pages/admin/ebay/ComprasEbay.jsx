@@ -419,6 +419,18 @@ export default function ComprasEbay() {
     return null;
   };
 
+  // Regla única para "Sin Prealerta" (usada tanto en el contador KPI como en el filtro y prioridad)
+  const esSinPrealerta = (evalStatus) => Boolean(
+    evalStatus.hasTrackingUsa &&
+    !evalStatus.isPrealerted &&
+    !evalStatus.hasTrackingVzla &&
+    !evalStatus.isRecibidoLiberty &&
+    !evalStatus.isEnVzla &&
+    !evalStatus.isEnTaller &&
+    !evalStatus.isVendido &&
+    !evalStatus.isDisponible
+  );
+
   // Prioridad operativa para clasificación:
   // 1: Sin agregar a inventario
   // 2: Sin prealertar (tiene tracking USA pero no prealertado)
@@ -431,8 +443,8 @@ export default function ComprasEbay() {
     if (evalStatus.isVendido) return 7; // 7° Ya Vendido
     if (evalStatus.isDisponible) return 6; // 6° Ya Disponible (salió de taller)
     if (!evalStatus.hasInv) return 1; // 1° Sin Inventario
-    // 2° Sin Prealertar: SOLO si tiene tracking USA y NO está prealertado, NI tiene guía VZLA, NI ha sido recibido en Liberty
-    if (evalStatus.hasTrackingUsa && !evalStatus.isPrealerted && !evalStatus.hasTrackingVzla && !evalStatus.isRecibidoLiberty && !evalStatus.isEnVzla) return 2;
+    // 2° Sin Prealertar: SOLO si tiene tracking USA y NO está prealertado, NI tiene guía VZLA, NI ha sido recibido en Liberty/Taller
+    if (esSinPrealerta(evalStatus)) return 2;
     if (evalStatus.isEnTaller) return 5; // 5° En taller (en preparación)
     if (evalStatus.isEnVzla) return 4; // 4° Tránsito a VZLA (recibido en Miami o en camino a Vzla)
     if (evalStatus.isEnUsa) return 3; // 3° Tránsito a Casillero (en camino a Miami)
@@ -458,7 +470,7 @@ export default function ComprasEbay() {
       const evalStatus = evaluarEstadoLogisticoItem(item, invObj, trk);
 
       if (!evalStatus.hasInv) sinInventarioCount++;
-      if (evalStatus.hasTrackingUsa && !evalStatus.isPrealerted && !evalStatus.hasTrackingVzla && !evalStatus.isRecibidoLiberty && !evalStatus.isEnVzla) sinPrealertaCount++;
+      if (esSinPrealerta(evalStatus)) sinPrealertaCount++;
 
       // En taller solo cuenta equipos en preparación (si ya están disponibles o vendidos, ya salieron del taller)
       if (evalStatus.isEnTaller) {
@@ -506,7 +518,7 @@ export default function ComprasEbay() {
         if (filterEstado === 'pendientes' || filterEstado === 'sin_inventario') {
           if (evalStatus.hasInv) return false;
         } else if (filterEstado === 'sin_prealerta') {
-          if (!evalStatus.hasTrackingUsa || evalStatus.isPrealerted || evalStatus.hasTrackingVzla || evalStatus.isRecibidoLiberty || evalStatus.isEnVzla || evalStatus.isVendido || evalStatus.isDisponible) return false;
+          if (!esSinPrealerta(evalStatus)) return false;
         } else if (filterEstado === 'en_usa') {
           if (!evalStatus.isEnUsa) return false;
         } else if (filterEstado === 'en_vzla') {
