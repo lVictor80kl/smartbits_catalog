@@ -117,6 +117,9 @@ export default function EditLaptop() {
                 // 1. Vinculación directa por ID de documento de compra
                 if (ebayDocId && data.ebay_compra_id === ebayDocId) return true;
 
+                // Si proviene de un lote dividido, permitir múltiples laptops bajo el mismo orderId
+                if (ebayData.es_lote_dividido) return false;
+
                 // 2. Verificación por número de orden REAL de eBay (excluyendo IDs temporales como order_1, order_2)
                 if (isValidEbayOrderId(ordClean)) {
                   const normClean = ordClean.replace(/^#/, '').trim().toLowerCase();
@@ -435,6 +438,12 @@ export default function EditLaptop() {
           ebay_compra_id: ebayData?.id || null,
           order_id: ebayData?.orderId || null,
           tracking_usa: ebayData?.tracking_usa ? ebayData.tracking_usa.trim().toUpperCase() : '',
+          ...(ebayData?.es_lote_dividido ? {
+            es_lote_dividido: true,
+            lote_grupo_id: ebayData.lote_grupo_id || null,
+            lote_indice: ebayData.lote_indice || null,
+            lote_total: ebayData.lote_total || null,
+          } : {}),
           creadoEn: serverTimestamp(),
         });
 

@@ -899,11 +899,15 @@ async function syncOrderToFirestore(order) {
     // Ya existe: actualizar datos manteniendo estado
     const existingDoc = await getRes.json();
     const existingTracking = existingDoc.fields?.tracking_usa?.stringValue;
+    const isLoteDividido = Boolean(existingDoc.fields?.es_lote_dividido?.booleanValue);
 
     const rawItemId = String(order.itemId || '').replace(/_u[0-9]+$/, '').trim();
     const rawOrderId = String(order.orderId || '').replace(/[\s-]/g, '').trim();
 
-    const fieldPaths = ['titulo', 'precio', 'fecha_compra', 'vendedor', 'foto_url', 'item_url', 'itemId', 'fecha_sincronizacion', 'shipping_status', 'tracking_usa_ultimo_estado'];
+    const baseFields = isLoteDividido
+      ? ['fecha_compra', 'vendedor', 'foto_url', 'item_url', 'itemId', 'fecha_sincronizacion', 'shipping_status', 'tracking_usa_ultimo_estado']
+      : ['titulo', 'precio', 'fecha_compra', 'vendedor', 'foto_url', 'item_url', 'itemId', 'fecha_sincronizacion', 'shipping_status', 'tracking_usa_ultimo_estado'];
+    const fieldPaths = [...baseFields];
     const isCorruptedExisting = existingTracking && (
       existingTracking.startsWith('{') || 
       existingTracking.includes('EVENTFAMILY') ||

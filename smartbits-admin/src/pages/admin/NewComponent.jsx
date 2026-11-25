@@ -105,6 +105,9 @@ export default function NewComponent() {
           // 1. Vinculación directa por ID de documento de compra
           if (ebayDocId && data.ebay_compra_id === ebayDocId) return true;
 
+          // Si proviene de un lote dividido, permitir múltiples componentes bajo el mismo orderId
+          if (ebayData.es_lote_dividido) return false;
+
           // 2. Verificación por número de orden REAL de eBay (excluyendo IDs temporales como order_1, order_2)
           if (isValidEbayOrderId(ordClean)) {
             const normClean = ordClean.replace(/^#/, '').trim().toLowerCase();
@@ -366,7 +369,7 @@ export default function NewComponent() {
         try {
           let trackingId = null;
           if (ebayData.tracking_usa) {
-            trackingId = await syncTrackingFromEbay(db, {
+            const trkRes = await syncTrackingFromEbay(db, {
               ebayItem: ebayData,
               inventoryItem: {
                 id: newCompRef.id,
@@ -376,6 +379,7 @@ export default function NewComponent() {
               },
               tipo: 'componente'
             });
+            trackingId = trkRes?.id || null;
           }
 
           await updateDoc(doc(db, 'compras_ebay', ebayData.id), {

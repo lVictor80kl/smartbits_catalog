@@ -10,7 +10,7 @@ import {
   Box, ArrowRight, DollarSign, Calendar, RefreshCw, X, ShieldAlert,
   Info, Sparkles, Filter, Check, EyeOff, RotateCcw, Link as LinkIcon,
   CheckCircle, Unlink, Layers, Edit2, Plus, Printer, Truck, MapPin,
-  Copy, AlertCircle, TrendingUp, LayoutDashboard
+  Copy, AlertCircle, TrendingUp, LayoutDashboard, Split
 } from 'lucide-react';
 import { 
   getTrackingUrlUsa, COURIERS_USA,
@@ -93,6 +93,16 @@ export default function ComprasEbay() {
   // Selección múltiple para asignación masiva de flete / gastos extras en lote
   const [selectedIds, setSelectedIds] = useState([]);
 
+  // Modal para dividir una compra de lote (2+ equipos en la misma publicación/orden)
+  const [splitModalState, setSplitModalState] = useState({
+    open: false,
+    item: null,
+    cantidad: 2,
+    modo: 'equitativo', // 'equitativo' | 'manual'
+    unidades: [],
+    saving: false
+  });
+
   // 1. Escuchar compras de eBay en tiempo real
   useEffect(() => {
     const q = query(collection(db, 'compras_ebay'), orderBy('fecha_sincronizacion', 'desc'));
@@ -147,6 +157,7 @@ export default function ComprasEbay() {
     // 1. Agrupar por itemId real de eBay (identificador universal único de la publicación)
     const byItemId = new Map();
     compras.forEach(item => {
+      if (item.es_lote_dividido) return;
       const rawItemId = String(item.itemId || '').replace(/_u[0-9]+$/, '').trim();
       const isValidItemId = rawItemId && /^[0-9]{8,16}$/.test(rawItemId);
       if (isValidItemId) {
@@ -192,7 +203,7 @@ export default function ComprasEbay() {
     // 2. Agrupar por orderId (para casos idénticos dentro de la misma orden)
     const byOrder = {};
     compras.forEach(item => {
-      if (processedIds.has(item.id)) return;
+      if (processedIds.has(item.id) || item.es_lote_dividido) return;
       const ordKey = (item.orderId || 'sin_orden').trim().toLowerCase();
       if (!byOrder[ordKey]) byOrder[ordKey] = [];
       byOrder[ordKey].push(item);
@@ -939,7 +950,12 @@ export default function ComprasEbay() {
           item_url: item.item_url,
           foto_url: item.foto_url,
           tracking_usa: item.tracking_usa,
-          courier_usa: item.courier_usa
+          courier_usa: item.courier_usa,
+          tracking_id: item.tracking_id || null,
+          es_lote_dividido: Boolean(item.es_lote_dividido),
+          lote_grupo_id: item.lote_grupo_id || null,
+          lote_indice: item.lote_indice || null,
+          lote_total: item.lote_total || null
         }
       }
     });
@@ -958,10 +974,174 @@ export default function ComprasEbay() {
           item_url: item.item_url,
           foto_url: item.foto_url,
           tracking_usa: item.tracking_usa,
-          courier_usa: item.courier_usa
+          courier_usa: item.courier_usa,
+          tracking_id: item.tracking_id || null,
+          es_lote_dividido: Boolean(item.es_lote_dividido),
+          lote_grupo_id: item.lote_grupo_id || null,
+          lote_indice: item.lote_indice || null,
+          lote_total: item.lote_total || null
         }
       }
     });
+  };
+
+  // --- Lógica de División de Lote (múltiples equipos en una misma compra) ---
+  const getLotSiblings = (item) => {
+    if (!item?.es_lote_dividido || !item?.lote_grupo_id) return [];
+    return compras.filter(c => c.id !== item.id && c.lote_grupo_id === item.lote_grupo_id);
+  };
+
+  const buildSplitUnits = (baseTitle, totalPrecio, count, existingUnits = []) => {
+    const n = Math.max(2, Math.min(20, Number(count) || 2));
+    const totalCents = Math.round((Number(totalPrecio) || 0) * 100);
+    const baseCents = Math.floor(totalCents / n);
+    const remainder = totalCents - baseCents * n;
+
+    return Array.from({ length: n }, (_, idx) => {
+      const unitCents = idx === n - 1 ? baseCents + remainder : baseCents;
+      const prevTitle = existingUnits[idx]?.titulo;
+      return {
+        titulo: prevTitle || `${(baseTitle || 'Equipo eBay').trim()} (${idx + 1}/${n})`,
+        precio: (unitCents / 100).toFixed(2)
+      };
+    });
+  };
+
+  const handleOpenSplitModal = (item) => {
+    const total = Number(item.precio) || 0;
+    setSplitModalState({
+      open: true,
+      item,
+      cantidad: 2,
+      modo: 'equitativo',
+      unidades: buildSplitUnits(item.titulo, total, 2),
+      saving: false
+    });
+  };
+
+  const handleSplitCountChange = (newCount) => {
+    const n = Math.max(2, Math.min(20, parseInt(newCount, 10) || 2));
+    setSplitModalState(prev => {
+      if (!prev.item) return prev;
+      const nextUnits = buildSplitUnits(prev.item.titulo, prev.item.precio, n, prev.unidades);
+      return { ...prev, cantidad: n, unidades: nextUnits };
+    });
+  };
+
+  const handleSplitModoChange = (newModo) => {
+    setSplitModalState(prev => {
+      if (!prev.item) return prev;
+      if (newModo === 'equitativo') {
+        return {
+          ...prev,
+          modo: 'equitativo',
+          unidades: buildSplitUnits(prev.item.titulo, prev.item.precio, prev.cantidad, prev.unidades)
+        };
+      }
+      return { ...prev, modo: 'manual' };
+    });
+  };
+
+  const handleSplitUnitChange = (index, field, value) => {
+    setSplitModalState(prev => {
+      const next = prev.unidades.map((u, i) => (i === index ? { ...u, [field]: value } : u));
+      return {
+        ...prev,
+        modo: field === 'precio' ? 'manual' : prev.modo,
+        unidades: next
+      };
+    });
+  };
+
+  const handleConfirmSplitLote = async () => {
+    const { item, unidades, cantidad } = splitModalState;
+    if (!item || unidades.length < 2) return;
+
+    const precios = unidades.map(u => parseFloat(u.precio));
+    if (precios.some(p => isNaN(p) || p < 0)) {
+      alert('Todos los costos por unidad deben ser números válidos mayores o iguales a 0.');
+      return;
+    }
+
+    const totalOriginal = Number(item.precio) || 0;
+    const sumaUnidades = precios.reduce((acc, p) => acc + p, 0);
+    if (totalOriginal > 0 && Math.abs(sumaUnidades - totalOriginal) > 0.05) {
+      const continuar = confirm(
+        `La suma de las unidades ($${sumaUnidades.toFixed(2)}) difiere del total original de eBay ($${totalOriginal.toFixed(2)}).\n\n¿Deseas guardar de todos modos?`
+      );
+      if (!continuar) return;
+    }
+
+    setSplitModalState(prev => ({ ...prev, saving: true }));
+    try {
+      const batch = writeBatch(db);
+      const grupoId = item.lote_grupo_id || item.id;
+
+      // 1. Actualizar documento original como Unidad 1/N (mantiene su ID para que la extensión no cree duplicados)
+      batch.update(doc(db, 'compras_ebay', item.id), {
+        titulo: (unidades[0].titulo || '').trim() || `${item.titulo} (1/${cantidad})`,
+        precio: Math.round(precios[0] * 100) / 100,
+        precio_lote_original: totalOriginal,
+        es_lote_dividido: true,
+        lote_grupo_id: grupoId,
+        lote_indice: 1,
+        lote_total: cantidad,
+        fecha_actualizacion: serverTimestamp()
+      });
+
+      // 2. Crear documentos hermanos (2/N .. N/N) compartiendo orderId y tracking
+      for (let i = 1; i < unidades.length; i++) {
+        const newRef = doc(collection(db, 'compras_ebay'));
+        batch.set(newRef, {
+          orderId: item.orderId || '',
+          itemId: item.itemId || '',
+          titulo: (unidades[i].titulo || '').trim() || `${item.titulo} (${i + 1}/${cantidad})`,
+          precio: Math.round(precios[i] * 100) / 100,
+          precio_lote_original: totalOriginal,
+          fecha_compra: item.fecha_compra || '',
+          vendedor: item.vendedor || '',
+          foto_url: item.foto_url || '',
+          item_url: item.item_url || '',
+          tracking_usa: item.tracking_usa || '',
+          courier_usa: item.courier_usa || 'otro',
+          tracking_vzla: item.tracking_vzla || '',
+          courier_vzla: item.courier_vzla || 'liberty',
+          tracking_id: item.tracking_id || null,
+          prealertado: Boolean(item.prealertado),
+          shipping_status: item.shipping_status || 'pendiente',
+          tracking_usa_ultimo_estado: item.tracking_usa_ultimo_estado || '',
+          tracking_usa_entregado: Boolean(item.tracking_usa_entregado),
+          isDelivered: Boolean(item.isDelivered),
+          en_taller: Boolean(item.en_taller),
+          estado: 'pendiente',
+          tipo_inventario: '',
+          inventario_id: '',
+          es_lote_dividido: true,
+          lote_grupo_id: grupoId,
+          lote_indice: i + 1,
+          lote_total: cantidad,
+          fecha_sincronizacion: item.fecha_sincronizacion || serverTimestamp(),
+          fecha_actualizacion: serverTimestamp()
+        });
+      }
+
+      await batch.commit();
+
+      setSplitModalState({
+        open: false,
+        item: null,
+        cantidad: 2,
+        modo: 'equitativo',
+        unidades: [],
+        saving: false
+      });
+      setAutoLinkNotification(`✅ Compra dividida en ${cantidad} unidades independientes compartiendo tracking.`);
+      setTimeout(() => setAutoLinkNotification(''), 6000);
+    } catch (err) {
+      console.error('Error dividiendo lote:', err);
+      alert('Error dividiendo lote: ' + err.message);
+      setSplitModalState(prev => ({ ...prev, saving: false }));
+    }
   };
 
   // Handlers para el modal rápido de Tracking USA
@@ -1025,7 +1205,7 @@ export default function ComprasEbay() {
           costo: item.precio || 0
         };
 
-        const resTrkId = await syncTrackingFromEbay(db, {
+        const resTrk = await syncTrackingFromEbay(db, {
           ebayItem: {
             ...item,
             tracking_usa: cleanTracking,
@@ -1035,15 +1215,21 @@ export default function ComprasEbay() {
           tipo: item.tipo_inventario === 'componente' ? 'componente' : 'laptop'
         });
 
-        if (resTrkId) trackingId = resTrkId;
+        if (resTrk?.id) trackingId = resTrk.id;
       }
 
-      await updateDoc(doc(db, 'compras_ebay', item.id), {
+      const batch = writeBatch(db);
+      const trkPayload = {
         tracking_usa: cleanTracking,
         courier_usa: courier_usa || 'usps',
         tracking_id: trackingId,
         fecha_actualizacion: serverTimestamp()
-      });
+      };
+      batch.update(doc(db, 'compras_ebay', item.id), trkPayload);
+      for (const sib of getLotSiblings(item)) {
+        batch.update(doc(db, 'compras_ebay', sib.id), trkPayload);
+      }
+      await batch.commit();
 
       setQuickTrackingModal({ open: false, item: null, tracking_usa: '', courier_usa: 'usps', syncToEnvios: true });
       setAutoLinkNotification(`¡Tracking USA ${cleanTracking} guardado${syncToEnvios ? ' y sincronizado con Envíos' : ''}!`);
@@ -1079,10 +1265,18 @@ export default function ComprasEbay() {
         });
       }
 
-      await updateDoc(doc(db, 'compras_ebay', item.id), {
+      const batchPre = writeBatch(db);
+      batchPre.update(doc(db, 'compras_ebay', item.id), {
         prealertado: newPrealertStatus,
         fecha_actualizacion: serverTimestamp()
       });
+      for (const sib of getLotSiblings(item)) {
+        batchPre.update(doc(db, 'compras_ebay', sib.id), {
+          prealertado: newPrealertStatus,
+          fecha_actualizacion: serverTimestamp()
+        });
+      }
+      await batchPre.commit();
 
       setAutoLinkNotification(newPrealertStatus ? '¡Paquete marcado como Prealertado! ✅' : 'Prealerta marcada como pendiente.');
       setTimeout(() => setAutoLinkNotification(''), 4000);
@@ -1145,13 +1339,19 @@ export default function ComprasEbay() {
         }
       }
 
-      await updateDoc(doc(db, 'compras_ebay', item.id), {
+      const batchVzla = writeBatch(db);
+      const vzlaPayload = {
         tracking_vzla: cleanGuia,
         courier_vzla: courier_vzla || 'liberty',
         prealertado: true,
         ...(targetTrkId ? { tracking_id: targetTrkId } : {}),
         fecha_actualizacion: serverTimestamp()
-      });
+      };
+      batchVzla.update(doc(db, 'compras_ebay', item.id), vzlaPayload);
+      for (const sib of getLotSiblings(item)) {
+        batchVzla.update(doc(db, 'compras_ebay', sib.id), vzlaPayload);
+      }
+      await batchVzla.commit();
 
       setQuickVzlaModal({ open: false, item: null, tracking_id: null, courier_vzla: 'liberty', tracking_vzla: '', saving: false });
       setAutoLinkNotification('¡Guía de Venezuela guardada exitosamente! 🇻🇪');
@@ -1187,10 +1387,26 @@ export default function ComprasEbay() {
         });
       }
 
-      await updateDoc(doc(db, 'compras_ebay', item.id), {
+      const batchTaller = writeBatch(db);
+      batchTaller.update(doc(db, 'compras_ebay', item.id), {
         en_taller: true,
         fecha_actualizacion: serverTimestamp()
       });
+      for (const sib of getLotSiblings(item)) {
+        batchTaller.update(doc(db, 'compras_ebay', sib.id), {
+          en_taller: true,
+          fecha_actualizacion: serverTimestamp()
+        });
+        const sibInv = getLinkedInventoryItem(sib);
+        if (sibInv?.item?.id) {
+          const sibCol = sibInv.type === 'componente' ? 'componentes' : 'laptops';
+          batchTaller.update(doc(db, sibCol, sibInv.item.id), {
+            en_taller: true,
+            actualizadoEn: serverTimestamp()
+          });
+        }
+      }
+      await batchTaller.commit();
 
       setAutoLinkNotification(`🏢 ¡${itemLabel} recibido en taller! (En preparación para su venta)`);
       setTimeout(() => setAutoLinkNotification(''), 5000);
@@ -1209,6 +1425,13 @@ export default function ComprasEbay() {
         tracking_usa_ultimo_estado: 'Entregado en Almacén Miami',
         fecha_actualizacion: serverTimestamp()
       });
+      for (const sib of getLotSiblings(item)) {
+        batch.update(doc(db, 'compras_ebay', sib.id), {
+          tracking_usa_entregado: true,
+          tracking_usa_ultimo_estado: 'Entregado en Almacén Miami',
+          fecha_actualizacion: serverTimestamp()
+        });
+      }
 
       if (trkDoc?.id) {
         const trkUpdates = {
@@ -2045,6 +2268,17 @@ export default function ComprasEbay() {
                           </span>
                         )}
 
+                        {/* Badge de Lote Dividido */}
+                        {item.es_lote_dividido && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded-md border bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300 border-violet-200 dark:border-violet-800"
+                            title={`Compra dividida en ${item.lote_total || '?'} unidades (Total lote: $${Number(item.precio_lote_original || 0).toFixed(2)})`}
+                          >
+                            <Split className="w-2.5 h-2.5" />
+                            <span>Lote {item.lote_indice || 1}/{item.lote_total || 2}</span>
+                          </span>
+                        )}
+
                         {/* Order ID de eBay */}
                         {editingOrderId === item.id ? (
                           <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-slate-300 dark:border-slate-700">
@@ -2279,6 +2513,17 @@ export default function ComprasEbay() {
                           <LinkIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                           <span>Vincular</span>
                         </button>
+
+                        {!item.es_lote_dividido && (
+                          <button
+                            onClick={() => handleOpenSplitModal(item)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-50/80 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-900/50 border border-violet-200 dark:border-violet-800 rounded-lg transition"
+                            title="Dividir esta compra en 2 o más equipos (repartir costo y compartir tracking)"
+                          >
+                            <Split className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                            <span>Dividir lote</span>
+                          </button>
+                        )}
                       </>
                     )}
 
@@ -2954,6 +3199,171 @@ export default function ComprasEbay() {
           </div>
         </div>
       )}
+
+      {/* Modal: Dividir Lote de Compra en múltiples unidades */}
+      {splitModalState.open && splitModalState.item && (() => {
+        const totalOriginal = Number(splitModalState.item.precio) || 0;
+        const sumaAsignada = splitModalState.unidades.reduce((acc, u) => acc + (parseFloat(u.precio) || 0), 0);
+        const diferencia = Math.round((sumaAsignada - totalOriginal) * 100) / 100;
+        const cuadraExacto = Math.abs(diferencia) <= 0.01;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col max-h-[90vh] space-y-4">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 rounded-xl">
+                    <Split className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                      Dividir Lote de Compra
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-sm">
+                      Orden #{splitModalState.item.orderId || 'S/N'} • Total eBay: <strong className="text-gray-800 dark:text-gray-200">${totalOriginal.toFixed(2)} USD</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSplitModalState({ open: false, item: null, cantidad: 2, modo: 'equitativo', unidades: [], saving: false })}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Controles de cantidad y modo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-gray-800/60 p-3.5 rounded-xl border border-slate-200 dark:border-gray-700">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                    ¿Cuántos equipos trae la compra?
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {[2, 3, 4].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => handleSplitCountChange(n)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition ${splitModalState.cantidad === n
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 border-slate-200 dark:border-gray-700 hover:border-violet-400'}`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      min="2"
+                      max="20"
+                      value={splitModalState.cantidad}
+                      onChange={(e) => handleSplitCountChange(e.target.value)}
+                      className="w-16 px-2.5 py-1.5 text-xs font-bold text-center rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-slate-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                    Reparto del costo de compra
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSplitModoChange('equitativo')}
+                      className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition ${splitModalState.modo === 'equitativo'
+                        ? 'bg-violet-600 text-white border-violet-600'
+                        : 'bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 border-slate-200 dark:border-gray-700 hover:border-violet-400'}`}
+                    >
+                      Partes iguales
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSplitModoChange('manual')}
+                      className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition ${splitModalState.modo === 'manual'
+                        ? 'bg-violet-600 text-white border-violet-600'
+                        : 'bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 border-slate-200 dark:border-gray-700 hover:border-violet-400'}`}
+                    >
+                      Manual
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lista editable de unidades */}
+              <div className="overflow-y-auto pr-1 space-y-2.5 flex-1">
+                {splitModalState.unidades.map((u, idx) => (
+                  <div
+                    key={idx}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800/40"
+                  >
+                    <span className="text-[11px] font-mono font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/60 px-2 py-1 rounded-md shrink-0 self-start sm:self-center">
+                      #{idx + 1}
+                    </span>
+                    <input
+                      type="text"
+                      value={u.titulo}
+                      onChange={(e) => handleSplitUnitChange(idx, 'titulo', e.target.value)}
+                      placeholder={`Nombre del equipo ${idx + 1}`}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs font-medium bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
+                    />
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-xs font-mono text-slate-400">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={u.precio}
+                        onChange={(e) => handleSplitUnitChange(idx, 'precio', e.target.value)}
+                        className="w-24 px-2.5 py-1.5 text-xs font-mono font-bold text-right bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Resumen de cuadre y nota de tracking */}
+              <div className="space-y-2">
+                <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold border ${cuadraExacto
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                  : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'}`}>
+                  <span>Suma asignada ({splitModalState.unidades.length} equipos):</span>
+                  <span className="font-mono font-bold">
+                    ${sumaAsignada.toFixed(2)} / ${totalOriginal.toFixed(2)} USD
+                    {!cuadraExacto && ` (${diferencia > 0 ? '+' : ''}${diferencia.toFixed(2)})`}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
+                  • Todas las unidades compartirán el mismo <strong>Order ID y Tracking USA/VZLA</strong>.<br />
+                  • Luego podrás crear cada equipo en inventario (+ Laptop) para publicarlos por separado, dividir el envío con <strong>Dividir Flete / Extras</strong> o cargar gastos individuales.
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-2 pt-2 border-t dark:border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setSplitModalState({ open: false, item: null, cantidad: 2, modo: 'equitativo', unidades: [], saving: false })}
+                  className="px-3.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSplitLote}
+                  disabled={splitModalState.saving}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg shadow-sm transition"
+                >
+                  <Split className="w-3.5 h-3.5" />
+                  <span>{splitModalState.saving ? 'Dividiendo...' : `Dividir en ${splitModalState.cantidad} unidades`}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Dock Flotante de Acciones Masivas (Flete dividido / Gastos Extras) */}
       {selectedIds.length > 0 && (
