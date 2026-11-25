@@ -212,27 +212,73 @@ export const ESTADOS_NORMALIZADOS = {
 };
 
 /**
+ * Normaliza texto de estatus a mayúsculas sin tildes para comparaciones robustas.
+ */
+function normalizarTextoEstado(str) {
+  if (!str) return '';
+  return String(str)
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+}
+
+/**
+ * Retorna true si el estatus contiene "ENTREGADO" pero corresponde a una entrega
+ * intermedia en tránsito (ej. "Entregado a la Aerolínea", "Entregado a Aduana",
+ * "Entregado en Almacén Miami") y NO a la entrega final en taller Smartbits.
+ */
+export function esEstadoEntregadoIntermedio(estadoOrText) {
+  const str = normalizarTextoEstado(estadoOrText);
+  if (!str || !str.includes('ENTREGAD')) return false;
+  return (
+    str.includes('AEROLINEA') ||
+    str.includes('LINEA AEREA') ||
+    str.includes('ADUANA') ||
+    str.includes('TRANSPORTISTA') ||
+    str.includes('NAVIERA') ||
+    str.includes('CONSOLIDADOR') ||
+    str.includes('OPERADOR') ||
+    str.includes('ALMACEN') ||
+    str.includes('MIAMI') ||
+    str.includes('CASILLERO') ||
+    str.includes('CENTRO DE DISTRIBUCION') ||
+    str.includes('COURIER USA')
+  );
+}
+
+/**
+ * Retorna true si el estatus indica que el paquete llegó a la agencia VZLA
+ * y está disponible para su retiro (ej. "Disponible para su retiro").
+ */
+export function esEstadoDisponibleRetiro(estadoOrText) {
+  const str = normalizarTextoEstado(estadoOrText);
+  if (!str) return false;
+  return (
+    str === 'DISPONIBLE_AGENCIA' ||
+    str.includes('DISPONIBLE PARA SU RETIRO') ||
+    str.includes('DISPONIBLE PARA RETIRO') ||
+    str.includes('DISPONIBLE EN AGENCIA') ||
+    str.includes('DISPONIBLE EN SUCURSAL') ||
+    str.includes('LISTO PARA RETIRO')
+  );
+}
+
+/**
  * Traduce el estatus crudo recibido de Liberty Express o Couriers USA a un estado normalizado.
  */
 export function normalizarEstadoTracking(rawStatus, courierId = '') {
   if (!rawStatus) return null;
-  const str = String(rawStatus).trim().toUpperCase();
+  const str = normalizarTextoEstado(rawStatus);
 
-  // 1. Entregado en destino final (Taller / Facturado)
-  if (
-    str.includes('FACTURAD') ||
-    str.includes('ENTREGAD') ||
-    str.includes('ENTREGA REALIZADA') ||
-    str.includes('RETIRADO POR') ||
-    str.includes('RETIRADO EN AGENCIA') ||
-    str.includes('PAQUETE RETIRADO')
-  ) {
+  // 1. Entregado en destino final (Taller / Facturado / Entregado)
+  // Excluye entregas intermedias como "Entregado a la Aerolínea" o "Entregado en Almacén Miami"
+  if (esEstadoEntregado(str)) {
     return ESTADOS_NORMALIZADOS.entregado_taller;
   }
 
   // 2. Prealertado en espera
   if (
-    str.includes('GUÍA PRE ALERTADA') ||
     str.includes('GUIA PRE ALERTADA') ||
     str.includes('PREALERTAD') ||
     str.includes('ESPERANDO PAQUETE')
@@ -240,17 +286,12 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
     return ESTADOS_NORMALIZADOS.prealertado;
   }
 
-  // 2. Disponible para retiro en sucursal / agencia VZLA
-  if (
-    str.includes('DISPONIBLE EN AGENCIA') ||
-    str.includes('DISPONIBLE EN SUCURSAL') ||
-    str.includes('LISTO PARA RETIRO') ||
-    str.includes('DISPONIBLE')
-  ) {
+  // 3. Disponible para retiro en sucursal / agencia VZLA
+  if (esEstadoDisponibleRetiro(str) || str.includes('DISPONIBLE')) {
     return ESTADOS_NORMALIZADOS.disponible_agencia;
   }
 
-  // 3. Aduana / Nacionalización
+  // 4. Aduana / Nacionalización
   if (
     str.includes('ADUANA') ||
     str.includes('NACIONALIZACION') ||
@@ -260,8 +301,10 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
     return ESTADOS_NORMALIZADOS.en_aduana;
   }
 
-  // 4. Tránsito internacional hacia VZLA (Liberty, Zoom, Tealca)
+  // 5. Tránsito internacional hacia VZLA (Liberty, Zoom, Tealca)
   if (
+    str.includes('AEROLINEA') ||
+    str.includes('LINEA AEREA') ||
     str.includes('A BORDO') ||
     str.includes('TRANSPORTADO A SU DESTINO') ||
     str.includes('LISTO PARA SER EMBARCADO') ||
@@ -277,7 +320,7 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
     return ESTADOS_NORMALIZADOS.transito_vzla;
   }
 
-  // 5. Recibido en Almacén Casillero Miami (Liberty / Otros)
+  // 6. Recibido en Almacén Casillero Miami (Liberty / Otros)
   if (
     str.includes('RECIBIDO EN CENTRO DE DISTRIBUCION') ||
     str.includes('CENTRO DE DISTRIBUCION') ||
@@ -291,10 +334,12 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
     return ESTADOS_NORMALIZADOS.en_miami;
   }
 
-  // 6. Entregado por courier USA en casillero Miami (UPS, FedEx, USPS)
+  // 7. Entregado por courier USA en casillero Miami (UPS, FedEx, USPS)
   if (
     str.includes('DELIVERED') ||
     str.includes('ENTREGADO EN ALMACEN') ||
+    str.includes('ENTREGADO EN MIAMI') ||
+    str.includes('ENTREGADO POR COURIER USA') ||
     str.includes('LEFT AT') ||
     str.includes('FRONT DESK') ||
     str.includes('MAILROOM') ||
@@ -304,7 +349,7 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
     return ESTADOS_NORMALIZADOS.delivered_miami;
   }
 
-  // 7. En reparto / Out for delivery
+  // 8. En reparto / Out for delivery
   if (
     str.includes('OUT FOR DELIVERY') ||
     str.includes('EN REPARTO') ||
@@ -313,7 +358,7 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
     return ESTADOS_NORMALIZADOS.out_for_delivery;
   }
 
-  // 8. En tránsito USA
+  // 9. En tránsito USA
   if (
     str.includes('IN TRANSIT') ||
     str.includes('ON THE WAY') ||
@@ -324,7 +369,7 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
     return ESTADOS_NORMALIZADOS.in_transit;
   }
 
-  // 9. Etiqueta creada
+  // 10. Etiqueta creada
   if (
     str.includes('LABEL CREATED') ||
     str.includes('PRE-SHIPMENT') ||
@@ -334,7 +379,7 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
     return ESTADOS_NORMALIZADOS.label_created;
   }
 
-  // 10. Excepciones
+  // 11. Excepciones
   if (
     str.includes('EXCEPTION') ||
     str.includes('DELAYED') ||
@@ -356,20 +401,31 @@ export function normalizarEstadoTracking(rawStatus, courierId = '') {
 }
 
 /**
- * Retorna true si el estado indica entrega física final.
+ * Retorna true si el estado indica entrega física final al cliente/taller
+ * (ej. "Facturado / Entregado", "Retirado en Agencia").
+ * Excluye explícitamente entregas intermedias como "Entregado a la Aerolínea".
  */
 export function esEstadoEntregado(estadoOrText) {
-  if (!estadoOrText) return false;
-  const str = String(estadoOrText).trim().toUpperCase();
+  const str = normalizarTextoEstado(estadoOrText);
+  if (!str) return false;
+  if (esEstadoEntregadoIntermedio(str)) return false;
+  if (esEstadoDisponibleRetiro(str)) return false;
   return (
     str === 'YA_RECOGIDO' ||
     str === 'ENTREGADO_TALLER' ||
+    str.includes('FACTURADO / ENTREGADO') ||
+    str.includes('FACTURADO/ENTREGADO') ||
     str.includes('FACTURAD') ||
-    str.includes('ENTREGAD') ||
     str.includes('ENTREGA REALIZADA') ||
     str.includes('RETIRADO POR') ||
     str.includes('RETIRADO EN AGENCIA') ||
-    str.includes('PAQUETE RETIRADO')
+    str.includes('PAQUETE RETIRADO') ||
+    str === 'ENTREGADO' ||
+    str.includes('ENTREGADO AL CLIENTE') ||
+    str.includes('ENTREGADO AL DESTINATARIO') ||
+    str.includes('ENTREGADO EN AGENCIA') ||
+    str.includes('ENTREGADO EN SUCURSAL') ||
+    str.includes('ENTREGADO EN TALLER')
   );
 }
 
@@ -377,8 +433,8 @@ export function esEstadoEntregado(estadoOrText) {
  * Retorna true si el paquete ya llegó al almacén de Miami o Centro de Distribución.
  */
 export function esEstadoRecibidoMiami(estadoOrText) {
-  if (!estadoOrText) return false;
-  const str = String(estadoOrText).trim().toUpperCase();
+  const str = normalizarTextoEstado(estadoOrText);
+  if (!str) return false;
   return (
     str === 'EN_MIAMI' ||
     str === 'DELIVERED_MIAMI' ||
@@ -398,10 +454,12 @@ export function esEstadoRecibidoMiami(estadoOrText) {
  * Retorna true si el estatus reporta tránsito internacional hacia Venezuela.
  */
 export function esEstadoTransitoVzla(estadoOrText) {
-  if (!estadoOrText) return false;
-  const str = String(estadoOrText).trim().toUpperCase();
+  const str = normalizarTextoEstado(estadoOrText);
+  if (!str) return false;
   return (
     str === 'TRANSITO_VZLA' ||
+    str.includes('AEROLINEA') ||
+    str.includes('LINEA AEREA') ||
     str.includes('A BORDO') ||
     str.includes('TRANSPORTADO') ||
     str.includes('EMBARCADO') ||
@@ -469,6 +527,7 @@ export function evaluarEstadoLogisticoItem(item = {}, invObj = null, trkDoc = nu
   const isRecibidoLiberty = Boolean(
     esEstadoRecibidoMiami(vzlaUltimoEstado) ||
     esEstadoTransitoVzla(vzlaUltimoEstado) ||
+    esEstadoDisponibleRetiro(vzlaUltimoEstado) ||
     esEstadoEntregado(vzlaUltimoEstado) ||
     trkDoc?.estado === 'en_miami' ||
     trkDoc?.estado === 'transito_vzla' ||

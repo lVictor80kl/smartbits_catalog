@@ -2,6 +2,13 @@
 // Servicio automatizado de rastreo de envíos y detección de guías VZLA (Liberty Express / Couriers USA)
 
 import { doc, updateDoc, serverTimestamp, writeBatch, collection, addDoc } from 'firebase/firestore';
+import {
+  esEstadoEntregado,
+  esEstadoEntregadoIntermedio,
+  esEstadoDisponibleRetiro,
+  esEstadoTransitoVzla
+} from '../utils/couriers';
+import { tieneEnvioPagado } from '../utils/costos';
 
 /**
  * Normaliza un número de tracking eliminando espacios y guiones.
@@ -197,11 +204,16 @@ function decodeHtmlEntities(str) {
   if (sucursalMatch) sucursal = sucursalMatch[1].trim();
 
   // 4. Analizar indicadores clave (Prealerta / Delivered / Miami / Tránsito VZLA)
-  const fullTextUpper = `${ultimoEstado || ''} ${historial.map(h => `${h.titulo} ${h.detalle}`).join(' ')}`.toUpperCase();
+  const quitarTildesUpper = (txt) =>
+    String(txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+
+  const estadoActualTexto = ultimoEstado || historial[0]?.titulo || '';
+  const estadoActualUpper = quitarTildesUpper(estadoActualTexto);
+  const fullTextUpper = quitarTildesUpper(`${ultimoEstado || ''} ${historial.map(h => `${h.titulo} ${h.detalle}`).join(' ')}`);
 
   const isSinMovimientos = (
     fullTextUpper.includes('SIN MOVIMIENTOS') ||
-    fullTextUpper.includes('EL NÚMERO DE LA GUÍA NO EXISTE') ||
+    fullTextUpper.includes('EL NUMERO DE LA GUIA NO EXISTE') ||
     fullTextUpper.includes('NO EXISTE, POR FAVOR INGRESE') ||
     fullTextUpper.includes('NO EXISTE') ||
     html.includes('tr-empty')
@@ -211,44 +223,24 @@ function decodeHtmlEntities(str) {
 
   // Indicador de solo pre-alertado (aún viajando con el courier USA hacia Miami)
   const isPrealertOnly = (
-    fullTextUpper.includes('GUÍA PRE ALERTADA') ||
     fullTextUpper.includes('GUIA PRE ALERTADA') ||
     fullTextUpper.includes('ESPERANDO PAQUETE') ||
     (Boolean(trackingVzla && trackingVzla.startsWith('WRTMP-')) && !fullTextUpper.includes('RECIBIDO EN') && !fullTextUpper.includes('CENTRO DE DISTRIBUCION'))
   );
 
-  const isDelivered = (
-    fullTextUpper.includes('ENTREGAD') ||
-    fullTextUpper.includes('ENTREGA REALIZADA') ||
-    fullTextUpper.includes('RETIRADO POR') ||
-    fullTextUpper.includes('RETIRADO EN AGENCIA') ||
-    fullTextUpper.includes('PAQUETE RETIRADO') ||
-    fullTextUpper.includes('FACTURAD')
-  );
+  // Entrega final REAL en VZLA (ej. "Facturado / Entregado", "Retirado en Agencia").
+  // Evalúa el estatus actual y excluye entregas intermedias como "Entregado a la Aerolínea".
+  const isDelivered = esEstadoEntregado(estadoActualTexto);
 
+  // Disponible en agencia VZLA para retiro (ej. "Disponible para su retiro")
   const isDisponible = !isDelivered && (
-    fullTextUpper.includes('DISPONIBLE PARA SU RETIRO') ||
-    fullTextUpper.includes('DISPONIBLE EN AGENCIA') ||
-    fullTextUpper.includes('DISPONIBLE EN SUCURSAL') ||
-    fullTextUpper.includes('LISTO PARA RETIRO') ||
-    fullTextUpper.includes('DISPONIBLE')
+    esEstadoDisponibleRetiro(estadoActualTexto) ||
+    estadoActualUpper.includes('DISPONIBLE')
   );
 
   const isTransitoVzla = !isDelivered && !isDisponible && !isPrealertOnly && (
-    fullTextUpper.includes('A BORDO') ||
-    fullTextUpper.includes('TRANSPORTADO') ||
-    fullTextUpper.includes('EMBARCADO') ||
-    fullTextUpper.includes('EMPACADO') ||
-    fullTextUpper.includes('AUDITORIA') ||
-    fullTextUpper.includes('TRANSFERIDO') ||
-    fullTextUpper.includes('TRASLADO') ||
-    fullTextUpper.includes('VUELO') ||
-    fullTextUpper.includes('BARCO') ||
-    fullTextUpper.includes('DESPACHADO') ||
-    fullTextUpper.includes('TRANSITO') ||
-    fullTextUpper.includes('ADUANA') ||
-    fullTextUpper.includes('NACIONALIZACION') ||
-    fullTextUpper.includes('SALIDA')
+    esEstadoTransitoVzla(estadoActualTexto) ||
+    esEstadoTransitoVzla(fullTextUpper)
   );
 
   // Físicamente recibido en almacén Miami o en red Liberty
@@ -471,6 +463,7 @@ export async function sincronizarTrackingsConCouriers({
     totalProcesados: 0,
     vzlaDetectados: [],
     entregadosTaller: [],
+    corregidosTaller: [],
     pendientesFlete: [],
     errores: []
   };
@@ -500,15 +493,8 @@ export async function sincronizarTrackingsConCouriers({
     const cleanVzla = cleanTrackingNumber(c.tracking_vzla);
     if (cleanVzla && !cleanVzla.startsWith('WRTMP-')) return false;
 
-    // Descartar si el estatus reportado ya es terminal (facturado, entregado, recogido)
-    const vzlaUltimo = (c.tracking_vzla_ultimo_estado || '').toUpperCase();
-    if (
-      vzlaUltimo.includes('FACTURAD') ||
-      vzlaUltimo.includes('ENTREGAD') ||
-      vzlaUltimo.includes('RETIRADO EN AGENCIA') ||
-      vzlaUltimo.includes('ENTREGA REALIZADA') ||
-      vzlaUltimo.includes('PAQUETE RETIRADO')
-    ) {
+    // Descartar si el estatus reportado ya es terminal (facturado / entregado, recogido)
+    if (esEstadoEntregado(c.tracking_vzla_ultimo_estado)) {
       return false;
     }
 
@@ -610,18 +596,34 @@ export async function sincronizarTrackingsConCouriers({
 
   const todosLosTrackings = [...trackings, ...newTrackingsCreated];
 
-  // Filtrar trackings que ameritan consulta automática (excluir ya recogidos, en taller o facturados/entregados)
+  // Detecta paquetes marcados erróneamente "en_taller" / "ya_recogido" por un estatus intermedio
+  // de Liberty como "Entregado a la Aerolínea" (o por el bug anterior que leía todo el historial).
+  const esFalsoPositivoTaller = (t) => {
+    if (!(t.estado === 'ya_recogido' || t.en_taller)) return false;
+    const ultimo = t.tracking_vzla_ultimo_estado || '';
+    const marcadoPorBugIntermedio = esEstadoEntregadoIntermedio(ultimo);
+    const marcadoAutoSinEntregaReal = Boolean(t.tracking_vzla_entregado) && Boolean(ultimo) && !esEstadoEntregado(ultimo);
+    if (!marcadoPorBugIntermedio && !marcadoAutoSinEntregaReal) return false;
+    if (t.flete_monto && Number(t.flete_monto) > 0) return false;
+    const items = Array.isArray(t.items) ? t.items : [];
+    for (const it of items) {
+      const lap = laptops.find(l => l.id === it.id || l.ebay_compra_id === it.id);
+      if (lap && (lap.disponibilidad === 'Disponible' || lap.disponibilidad === 'No disponible' || tieneEnvioPagado(lap))) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Filtrar trackings que ameritan consulta automática (excluir ya recogidos, en taller o facturados/entregados,
+  // salvo falsos positivos causados por "Entregado a la Aerolínea" para auto-repararlos)
   const candidatos = todosLosTrackings.filter(t => {
-    if (t.estado === 'ya_recogido' || t.en_taller) return false;
-    const vzlaUpper = (t.tracking_vzla_ultimo_estado || '').toUpperCase();
-    if (
-      vzlaUpper.includes('FACTURAD') ||
-      vzlaUpper.includes('ENTREGAD') ||
-      vzlaUpper.includes('RETIRADO EN AGENCIA') ||
-      vzlaUpper.includes('ENTREGA REALIZADA') ||
-      vzlaUpper.includes('PAQUETE RETIRADO')
-    ) {
-      return false;
+    const esFalsoPositivo = esFalsoPositivoTaller(t);
+    if (!esFalsoPositivo) {
+      if (t.estado === 'ya_recogido' || t.en_taller) return false;
+      if (esEstadoEntregado(t.tracking_vzla_ultimo_estado)) {
+        return false;
+      }
     }
     const cleanUsa = cleanTrackingNumber(t.tracking_usa);
     const cleanVzla = cleanTrackingNumber(t.tracking_vzla);
@@ -636,6 +638,7 @@ export async function sincronizarTrackingsConCouriers({
 
   for (let i = 0; i < total; i++) {
     const trk = candidatos[i];
+    const eraFalsoPositivo = esFalsoPositivoTaller(trk);
     const cleanUsa = cleanTrackingNumber(trk.tracking_usa);
     const cleanVzla = cleanTrackingNumber(trk.tracking_vzla);
 
@@ -757,8 +760,9 @@ export async function sincronizarTrackingsConCouriers({
         }
 
         // D) TRANSICIÓN INTELIGENTE DE ESTADO SEGÚN LIBERTY:
+        let revertirFalsoTaller = false;
         if (res.isDelivered && trk.estado !== "ya_recogido") {
-          // Si Liberty dice Facturado / Retirado / Entregado -> Pasa a Taller y ya recogido
+          // Si Liberty dice "Facturado / Entregado" o Retirado -> Pasa a Taller y ya recogido
           updatesTrk.estado = "ya_recogido";
           updatesTrk.en_taller = true;
           updatesTrk.tracking_vzla_entregado = true;
@@ -770,13 +774,29 @@ export async function sincronizarTrackingsConCouriers({
             trackingVzla: res.trackingVzla || cleanVzla,
             estado: res.ultimoEstado
           });
+        } else if (!res.isDelivered && eraFalsoPositivo) {
+          // Auto-reparación: había sido marcado "en_taller" erróneamente por "Entregado a la Aerolínea"
+          revertirFalsoTaller = true;
+          updatesTrk.en_taller = false;
+          updatesTrk.tracking_vzla_entregado = false;
+          updatesTrk.fecha_recogido = null;
+          updatesTrk.estado = res.isDisponible
+            ? "disponible_agencia"
+            : (res.isTransitoVzla ? "transito_vzla" : (res.isInMiami ? "en_miami" : "prealertado"));
+          huboCambios = true;
+          resultSummary.corregidosTaller.push({
+            trackingId: trk.id,
+            trackingUsa: cleanUsa,
+            trackingVzla: res.trackingVzla || cleanVzla,
+            estado: res.ultimoEstado
+          });
         } else if (res.isDisponible && trk.estado !== "ya_recogido") {
           if (trk.estado !== "disponible_agencia") {
             updatesTrk.estado = "disponible_agencia";
             huboCambios = true;
           }
         } else if (res.isTransitoVzla && trk.estado !== "ya_recogido" && trk.estado !== "disponible_agencia") {
-          // Ejemplo: "A bordo, para ser transportado a su destino"
+          // Ejemplo: "Entregado a la Aerolínea", "A bordo, para ser transportado a su destino"
           if (trk.estado !== "transito_vzla") {
             updatesTrk.estado = "transito_vzla";
             huboCambios = true;
@@ -786,6 +806,9 @@ export async function sincronizarTrackingsConCouriers({
             updatesTrk.estado = "en_miami";
             huboCambios = true;
           }
+        }
+        if (revertirFalsoTaller) {
+          updatesTrk._revertirFalsoTaller = true;
         }
       } else if (res && res.success && !res.found) {
         // Si se consultó con tracking USA y Liberty NO encontró ningún paquete:
@@ -813,9 +836,26 @@ export async function sincronizarTrackingsConCouriers({
           tracking: cleanVzla || cleanUsa,
           error: res.error || 'No se pudo conectar con Liberty Express'
         });
+        if (eraFalsoPositivo) {
+          updatesTrk.en_taller = false;
+          updatesTrk.tracking_vzla_entregado = false;
+          updatesTrk.fecha_recogido = null;
+          updatesTrk.estado = "transito_vzla";
+          updatesTrk._revertirFalsoTaller = true;
+          huboCambios = true;
+          resultSummary.corregidosTaller.push({
+            trackingId: trk.id,
+            trackingUsa: cleanUsa,
+            trackingVzla: cleanVzla,
+            estado: trk.tracking_vzla_ultimo_estado
+          });
+        }
       }
 
       if (huboCambios) {
+        const debeRevertirTaller = Boolean(updatesTrk._revertirFalsoTaller);
+        delete updatesTrk._revertirFalsoTaller;
+
         batch.update(doc(db, "trackings", trk.id), updatesTrk);
 
         for (const c of comprasVinculadas) {
@@ -853,28 +893,33 @@ export async function sincronizarTrackingsConCouriers({
           }
           if (res && res.isDelivered) {
             updatesCompra.en_taller = true;
+          } else if (debeRevertirTaller) {
+            updatesCompra.en_taller = false;
           }
           batch.update(doc(db, "compras_ebay", c.id), updatesCompra);
         }
 
-        // Propagar a laptops / componentes si está entregado en taller
-        if (res && res.isDelivered) {
+        // Propagar a laptops / componentes si está entregado en taller o si se revierte falso positivo
+        if ((res && res.isDelivered) || debeRevertirTaller) {
           for (const it of itemsEnTracking) {
             if (it.tipo === "componente") {
               const compMatch = componentes.find(cmp => cmp.id === it.id);
               if (compMatch) {
                 batch.update(doc(db, "componentes", compMatch.id), {
-                  en_taller: true,
+                  en_taller: Boolean(res && res.isDelivered),
                   actualizadoEn: serverTimestamp()
                 });
               }
             } else {
               const lapMatch = laptops.find(l => l.id === it.id || l.ebay_compra_id === it.id);
               if (lapMatch) {
-                batch.update(doc(db, "laptops", lapMatch.id), {
-                  en_taller: true,
-                  actualizadoEn: serverTimestamp()
-                });
+                const puedeRevertir = !debeRevertirTaller || (lapMatch.disponibilidad !== 'Disponible' && lapMatch.disponibilidad !== 'No disponible' && !tieneEnvioPagado(lapMatch));
+                if (puedeRevertir) {
+                  batch.update(doc(db, "laptops", lapMatch.id), {
+                    en_taller: Boolean(res && res.isDelivered),
+                    actualizadoEn: serverTimestamp()
+                  });
+                }
               }
             }
           }

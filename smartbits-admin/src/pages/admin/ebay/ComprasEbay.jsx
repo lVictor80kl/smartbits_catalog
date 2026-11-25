@@ -670,11 +670,13 @@ export default function ComprasEbay() {
 
       const vzlaCount = res.vzlaDetectados.length;
       const tallerCount = res.entregadosTaller.length;
+      const corregidosCount = (res.corregidosTaller || []).length;
 
-      if (vzlaCount > 0 || tallerCount > 0) {
+      if (vzlaCount > 0 || tallerCount > 0 || corregidosCount > 0) {
         const partes = [];
         if (vzlaCount > 0) partes.push(`🎉 ${vzlaCount} nueva(s) guía(s) VZLA detectada(s)`);
         if (tallerCount > 0) partes.push(`🛠️ ${tallerCount} paquete(s) pasaron a taller`);
+        if (corregidosCount > 0) partes.push(`🔄 ${corregidosCount} paquete(s) corregido(s) de taller a tránsito`);
         const msg = partes.join(' • ');
         setSyncCourierNotification(msg);
         setTimeout(() => setSyncCourierNotification(''), 10000);
